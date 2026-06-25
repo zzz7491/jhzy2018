@@ -1,0 +1,405 @@
+<!--pages/admin/volunteer-manage/index.wxml-->
+<view class="volunteer-manage-container">
+  <!-- 顶部搜索栏 -->
+  <view class="search-bar">
+    <view class="search-input-wrapper">
+      <input 
+        class="search-input" 
+        placeholder="搜索姓名/手机号/志愿者编号" 
+        placeholder-class="placeholder"
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+        bindconfirm="onSearchConfirm"
+        confirm-type="search"
+      />
+      <icon 
+        wx:if="{{searchKeyword}}" 
+        class="clear-icon" 
+        type="clear" 
+        size="16" 
+        bindtap="clearSearch"
+      />
+      <icon 
+        wx:else 
+        class="search-icon" 
+        type="search" 
+        size="16" 
+      />
+    </view>
+  </view>
+
+  <!-- 状态筛选标签 -->
+  <scroll-view class="status-filter" scroll-x="true">
+    <view class="filter-list">
+      <view 
+        class="filter-item {{status === 'all' ? 'active' : ''}}"
+        data-status="all"
+        bindtap="switchStatus"
+      >
+        全部
+        <text wx:if="{{totalCount > 0}}" class="count">{{totalCount}}</text>
+      </view>
+      <view 
+        class="filter-item {{status === 'pending' ? 'active' : ''}}"
+        data-status="pending"
+        bindtap="switchStatus"
+      >
+        待审核
+        <text wx:if="{{pendingCount > 0}}" class="count">{{pendingCount}}</text>
+      </view>
+      <view 
+        class="filter-item {{status === 'active' ? 'active' : ''}}"
+        data-status="active"
+        bindtap="switchStatus"
+      >
+        已启用
+        <text wx:if="{{activeCount > 0}}" class="count">{{activeCount}}</text>
+      </view>
+      <view 
+        class="filter-item {{status === 'disabled' ? 'active' : ''}}"
+        data-status="disabled"
+        bindtap="switchStatus"
+      >
+        已禁用
+        <text wx:if="{{disabledCount > 0}}" class="count">{{disabledCount}}</text>
+      </view>
+      <view 
+        class="filter-item {{status === 'rejected' ? 'active' : ''}}"
+        data-status="rejected"
+        bindtap="switchStatus"
+      >
+        已拒绝
+        <text wx:if="{{rejectedCount > 0}}" class="count">{{rejectedCount}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 操作按钮区域 -->
+  <view class="action-bar">
+    <view class="action-buttons">
+      <button class="action-btn" bindtap="showImport">
+        <icon type="success" size="16" color="#fff" />
+        <text>导入志愿者</text>
+      </button>
+      <button class="action-btn" bindtap="showBatchAudit">
+        <icon type="waiting" size="16" color="#fff" />
+        <text>批量审核</text>
+      </button>
+      <button class="action-btn" bindtap="exportData">
+        <icon type="download" size="16" color="#fff" />
+        <text>导出数据</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 志愿者列表 -->
+  <view class="volunteer-list">
+    <block wx:if="{{volunteerList.length > 0}}">
+      <checkbox-group bindchange="onCheckboxChange">
+        <block wx:for="{{volunteerList}}" wx:key="id" wx:for-index="index">
+          <view class="volunteer-item">
+            <!-- 选择框 -->
+            <view class="item-checkbox">
+              <checkbox value="{{item.id}}" checked="{{item.checked}}" />
+            </view>
+            
+            <!-- 内容区域 -->
+            <view class="item-content" data-id="{{item.id}}" bindtap="viewDetail">
+              <view class="item-header">
+                <view class="user-info">
+                  <text class="name">{{item.real_name || '未设置姓名'}}</text>
+                  <text class="badge {{getStatusClass(item.status)}}">
+                    {{getStatusText(item.status)}}
+                  </text>
+                </view>
+                <view class="item-actions">
+                  <view class="action-btn small" data-id="{{item.id}}" data-type="audit" bindtap="quickAudit">
+                    <text>审核</text>
+                  </view>
+                  <view class="action-btn small" data-id="{{item.id}}" data-type="points" bindtap="quickPoints">
+                    <text>积分</text>
+                  </view>
+                  <view class="action-btn small danger" data-id="{{item.id}}" data-type="delete" bindtap="quickDelete">
+                    <text>删除</text>
+                  </view>
+                </view>
+              </view>
+              
+              <view class="item-details">
+                <view class="detail-row">
+                  <text class="label">编号：</text>
+                  <text class="value">{{item.volunteer_id || '无'}}</text>
+                </view>
+                <view class="detail-row">
+                  <text class="label">手机：</text>
+                  <text class="value">{{item.phone || '未设置'}}</text>
+                </view>
+                <view class="detail-row">
+                  <text class="label">积分：</text>
+                  <text class="value points">{{item.points_from_summary || 0}}</text>
+                </view>
+                <view class="detail-row">
+                  <text class="label">注册时间：</text>
+                  <text class="value">{{item.create_time || '未记录'}}</text>
+                </view>
+              </view>
+              
+              <view class="item-footer">
+                <view class="status-actions">
+                  <view 
+                    wx:if="{{item.status == 0}}" 
+                    class="status-btn approve" 
+                    data-id="{{item.id}}" 
+                    bindtap="quickApprove"
+                  >
+                    <icon type="success" size="14" color="#fff" />
+                    <text>通过</text>
+                  </view>
+                  <view 
+                    wx:if="{{item.status == 0}}" 
+                    class="status-btn reject" 
+                    data-id="{{item.id}}" 
+                    bindtap="quickReject"
+                  >
+                    <icon type="cancel" size="14" color="#fff" />
+                    <text>拒绝</text>
+                  </view>
+                  <view 
+                    wx:if="{{item.status == 3}}" 
+                    class="status-btn enable" 
+                    data-id="{{item.id}}" 
+                    bindtap="quickEnable"
+                  >
+                    <icon type="success" size="14" color="#fff" />
+                    <text>启用</text>
+                  </view>
+                  <view 
+                    wx:if="{{item.status == 1}}" 
+                    class="status-btn disable" 
+                    data-id="{{item.id}}" 
+                    bindtap="quickDisable"
+                  >
+                    <icon type="warn" size="14" color="#fff" />
+                    <text>禁用</text>
+                  </view>
+                  <view
+                    class="status-btn reset-password"
+                    data-id="{{item.id}}"
+                    bindtap="resetPassword"
+                  >
+                    <icon type="refresh" size="14" color="#fff" />
+                    <text>重置密码</text>
+                  </view>
+                </view>
+                
+                <view class="stats">
+                  <text>活动：{{item.total_activities || 0}}次</text>
+                  <text>时长：{{item.total_hours || 0}}小时</text>
+                </view>
+              </view>
+            </view>
+          </view>
+        </block>
+      </checkbox-group>
+      
+      <!-- 加载更多 -->
+      <view wx:if="{{hasMore}}" class="load-more" bindtap="loadMore">
+        <text wx:if="{{loading}}">加载中...</text>
+        <text wx:else>点击加载更多</text>
+      </view>
+      <view wx:else class="no-more">
+        <text>没有更多了</text>
+      </view>
+    </block>
+    
+    <!-- 空状态 -->
+    <view wx:else class="empty-state">
+      <image src="/images/icons/empty-people.png" class="empty-icon" />
+      <text class="empty-text">暂无志愿者数据</text>
+    </view>
+  </view>
+
+  <!-- 批量操作浮窗 -->
+  <view wx:if="{{selectedCount > 0}}" class="batch-actions">
+    <view class="batch-info">
+      <text>已选择 {{selectedCount}} 个志愿者</text>
+    </view>
+    <view class="batch-buttons">
+      <button class="batch-btn" bindtap="batchApprove">批量通过</button>
+      <button class="batch-btn" bindtap="batchReject">批量拒绝</button>
+      <button class="batch-btn danger" bindtap="batchDelete">批量删除</button>
+    </view>
+  </view>
+
+  <!-- 快捷审核弹窗（已添加志愿者类型选择） -->
+  <view class="quick-modal" wx:if="{{showQuickAudit}}">
+    <view class="modal-mask" catchtap="closeQuickAudit"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">审核志愿者</text>
+      </view>
+      <view class="modal-body">
+        <text>确定要{{quickAuditAction === 'approve' ? '通过' : '拒绝'}}志愿者 "{{currentVolunteer && currentVolunteer.real_name}}" 吗？</text>
+        
+        <!-- 志愿者类型选择（仅审核通过时显示） -->
+        <view wx:if="{{quickAuditAction === 'approve'}}" class="volunteer-type-section">
+          <text class="section-label">志愿者类型</text>
+          <radio-group class="type-radio-group" bindchange="onVolunteerTypeChange">
+            <label class="type-radio-item">
+              <radio value="new" checked="{{volunteerType === 'new'}}" color="#07c160" />
+              <text class="type-text">新志愿者</text>
+              <text class="type-desc">（需完成线上学习+考试）</text>
+            </label>
+            <label class="type-radio-item">
+              <radio value="old" checked="{{volunteerType === 'old'}}" color="#07c160" />
+              <text class="type-text">老志愿者</text>
+              <text class="type-desc">（已参加线下培训，免考）</text>
+            </label>
+          </radio-group>
+        </view>
+        
+        <textarea 
+          class="remark-input" 
+          placeholder="请输入审核备注（选填）" 
+          value="{{quickAuditRemark}}"
+          bindinput="onQuickRemarkInput"
+          maxlength="200"
+        />
+      </view>
+      <view class="modal-footer">
+        <button class="btn cancel" bindtap="closeQuickAudit">取消</button>
+        <button class="btn confirm" bindtap="submitQuickAudit">确认</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 积分调整弹窗 -->
+  <view class="quick-modal" wx:if="{{showQuickPoints}}">
+    <view class="modal-mask" catchtap="closeQuickPoints"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">调整积分</text>
+      </view>
+      <view class="modal-body">
+        <text>志愿者：{{currentVolunteer && currentVolunteer.real_name}}</text>
+        <view class="points-input-group">
+          <view class="radio-group">
+            <label class="radio-item">
+              <radio value="add" checked="{{pointsOperation === 'add'}}" bindchange="changePointsOperation" />
+              <text>增加积分</text>
+            </label>
+            <label class="radio-item">
+              <radio value="deduct" checked="{{pointsOperation === 'deduct'}}" bindchange="changePointsOperation" />
+              <text>扣除积分</text>
+            </label>
+          </view>
+          <input 
+            class="points-input" 
+            type="number" 
+            placeholder="请输入积分数量" 
+            value="{{pointsAmount}}"
+            bindinput="onPointsAmountInput"
+          />
+          <textarea 
+            class="remark-input" 
+            placeholder="请输入原因（选填）" 
+            value="{{pointsReason}}"
+            bindinput="onPointsReasonInput"
+            maxlength="200"
+          />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn cancel" bindtap="closeQuickPoints">取消</button>
+        <button class="btn confirm" bindtap="submitQuickPoints">确认</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 删除确认弹窗 -->
+  <view class="quick-modal" wx:if="{{showQuickDelete}}">
+    <view class="modal-mask" catchtap="closeQuickDelete"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">删除确认</text>
+      </view>
+      <view class="modal-body">
+        <text class="warning-text">⚠️ 确定要删除志愿者 "{{currentVolunteer && currentVolunteer.real_name}}" 吗？此操作不可逆！</text>
+        <textarea 
+          class="remark-input" 
+          placeholder="请输入删除原因（必填）" 
+          value="{{deleteReason}}"
+          bindinput="onDeleteReasonInput"
+          maxlength="200"
+        />
+      </view>
+      <view class="modal-footer">
+        <button class="btn cancel" bindtap="closeQuickDelete">取消</button>
+        <button class="btn danger" bindtap="submitQuickDelete">确认删除</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 导入志愿者弹窗 -->
+  <view class="quick-modal" wx:if="{{showImportModal}}">
+    <view class="modal-mask" catchtap="closeImportModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">导入志愿者</text>
+      </view>
+      <view class="modal-body">
+        <view class="import-tabs">
+          <view class="tab {{importType === 'single' ? 'active' : ''}}" bindtap="switchImportType" data-type="single">单个导入</view>
+          <view class="tab {{importType === 'batch' ? 'active' : ''}}" bindtap="switchImportType" data-type="batch">批量导入</view>
+        </view>
+        
+        <view wx:if="{{importType === 'single'}}" class="single-import">
+          <view class="form-item">
+            <text class="label">真实姓名 *</text>
+            <input class="input" placeholder="请输入真实姓名" value="{{singleForm.real_name}}" bindinput="onSingleInput" data-field="real_name" />
+          </view>
+          <view class="form-item">
+            <text class="label">身份证号 *</text>
+            <input class="input" placeholder="请输入18位身份证号" value="{{singleForm.id_card}}" bindinput="onSingleInput" data-field="id_card" />
+          </view>
+          <view class="form-item">
+            <text class="label">手机号 *</text>
+            <input class="input" type="number" placeholder="请输入11位手机号" value="{{singleForm.phone}}" bindinput="onSingleInput" data-field="phone" />
+          </view>
+          <view class="form-item">
+            <text class="label">初始密码 *</text>
+            <input class="input" password="{{true}}" placeholder="请输入密码，默认123456" value="{{singleForm.password}}" bindinput="onSingleInput" data-field="password" />
+          </view>
+          <view class="form-item">
+            <text class="label">紧急联系人</text>
+            <input class="input" placeholder="选填" value="{{singleForm.emergency_contact}}" bindinput="onSingleInput" data-field="emergency_contact" />
+          </view>
+          <view class="form-item">
+            <text class="label">紧急联系人电话</text>
+            <input class="input" type="number" placeholder="选填" value="{{singleForm.emergency_phone}}" bindinput="onSingleInput" data-field="emergency_phone" />
+          </view>
+        </view>
+        
+        <view wx:else class="batch-import">
+          <view class="upload-area">
+            <button class="upload-btn" bindtap="chooseExcelFile">选择Excel文件</button>
+            <text class="file-name" wx:if="{{batchFile.name}}">{{batchFile.name}}</text>
+            <text class="file-name" wx:else>未选择文件</text>
+          </view>
+          <view class="template-download">
+            <text class="link" bindtap="downloadTemplate">下载导入模板</text>
+          </view>
+          <view class="import-tips">
+            <text>提示：请按照模板格式填写，必填项：姓名、身份证号、手机号</text>
+          </view>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn cancel" bindtap="closeImportModal">取消</button>
+        <button class="btn confirm" bindtap="submitImport" disabled="{{importLoading}}">
+          {{importLoading ? '导入中...' : '确认导入'}}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>

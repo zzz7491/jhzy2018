@@ -1,0 +1,333 @@
+<!-- pages/admin/feedback-manage/index.wxml -->
+<view class="container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="header-left" bindtap="goBack">
+      <view class="back-btn">← 返回</view>
+    </view>
+    <view class="header-title">反馈管理</view>
+    <view class="header-right"></view>
+  </view>
+
+  <!-- 搜索和筛选区域 -->
+  <view class="filter-section">
+    <view class="search-box">
+      <input 
+        class="search-input" 
+        placeholder="搜索反馈内容、用户名或联系方式" 
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+        bindconfirm="onSearchConfirm"
+      />
+      <view wx:if="{{searchKeyword}}" class="clear-search" bindtap="clearSearch">
+        ×
+      </view>
+    </view>
+
+    <view class="filter-row">
+      <view class="filter-item">
+        <picker 
+          range="{{statusOptions}}" 
+          range-key="label" 
+          value="{{statusIndex}}"
+          bindchange="onStatusChange"
+        >
+          <view class="filter-picker">
+            {{statusOptions[statusIndex].label}}
+          </view>
+        </picker>
+      </view>
+
+      <view class="filter-item">
+        <picker 
+          range="{{typeOptions}}" 
+          range-key="label" 
+          value="{{typeIndex}}"
+          bindchange="onTypeChange"
+        >
+          <view class="filter-picker">
+            {{typeOptions[typeIndex].label}}
+          </view>
+        </picker>
+      </view>
+
+      <view class="filter-item">
+        <picker 
+          range="{{priorityOptions}}" 
+          range-key="label" 
+          value="{{priorityIndex}}"
+          bindchange="onPriorityChange"
+        >
+          <view class="filter-picker">
+            {{priorityOptions[priorityIndex].label}}
+          </view>
+        </picker>
+      </view>
+    </view>
+  </view>
+
+  <!-- 统计卡片 -->
+  <view class="stats-cards">
+    <view class="stats-card">
+      <view class="stats-value">{{stats.total}}</view>
+      <view class="stats-label">全部反馈</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-value">{{stats.pending}}</view>
+      <view class="stats-label">待处理</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-value">{{stats.processing}}</view>
+      <view class="stats-label">处理中</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-value">{{stats.resolved}}</view>
+      <view class="stats-label">已解决</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-value">{{stats.today}}</view>
+      <view class="stats-label">今日新增</view>
+    </view>
+  </view>
+
+  <!-- 反馈列表 -->
+  <scroll-view 
+    class="feedback-list" 
+    scroll-y 
+    enable-back-to-top
+    bindscrolltolower="onReachBottom"
+  >
+    <view wx:if="{{feedbackList.length === 0 && !loading}}" class="empty-state">
+      <view class="empty-icon">📭</view>
+      <view class="empty-text">暂无反馈数据</view>
+    </view>
+
+    <view wx:for="{{feedbackList}}" wx:key="id" class="feedback-item">
+      <view class="feedback-header">
+        <view class="feedback-user">
+          <view class="user-name">{{item.volunteer_name || '匿名用户'}}</view>
+          <view class="feedback-time">{{formatRelativeTime(item.created_at)}}</view>
+        </view>
+        <view class="feedback-status">
+          <view class="status-badge {{getStatusClass(item.status)}}">
+            {{getStatusText(item.status)}}
+          </view>
+        </view>
+      </view>
+
+      <view class="feedback-content">
+        <view class="feedback-type">[{{getTypeText(item.type)}}]</view>
+        <view class="feedback-text">{{item.content}}</view>
+      </view>
+
+      <!-- 列表中的图片预览 -->
+      <view wx:if="{{item.images && item.images.length > 0}}" class="list-images">
+        <view wx:for="{{item.images.slice(0, 3)}}" wx:key="index" class="list-image-item">
+          <image 
+            src="{{item}}" 
+            mode="aspectFill"
+            bindtap="previewImage" 
+            data-index="{{index}}"
+            data-images="{{item.images}}"
+          />
+          <view wx:if="{{index === 2 && item.images.length > 3}}" class="image-more">
+            +{{item.images.length - 3}}
+          </view>
+        </view>
+      </view>
+
+      <view class="feedback-footer">
+        <view class="feedback-actions">
+          <view 
+            class="action-btn view-detail" 
+            bindtap="viewFeedbackDetail" 
+            data-id="{{item.id}}"
+          >
+            查看详情
+          </view>
+          <view 
+            wx:if="{{item.status === 0}}" 
+            class="action-btn mark-urgent" 
+            bindtap="markAsUrgent" 
+            data-id="{{item.id}}"
+          >
+            标记紧急
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view wx:if="{{loading}}" class="loading-more">
+      <view class="weui-loading"></view>
+      <text>加载中...</text>
+    </view>
+
+    <view wx:if="{{!hasMore && feedbackList.length > 0}}" class="no-more">
+      没有更多数据了
+    </view>
+  </scroll-view>
+
+  <!-- 反馈详情模态框 -->
+  <view 
+    wx:if="{{showDetailModal}}" 
+    class="modal-mask" 
+    bindtap="hideDetailModal"
+    catchtouchmove="preventTouchMove"
+  >
+    <view class="modal-content" catchtap="stopPropagation">
+      <view class="modal-header">
+        <view class="modal-title">反馈详情</view>
+        <view class="modal-close" bindtap="hideDetailModal">×</view>
+      </view>
+
+      <scroll-view class="modal-body" scroll-y>
+        <view class="detail-section">
+          <view class="detail-row">
+            <view class="detail-label">反馈用户：</view>
+            <view class="detail-value">{{currentFeedback.volunteer_name || '匿名用户'}}</view>
+          </view>
+          <view class="detail-row">
+            <view class="detail-label">联系方式：</view>
+            <view class="detail-value">{{currentFeedback.contact || '未提供'}}</view>
+          </view>
+          <view class="detail-row">
+            <view class="detail-label">反馈类型：</view>
+            <view class="detail-value">{{getTypeText(currentFeedback.type)}}</view>
+          </view>
+          <view class="detail-row">
+            <view class="detail-label">当前状态：</view>
+            <view class="detail-value">
+              <view class="status-badge {{getStatusClass(currentFeedback.status)}}">
+                {{getStatusText(currentFeedback.status)}}
+              </view>
+            </view>
+          </view>
+          <view class="detail-row">
+            <view class="detail-label">提交时间：</view>
+            <view class="detail-value">{{formatFullDate(currentFeedback.created_at)}}</view>
+          </view>
+        </view>
+
+        <view class="detail-section">
+          <view class="section-title">反馈内容</view>
+          <view class="feedback-content-text">{{currentFeedback.content}}</view>
+        </view>
+
+        <!-- 反馈图片 -->
+        <view wx:if="{{currentFeedback.images && currentFeedback.images.length > 0}}" class="detail-section">
+          <view class="section-title">反馈图片（{{currentFeedback.images.length}}张）</view>
+          <view class="image-grid">
+            <view wx:for="{{currentFeedback.images}}" wx:key="index" class="image-item">
+              <image 
+                src="{{item}}" 
+                mode="aspectFill" 
+                bindtap="previewImage" 
+                data-index="{{index}}"
+                data-images="{{currentFeedback.images}}"
+              />
+            </view>
+          </view>
+        </view>
+
+        <!-- 已有的管理员回复 -->
+        <view wx:if="{{currentFeedback.admin_reply}}" class="detail-section">
+          <view class="section-title">管理员回复</view>
+          <view class="reply-content">
+            <view class="reply-text">{{currentFeedback.admin_reply}}</view>
+            <view class="reply-info">
+              回复时间：{{formatFullDate(currentFeedback.reply_time)}} 
+              <text wx:if="{{currentFeedback.reply_admin}}">
+                | 回复人：{{currentFeedback.reply_admin}}
+              </text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 状态操作 -->
+        <view class="detail-section">
+          <view class="section-title">状态操作</view>
+          <view class="status-actions">
+            <view 
+              class="status-btn {{currentFeedback.status === 0 ? 'active' : ''}}" 
+              bindtap="updateFeedbackStatus" 
+              data-status="0"
+            >待处理</view>
+            <view 
+              class="status-btn {{currentFeedback.status === 1 ? 'active' : ''}}" 
+              bindtap="updateFeedbackStatus" 
+              data-status="1"
+            >处理中</view>
+            <view 
+              class="status-btn {{currentFeedback.status === 2 ? 'active' : ''}}" 
+              bindtap="updateFeedbackStatus" 
+              data-status="2"
+            >已回复</view>
+          </view>
+        </view>
+
+        <!-- 回复输入区域（如果没有回复才显示） -->
+        <view wx:if="{{!currentFeedback.admin_reply}}" class="detail-section">
+          <view class="section-title">回复反馈</view>
+          <textarea 
+            class="reply-textarea" 
+            placeholder="请输入回复内容..." 
+            value="{{replyContent}}"
+            bindinput="onReplyInput"
+            maxlength="500"
+            show-confirm-bar="{{false}}"
+          />
+          <view class="reply-actions">
+            <view class="reply-count">已输入 {{replyContent.length}}/500 字</view>
+            <view class="reply-buttons">
+              <view class="reply-cancel" bindtap="hideDetailModal">取消</view>
+              <view 
+                class="reply-submit {{replyContent.length === 0 ? 'disabled' : ''}}" 
+                bindtap="{{replyContent.length > 0 ? 'submitReply' : ''}}"
+              >
+                提交回复
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 如果已有回复，显示重新回复按钮 -->
+        <view wx:if="{{currentFeedback.admin_reply}}" class="detail-section">
+          <view class="section-title">重新回复</view>
+          <textarea 
+            class="reply-textarea" 
+            placeholder="输入新的回复内容..." 
+            value="{{replyContent}}"
+            bindinput="onReplyInput"
+            maxlength="500"
+            show-confirm-bar="{{false}}"
+          />
+          <view class="reply-actions">
+            <view class="reply-count">已输入 {{replyContent.length}}/500 字</view>
+            <view class="reply-buttons">
+              <view class="reply-cancel" bindtap="hideDetailModal">取消</view>
+              <view 
+                class="reply-submit {{replyContent.length === 0 ? 'disabled' : ''}}" 
+                bindtap="{{replyContent.length > 0 ? 'submitReply' : ''}}"
+              >
+                更新回复
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- 底部操作栏 -->
+  <view class="bottom-actions">
+    <view class="action-button" bindtap="exportFeedback">
+      <view class="action-icon">📥</view>
+      <view class="action-text">导出</view>
+    </view>
+    <view class="action-button" bindtap="refreshData">
+      <view class="action-icon">🔄</view>
+      <view class="action-text">刷新</view>
+    </view>
+  </view>
+</view>

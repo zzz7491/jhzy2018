@@ -1,0 +1,131 @@
+<view class="container" style="padding: {{currentStyle.spacing}};">
+  <!-- 老年版切换按钮（固定在顶部右侧） -->
+  <view class="elder-toggle" bindtap="toggleElderMode" 
+        style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">
+    {{isElderMode ? '切换到普通版' : '切换到老年版'}}
+  </view>
+
+  <!-- 注册表单 -->
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">真实姓名</label>
+    <input 
+      placeholder="请输入真实姓名" 
+      value="{{realname}}" 
+      bindinput="inputName"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">身份证号</label>
+    <input 
+      placeholder="请输入18位身份证号" 
+      value="{{id_card}}" 
+      bindinput="inputIdCard"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">手机号</label>
+    <input 
+      placeholder="请输入手机号" 
+      value="{{phone}}" 
+      bindinput="inputPhone"
+      type="number"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">性别</label>
+    <view class="gender-btns">
+      <button 
+        bindtap="chooseGender" 
+        data-gender="男"
+        style="height: {{currentStyle.btnHeight}}; font-size: {{currentStyle.btnFontSize}}; font-weight: {{currentStyle.fontWeight}}; margin-right: {{currentStyle.spacing}};"
+        class="{{gender === '男' ? 'active' : ''}}"
+      >男</button>
+      <button 
+        bindtap="chooseGender" 
+        data-gender="女"
+        style="height: {{currentStyle.btnHeight}}; font-size: {{currentStyle.btnFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+        class="{{gender === '女' ? 'active' : ''}}"
+      >女</button>
+    </view>
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">年龄</label>
+    <input 
+      placeholder="请输入年龄" 
+      value="{{age}}" 
+      bindinput="inputAge"
+      type="number"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">紧急联系人</label>
+    <input 
+      placeholder="请输入紧急联系人姓名" 
+      value="{{emergency_contact}}" 
+      bindinput="inputEmergencyContact"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">紧急联系电话</label>
+    <input 
+      placeholder="请输入紧急联系电话" 
+      value="{{emergency_phone}}" 
+      bindinput="inputEmergencyPhone"
+      type="number"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <!-- ********** 新增：登录密码（适配老年版样式）********** -->
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">登录密码</label>
+    <input 
+      placeholder="请设置6-20位登录密码" 
+      value="{{password}}" 
+      bindinput="inputPassword"
+      type="password"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <!-- ********** 新增：确认密码（适配老年版样式）********** -->
+  <view class="form-item" style="margin-bottom: {{currentStyle.spacing}};">
+    <label style="font-size: {{currentStyle.fontSize}}; font-weight: {{currentStyle.fontWeight}};">确认密码</label>
+    <input 
+      placeholder="请再次输入登录密码" 
+      value="{{confirmPassword}}" 
+      bindinput="inputConfirmPassword"
+      type="password"
+      style="height: {{currentStyle.inputHeight}}; font-size: {{currentStyle.inputFontSize}}; font-weight: {{currentStyle.fontWeight}};"
+    />
+  </view>
+
+  <!-- 提交按钮 -->
+  <button 
+    bindtap="submit" 
+    disabled="{{isRegistering}}"
+    style="height: {{currentStyle.btnHeight}}; font-size: {{currentStyle.btnFontSize}}; font-weight: {{currentStyle.fontWeight}}; margin-top: {{currentStyle.spacing}};"
+  >
+    {{isRegistering ? '提交中...' : '完成注册'}}
+  </button>
+
+  <!-- 返回按钮 -->
+  <button 
+    bindtap="goBack" 
+    type="default"
+    style="height: {{currentStyle.btnHeight}}; font-size: {{currentStyle.btnFontSize}}; font-weight: {{currentStyle.fontWeight}}; margin-top: {{currentStyle.spacing}};"
+  >
+    返回
+  </button>
+</view>

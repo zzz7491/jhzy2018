@@ -1,0 +1,39 @@
+<view class="container">
+  <!-- 标签页 -->
+  <view class="tabs">
+    <view class="tab-item {{currentTab === index ? 'active' : ''}}" 
+          wx:for="{{tabs}}" wx:key="index" 
+          data-index="{{index}}" 
+          bindtap="switchTab">
+      <text>{{item}}</text>
+      <view class="active-line" wx:if="{{currentTab === index}}"></view>
+    </view>
+  </view>
+
+  <!-- 内容区域 -->
+  <view class="content">
+    <view wx:if="{{loading}}" class="loading">
+      <text>加载中...</text>
+    </view>
+
+    <view wx:elif="{{favorites.length === 0}}" class="empty">
+      <text>暂无收藏</text>
+    </view>
+
+    <view wx:else class="favorite-list">
+      <view class="favorite-card" 
+            wx:for="{{favorites}}" 
+            wx:key="id" 
+            data-item="{{item}}" 
+            bindtap="goToDetail">
+        <view class="card-content">
+          <view class="favorite-title">{{item.title}}</view>
+          <view class="favorite-date">{{item.date || item.publish_date}}</view>
+        </view>
+        <view class="remove-btn" bindtap="removeFavorite" data-item="{{item}}">
+          <text>✕</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

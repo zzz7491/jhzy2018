@@ -1,0 +1,144 @@
+.container {
+  background: #f5f5f5;
+  min-height: 100vh;
+  padding-bottom: 120rpx;
+}
+
+.form-scroll {
+  padding: 16rpx 24rpx;
+  height: calc(100vh - 120rpx);
+}
+
+.form-section {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+  padding-bottom: 12rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.image-upload {
+  width: 300rpx;
+  height: 300rpx;
+  margin: 0 auto;
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 8rpx;
+}
+
+.upload-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #f8f8f8;
+  border: 2rpx dashed #ddd;
+  border-radius: 8rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-icon {
+  font-size: 60rpx;
+}
+
+.upload-text {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 12rpx;
+}
+
+.form-item {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+  display: flex;
+  align-items: center;
+}
+
+.form-item:last-child {
+  border-bottom: none;
+}
+
+.label {
+  width: 160rpx;
+  font-size: 28rpx;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.required {
+  color: #ff4d4f;
+}
+
+.input {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.textarea {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+  min-height: 120rpx;
+  padding: 8rpx 0;
+}
+
+.picker-value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.switch-label {
+  margin-left: 16rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.value {
+  flex: 1;
+  font-size: 26rpx;
+  color: #999;
+}
+
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 16rpx;
+  padding: 16rpx 24rpx;
+  background: #fff;
+  box-shadow: 0 -2rpx 8rpx rgba(0,0,0,0.05);
+}
+
+.btn-delete {
+  flex: 1;
+  background: #fff;
+  color: #ff4d4f;
+  border: 1rpx solid #ff4d4f;
+  font-size: 28rpx;
+  border-radius: 8rpx;
+}
+
+.btn-submit {
+  flex: 2;
+  background: #07c160;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 8rpx;
+  border: none;
+}

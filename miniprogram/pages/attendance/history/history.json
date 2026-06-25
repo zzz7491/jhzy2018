@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "签到历史",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {}
+}

@@ -1,0 +1,17 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:elif="{{certificates.length === 0}}" class="empty">
+    <text>暂无证书</text>
+  </view>
+
+  <view wx:else class="certificate-list">
+    <view class="certificate-card" wx:for="{{certificates}}" wx:key="id" data-id="{{item.id}}" bindtap="goToDetail">
+      <view class="certificate-name">{{item.certificate_name || item.name}}</view>
+      <view class="certificate-date">颁发日期：{{item.issue_date}}</view>
+      <view class="certificate-status {{item.status === 1 || item.status === 'active' ? 'active' : ''}}">已颁发</view>
+    </view>
+  </view>
+</view>

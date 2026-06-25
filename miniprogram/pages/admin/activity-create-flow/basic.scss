@@ -1,0 +1,340 @@
+﻿.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 导航栏 */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.back-btn {
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-btn .icon {
+  font-size: 40rpx;
+  color: #333;
+}
+
+.title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.placeholder {
+  width: 60rpx;
+}
+
+/* 表单滚动区 */
+.form-scroll {
+  flex: 1;
+  margin-top: 100rpx;
+  margin-bottom: 140rpx; /* 留出底部提交按钮的空间 */
+}
+
+.form-section {
+  padding: 20rpx 30rpx;
+}
+
+/* 导师新增：版块标题 */
+.section-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin: 30rpx 0 20rpx 10rpx;
+  border-left: 8rpx solid #07c160; /* 配合你的微信绿 */
+  padding-left: 16rpx;
+}
+
+/* 表单项 */
+.form-item {
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+/* 导师新增：开关组样式 */
+.form-item.switch-group {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-item.required .label::after {
+  content: '*';
+  color: #ff4d4f;
+  margin-left: 8rpx;
+}
+
+.label {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.input {
+  font-size: 28rpx;
+  color: #333;
+  padding: 0;
+  min-height: 60rpx;
+  width: 100%;
+}
+
+.textarea {
+  font-size: 28rpx;
+  color: #333;
+  width: 100%;
+  min-height: 160rpx;
+  padding: 0;
+}
+
+.picker {
+  font-size: 28rpx;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.picker.placeholder {
+  color: #999;
+}
+
+.picker-value {
+  font-size: 28rpx;
+  color: #333;
+  min-height: 60rpx;
+  line-height: 60rpx;
+}
+
+.arrow {
+  color: #999;
+  font-size: 32rpx;
+}
+
+/* 导师新增：并排显示的表单（如：招募人数 和 发放证书） */
+.form-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.form-row .form-item.half {
+  width: 48%; /* 两个并排占一半 */
+  margin-bottom: 0;
+}
+
+/* 图片选择 */
+.image-field {
+  width: 100%;
+}
+
+.image-placeholder {
+  width: 200rpx;
+  height: 200rpx;
+  background-color: #f8f8f8;
+  border: 2rpx dashed #ddd;
+  border-radius: 16rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.image-placeholder .icon {
+  font-size: 48rpx;
+  color: #999;
+}
+
+.image-placeholder .text {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.image-preview {
+  position: relative;
+  width: 100%; /* 封面图宽一点比较好 */
+  height: 320rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.1);
+}
+
+.image-preview image {
+  width: 100%;
+  height: 100%;
+}
+
+.image-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 10rpx 0;
+}
+
+.image-actions text {
+  color: #fff;
+  font-size: 24rpx;
+}
+
+/* 地点选择 */
+.location-field {
+  background-color: #f8f8f8;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 80rpx;
+}
+
+.location-text {
+  font-size: 28rpx;
+  color: #333;
+  flex: 1;
+  margin-right: 20rpx;
+  word-break: break-all;
+}
+
+.coords {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  margin-right: 20rpx;
+}
+
+.coords text {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.placeholder-text {
+  font-size: 28rpx;
+  color: #999;
+  flex: 1;
+}
+
+/* 提交按钮区域 */
+.submit-section {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 30rpx 40rpx;
+  background-color: #fff;
+  border-top: 2rpx solid #eee;
+  z-index: 10;
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+}
+
+.submit-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background-color: #07c160;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 44rpx;
+}
+
+.submit-btn[disabled] {
+  opacity: 0.6;
+}
+
+/* === 以下为新增的 Action Sheet 菜单（替代原生图库菜单） === */
+.action-sheet {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
+
+.action-sheet .mask {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.action-sheet .sheet-content {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: #f7f7f7;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-radius: 24rpx 24rpx 0 0;
+  overflow: hidden;
+}
+
+.action-sheet .sheet-item {
+  background: #fff;
+  text-align: center;
+  font-size: 34rpx;
+  padding: 32rpx 0;
+  border-bottom: 1rpx solid #eee;
+}
+
+.action-sheet .sheet-cancel {
+  background: #fff;
+  text-align: center;
+  font-size: 34rpx;
+  padding: 32rpx 0;
+  margin-top: 16rpx;
+  color: #666;
+}
+
+/* === 照片画廊样式 (保留) === */
+.gallery-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6); z-index: 999;
+}
+.gallery-popup {
+  position: fixed; bottom: -100%; left: 0; right: 0;
+  background: #fff; z-index: 1000;
+  border-radius: 24rpx 24rpx 0 0;
+  transition: bottom 0.3s ease;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.gallery-popup.show { bottom: 0; }
+.gallery-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 30rpx; border-bottom: 1rpx solid #eee; font-size: 32rpx; font-weight: bold; color: #333;
+}
+.gallery-close { font-size: 40rpx; color: #999; padding: 0 20rpx; }
+.gallery-scroll { height: 700rpx; padding: 20rpx; box-sizing: border-box; }
+.gallery-grid { display: flex; flex-wrap: wrap; justify-content: space-between; }
+.gallery-img {
+  width: 31%; height: 220rpx; border-radius: 12rpx; margin-bottom: 15rpx;
+  background: #f5f5f5; border: 1rpx solid #eee;
+}

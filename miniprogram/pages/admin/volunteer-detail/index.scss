@@ -1,0 +1,229 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding-bottom: 30rpx;
+}
+
+/* 加载中 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+}
+
+.spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #e0e0e0;
+  border-top-color: #07c160;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20rpx;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 错误提示 */
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+}
+
+.error .icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+}
+
+.error text {
+  color: #999;
+  margin-bottom: 30rpx;
+}
+
+.retry-btn {
+  width: 200rpx;
+  height: 70rpx;
+  line-height: 70rpx;
+  background-color: #07c160;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 35rpx;
+}
+
+/* 头部信息 */
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40rpx 30rpx;
+  display: flex;
+  align-items: center;
+  color: #fff;
+}
+
+.avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 60rpx;
+  overflow: hidden;
+  border: 4rpx solid rgba(255,255,255,0.3);
+  margin-right: 30rpx;
+}
+
+.avatar image {
+  width: 100%;
+  height: 100%;
+}
+
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  font-size: 36rpx;
+  font-weight: bold;
+  margin-bottom: 8rpx;
+}
+
+.volunteer-id {
+  font-size: 24rpx;
+  opacity: 0.9;
+  margin-bottom: 10rpx;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6rpx 20rpx;
+  font-size: 24rpx;
+  border-radius: 30rpx;
+  background-color: rgba(255,255,255,0.2);
+  align-self: flex-start;
+}
+
+.status-badge.pending {
+  background-color: #faad14;
+}
+
+.status-badge.active {
+  background-color: #52c41a;
+}
+
+.status-badge.disabled {
+  background-color: #ff4d4f;
+}
+
+.status-badge.rejected {
+  background-color: #888;
+}
+
+/* 卡片 */
+.card {
+  background-color: #fff;
+  margin: 20rpx 30rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+}
+
+.card-title {
+  padding: 30rpx 30rpx 20rpx;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.card-content {
+  padding: 20rpx 30rpx;
+}
+
+.info-item {
+  display: flex;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-item .label {
+  width: 160rpx;
+  font-size: 28rpx;
+  color: #999;
+}
+
+.info-item .value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+}
+
+/* 统计网格 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20rpx;
+  padding: 20rpx;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 20rpx 0;
+}
+
+.stat-item .number {
+  display: block;
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #07c160;
+  margin-bottom: 8rpx;
+}
+
+.stat-item .label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 操作按钮 */
+.action-buttons {
+  margin: 40rpx 30rpx 20rpx;
+  display: flex;
+  gap: 20rpx;
+}
+
+.btn {
+  flex: 1;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  font-size: 28rpx;
+  border-radius: 40rpx;
+  background-color: #fff;
+  color: #333;
+  border: 1rpx solid #ddd;
+}
+
+.btn.reset-pwd {
+  background-color: #07c160;
+  color: #fff;
+  border: none;
+}
+
+.btn.disable {
+  background-color: #ff4d4f;
+  color: #fff;
+  border: none;
+}
+
+.btn.enable {
+  background-color: #52c41a;
+  color: #fff;
+  border: none;
+}

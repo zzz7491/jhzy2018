@@ -1,0 +1,297 @@
+<!-- pages/training/training.wxml -->
+<view class="training-page {{isSeniorMode ? 'senior-mode' : ''}}">
+  <!-- 顶部栏 -->
+  <view class="top-bar">
+    <view class="back-btn" bindtap="goBack">
+      <text class="back-icon">←</text>
+    </view>
+    <view class="page-title">学习培训</view>
+    <button class="mode-switch-btn {{isSeniorMode ? 'senior-active' : ''}}" bindtap="switchDisplayMode" size="mini">
+      {{isSeniorMode ? '普通版' : '大字版'}}
+    </button>
+  </view>
+
+  <!-- 未登录状态 -->
+  <view wx:if="{{!isLoggedIn}}" class="login-required">
+    <view class="lock-icon">🔒</view>
+    <view class="login-title">需要实名注册</view>
+    <view class="login-desc">请先完成志愿者实名注册<br/>才能参加培训学习</view>
+    <button class="login-btn" bindtap="goToRegister">立即注册</button>
+  </view>
+
+  <!-- 已登录内容 -->
+  <view wx:else>
+    <!-- 用户学习统计 -->
+    <view class="learning-stats">
+      <view class="stats-header">
+        <view class="user-info">
+          <view class="welcome-text">
+            <text class="user-name">{{userInfo.real_name || userInfo.name || '志愿者'}}</text>
+            <text class="welcome-suffix">志愿者，欢迎学习</text>
+          </view>
+          <view class="points-info">当前积分：{{userPoints}}分</view>
+        </view>
+        <view class="exam-btn" bindtap="goToExamCenter">
+          <text class="exam-btn-icon">📝</text>
+          <text>考试中心</text>
+        </view>
+      </view>
+      
+      <view class="stats-grid">
+        <view class="stat-item">
+          <view class="stat-value">{{learningStats.enrolledCount || 0}}</view>
+          <view class="stat-label">已报名</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value">{{learningStats.inProgressCount || 0}}</view>
+          <view class="stat-label">进行中</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value">{{learningStats.completedCount || 0}}</view>
+          <view class="stat-label">已完成</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value">{{learningStats.totalHours || 0}}h</view>
+          <view class="stat-label">总时长</view>
+        </view>
+      </view>
+      
+      <!-- 培训和考试进度提示 -->
+      <view class="training-progress">
+        <view class="progress-title">📋 培训进度</view>
+        <view class="progress-list">
+          <view class="progress-item {{requiredCompleted ? 'done' : ''}}">
+            <text class="progress-icon">{{requiredCompleted ? '✅' : '📖'}}</text>
+            <text class="progress-name">必修课：嘉禾志愿新人必修课</text>
+            <text class="progress-status">{{requiredCompleted ? '已完成' : '未开始'}}</text>
+          </view>
+          <view class="progress-item {{electiveCompleted ? 'done' : ''}}">
+            <text class="progress-icon">{{electiveCompleted ? '✅' : '📖'}}</text>
+            <text class="progress-name">选修课（嘉兴站/南湖/王店 选1门）</text>
+            <text class="progress-status">{{electiveCompleted ? '已完成' : '未完成'}}</text>
+          </view>
+        </view>
+        
+        <!-- 去考试按钮 - 条件显示 -->
+        <view wx:if="{{requiredCompleted && electiveCompleted}}" class="exam-entry">
+          <button class="exam-start-btn" bindtap="goToExamCenter">
+            <text class="exam-icon">📝</text>
+            <text>开始结业考试（90分合格）</text>
+            <text class="exam-arrow">→</text>
+          </button>
+          <view class="exam-tip">完成考试并获得证书后，即可报名参加活动</view>
+        </view>
+        <view wx:else class="exam-disabled">
+          <button class="exam-start-btn disabled" disabled>
+            <text class="exam-icon">🔒</text>
+            <text>需完成所有课程才能考试</text>
+          </button>
+          <view class="exam-tip">
+            请先完成：
+            <text wx:if="{{!requiredCompleted}}">· 必修课 </text>
+            <text wx:if="{{!requiredCompleted && !electiveCompleted}}">和 </text>
+            <text wx:if="{{!electiveCompleted}}">· 至少1门选修课</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 搜索框 -->
+    <view class="search-box">
+      <view class="search-container">
+        <text class="search-icon">🔍</text>
+        <input class="search-input" placeholder="搜索课程名称" placeholder-class="placeholder" value="{{searchValue}}" bindinput="onSearchInput" bindconfirm="onSearchConfirm" />
+        <view wx:if="{{searchValue}}" class="clear-btn" bindtap="onClearSearch">✕</view>
+      </view>
+    </view>
+
+    <!-- 分类筛选 -->
+    <view class="filter-section">
+      <view class="filter-header">
+        <text>课程筛选</text>
+        <view class="rules-btn" bindtap="viewTrainingRules">
+          <text class="rules-icon">📋</text>
+          <text>培训规则</text>
+        </view>
+      </view>
+      
+      <!-- 分类筛选 -->
+      <scroll-view class="category-scroll" scroll-x>
+        <view class="category-list">
+          <view class="category-item {{activeCategory === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id" data-id="{{item.id}}" bindtap="onCategoryChange">
+            {{item.name}}
+          </view>
+        </view>
+      </scroll-view>
+      
+      <!-- 难度筛选 -->
+      <scroll-view class="difficulty-scroll" scroll-x>
+        <view class="difficulty-list">
+          <view class="difficulty-item {{activeDifficulty === item.id ? 'active' : ''}}" wx:for="{{difficultyList}}" wx:key="id" data-id="{{item.id}}" bindtap="onDifficultyChange">
+            {{item.name}}
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 热门课程 -->
+    <view wx:if="{{hotCourses.length > 0}}" class="hot-courses">
+      <view class="section-header">
+        <text class="section-title">热门课程</text>
+        <view class="section-more" bindtap="viewMoreHotCourses">更多</view>
+      </view>
+      <scroll-view class="hot-scroll" scroll-x>
+        <view class="hot-list">
+          <view class="hot-course-item" wx:for="{{hotCourses}}" wx:key="id" data-id="{{item.id}}" bindtap="goToCourseDetail">
+            <image src="{{item.cover_image || '/images/training/default-course.png'}}" class="hot-course-image" mode="aspectFill" />
+            <view class="hot-course-content">
+              <view class="hot-course-title">{{item.title}}</view>
+              <view class="hot-course-info">
+                <text class="difficulty-badge beginner">初级</text>
+                <text class="view-count">{{item.view_count || 0}}人学习</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 课程列表 -->
+    <view class="courses-container">
+      <view class="courses-header">
+        <text>课程列表</text>
+        <text class="course-count" wx:if="{{courses.length > 0}}">共{{courses.length}}个课程</text>
+      </view>
+      
+      <view class="courses-list" wx:if="{{courses.length > 0}}">
+        <view class="course-card" wx:for="{{courses}}" wx:key="id">
+          <view class="course-cover" bindtap="goToCourseDetail" data-id="{{item.id}}">
+            <image src="{{item.cover_image || '/images/training/default-course.png'}}" class="cover-image" mode="aspectFill" />
+            <view class="cover-overlay">
+              <text class="difficulty-badge">{{item.is_required ? '必修' : '选修'}}</text>
+              <text class="duration-badge">{{item.duration}}分钟</text>
+            </view>
+          </view>
+          
+          <view class="course-info">
+            <view class="course-title" bindtap="goToCourseDetail" data-id="{{item.id}}">{{item.title}}</view>
+            <view class="course-desc">{{item.description || '暂无课程描述'}}</view>
+            
+            <view class="course-meta">
+              <view class="meta-item">
+                <text class="meta-icon">👨‍🏫</text>
+                <text>{{item.teacher_name || '嘉禾志愿'}}</text>
+              </view>
+              <view class="meta-item">
+                <text class="meta-icon">👁️</text>
+                <text>{{item.view_count || 0}}人学习</text>
+              </view>
+            </view>
+            
+            <view class="course-footer">
+              <view class="course-category {{item.is_required ? 'required' : ''}}">{{item.is_required ? '必修课程' : '选修课程'}}</view>
+              <view class="course-price"><text class="free">免费</text></view>
+            </view>
+            
+            <view class="learning-status">
+              <view wx:if="{{item.is_completed}}" class="status-badge completed">
+                <text>✅ 已完成</text>
+              </view>
+              <view wx:elif="{{item.is_enrolled}}" class="status-badge in-progress">
+                <text>📖 学习中</text>
+              </view>
+              <view wx:else class="action-buttons">
+                <button class="enroll-btn free" data-id="{{item.id}}" data-course="{{item}}" bindtap="handleCourseAction">立即报名</button>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 空状态 - 使用 emoji 替代图片 -->
+      <view wx:if="{{courses.length === 0 && !loading}}" class="empty-state">
+        <view class="empty-icon">📚</view>
+        <view class="empty-text">{{searchValue ? '未找到相关课程' : '暂无课程'}}</view>
+        <view class="empty-desc">{{searchValue ? '请尝试其他搜索词' : '敬请期待更多精彩课程'}}</view>
+        <button class="refresh-btn" bindtap="refreshCourses">刷新课程</button>
+      </view>
+
+      <!-- 加载状态 -->
+      <view wx:if="{{loading}}" class="loading-container">
+        <view class="loading"></view>
+        <text>加载中...</text>
+      </view>
+      
+      <!-- 加载更多 -->
+      <view wx:if="{{hasMore && courses.length > 0 && !loading}}" class="load-more" bindtap="loadMoreCourses">
+        <text>点击加载更多</text>
+        <text class="load-icon">↓</text>
+      </view>
+      <view wx:if="{{!hasMore && courses.length > 0}}" class="no-more">没有更多课程了</view>
+    </view>
+
+    <!-- 底部功能区 -->
+    <view class="bottom-actions">
+      <button class="action-btn primary" bindtap="goToMyLearning">📚 我的学习</button>
+      <button class="action-btn secondary" bindtap="goToCertificates">🏅 我的证书</button>
+    </view>
+  </view>
+
+  <!-- 课程详情模态框 -->
+  <view class="course-modal" wx:if="{{showCourseDetail}}">
+    <view class="modal-mask" bindtap="closeCourseDetail"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <view class="modal-title">课程详情</view>
+        <view class="modal-close" bindtap="closeCourseDetail">✕</view>
+      </view>
+      
+      <scroll-view class="modal-body" scroll-y>
+        <view class="course-detail" wx:if="{{currentCourse}}">
+          <image src="{{currentCourse.cover_image || '/images/training/default-course.png'}}" class="detail-image" mode="widthFix" />
+          
+          <view class="detail-info">
+            <view class="detail-title">{{currentCourse.title}}</view>
+            
+            <view class="detail-row">
+              <view class="detail-item">
+                <text class="detail-icon">👨‍🏫</text>
+                <text>讲师：{{currentCourse.teacher_name || '嘉禾志愿'}}</text>
+              </view>
+              <view class="detail-item">
+                <text class="detail-icon">⏱️</text>
+                <text>时长：{{currentCourse.duration || 30}}分钟</text>
+              </view>
+            </view>
+            
+            <view class="detail-row">
+              <view class="detail-item">
+                <text class="detail-icon">📂</text>
+                <text>分类：{{currentCourse.is_required ? '必修课程' : '选修课程'}}</text>
+              </view>
+              <view class="detail-item">
+                <text class="detail-icon">👁️</text>
+                <text>学习人数：{{currentCourse.view_count || 0}}</text>
+              </view>
+            </view>
+            
+            <view class="detail-section">
+              <view class="section-title">课程简介</view>
+              <view class="section-content">{{currentCourse.description || '暂无课程描述'}}</view>
+            </view>
+            
+            <view class="detail-actions">
+              <button class="detail-btn primary" data-id="{{currentCourse.id}}" data-course="{{currentCourse}}" bindtap="handleCourseAction">
+                {{currentCourse.is_completed ? '已完成' : (currentCourse.is_enrolled ? '继续学习' : '立即报名')}}
+              </button>
+              <button class="detail-btn secondary" bindtap="shareCourse">
+                <text class="share-icon">📤</text>
+                <text>分享课程</text>
+              </button>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

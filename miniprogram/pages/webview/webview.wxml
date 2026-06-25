@@ -1,0 +1,5 @@
+<!-- pages/webview/webview.wxml -->
+<web-view wx:if="{{url}}" src="{{url}}" bindmessage="onMessage"></web-view>
+<view wx:else class="error">
+  <text>页面地址无效</text>
+</view>

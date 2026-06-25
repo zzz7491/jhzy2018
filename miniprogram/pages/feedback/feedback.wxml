@@ -1,0 +1,133 @@
+<!-- pages/feedback/feedback.wxml - 意见反馈 -->
+<view class="page-container safe-top">
+  
+  <!-- 顶部导航 -->
+  <view class="nav-header">
+    <view class="nav-left" bindtap="goBack">
+      <text class="nav-icon">‹</text>
+      <text class="nav-title">意见反馈</text>
+    </view>
+  </view>
+
+  <!-- 反馈表单 -->
+  <scroll-view class="feedback-container" scroll-y>
+    
+    <!-- 欢迎语 -->
+    <view class="welcome-section">
+      <text class="welcome-icon">💬</text>
+      <text class="welcome-text">您的意见对我们很重要</text>
+      <text class="welcome-subtext">感谢您帮助我们改进服务</text>
+    </view>
+
+    <!-- 反馈表单 -->
+    <view class="form-section">
+      <!-- 反馈类型 -->
+      <view class="form-item">
+        <text class="form-label required">反馈类型</text>
+        <view class="type-options">
+          <view wx:for="{{feedbackTypes}}" wx:key="value" 
+                class="type-option {{formData.type === item.value ? 'selected' : ''}}"
+                bindtap="selectType" data-value="{{item.value}}">
+            <text class="type-icon">{{item.icon}}</text>
+            <text class="type-text">{{item.label}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 问题描述 -->
+      <view class="form-item">
+        <text class="form-label required">问题描述</text>
+        <textarea class="form-textarea {{formErrors.content ? 'error' : ''}}" 
+                  placeholder="请详细描述您遇到的问题或建议（不少于10字）"
+                  placeholder-class="placeholder"
+                  maxlength="500"
+                  auto-height
+                  value="{{formData.content}}"
+                  bindinput="onContentChange" />
+        <view class="char-count">{{formData.content.length || 0}}/500</view>
+        <view wx:if="{{formErrors.content}}" class="error-message">
+          {{formErrors.content}}
+        </view>
+      </view>
+
+      <!-- 上传图片 -->
+      <view class="form-item">
+        <text class="form-label">相关图片</text>
+        <text class="form-hint">（选填，最多上传3张）</text>
+        
+        <view class="image-uploader">
+          <!-- 已上传图片 -->
+          <block wx:for="{{uploadedImages}}" wx:key="index">
+            <view class="image-preview">
+              <image class="preview-image" src="{{item}}" mode="aspectFill"></image>
+              <view class="image-delete" bindtap="deleteImage" data-index="{{index}}">
+                <text class="delete-icon">×</text>
+              </view>
+            </view>
+          </block>
+          
+          <!-- 上传按钮 -->
+          <view class="upload-btn" bindtap="chooseImage" wx:if="{{uploadedImages.length < 3}}">
+            <text class="upload-icon">+</text>
+            <text class="upload-text">添加图片</text>
+          </view>
+        </view>
+        
+        <view class="upload-tips">
+          <text>• 支持jpg、png格式</text>
+          <text>• 每张图片不超过2MB</text>
+          <text>• 可上传截图、照片等</text>
+        </view>
+      </view>
+
+      <!-- 联系方式 -->
+      <view class="form-item">
+        <text class="form-label">联系方式</text>
+        <text class="form-hint">（选填，方便我们回复您）</text>
+        
+        <input class="form-input" 
+               placeholder="请输入手机号或邮箱"
+               placeholder-class="placeholder"
+               value="{{formData.contact}}"
+               bindinput="onContactChange" />
+      </view>
+    </view>
+
+    <!-- 提交按钮 -->
+    <view class="submit-section">
+      <button class="submit-btn" 
+              bindtap="onSubmit" 
+              loading="{{submitting}}"
+              disabled="{{!isFormValid}}">
+        {{submitting ? '提交中...' : '提交反馈'}}
+      </button>
+      
+      <text class="submit-tips">我们会在3个工作日内处理您的反馈</text>
+    </view>
+
+    <!-- 其他联系方式 -->
+    <view class="contact-section">
+      <text class="section-title">其他联系方式</text>
+      
+      <view class="contact-options">
+        <view class="contact-option" bindtap="callPhone">
+          <text class="contact-icon">📞</text>
+          <text class="contact-text">电话联系</text>
+        </view>
+        
+        <view class="contact-option" bindtap="goToHelp">
+          <text class="contact-icon">❓</text>
+          <text class="contact-text">帮助中心</text>
+        </view>
+      </view>
+    </view>
+
+  </scroll-view>
+
+  <!-- 加载状态 -->
+  <view wx:if="{{loading}}" class="loading-overlay">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">处理中...</text>
+  </view>
+
+</view>

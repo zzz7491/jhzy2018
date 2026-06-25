@@ -1,0 +1,127 @@
+<view class="container">
+  <!-- 状态标签 -->
+  <view class="status-tabs">
+    <view 
+      class="tab-item {{filterStatus === 'all' ? 'active' : ''}}"
+      bindtap="switchStatus"
+      data-status="all"
+    >
+      全部
+    </view>
+    <view 
+      class="tab-item {{filterStatus === 'pending' ? 'active' : ''}}"
+      bindtap="switchStatus"
+      data-status="pending"
+    >
+      待领取
+    </view>
+    <view 
+      class="tab-item {{filterStatus === 'completed' ? 'active' : ''}}"
+      bindtap="switchStatus"
+      data-status="completed"
+    >
+      已领取
+    </view>
+    <view 
+      class="tab-item {{filterStatus === 'cancelled' ? 'active' : ''}}"
+      bindtap="switchStatus"
+      data-status="cancelled"
+    >
+      已取消
+    </view>
+  </view>
+
+  <!-- 统计信息 -->
+  <view class="stats-bar" wx:if="{{records.length > 0}}">
+    <text>共 {{total}} 条记录</text>
+    <text wx:if="{{pendingCount > 0}}">待领取 {{pendingCount}}</text>
+    <text wx:if="{{completedCount > 0}}">已完成 {{completedCount}}</text>
+  </view>
+
+  <!-- 记录列表 -->
+  <scroll-view 
+    scroll-y 
+    class="records-scroll"
+    bindscrolltolower="onReachBottom"
+    enhanced
+    show-scrollbar="{{false}}"
+  >
+    <view class="records-list">
+      <block wx:if="{{records.length > 0}}">
+        <view 
+          class="record-item" 
+          wx:for="{{records}}" 
+          wx:key="id"
+        >
+          <!-- 商品信息头部 -->
+          <view class="item-header" bindtap="viewGoodsDetail" data-id="{{item.goods_id}}">
+            <text class="goods-name">{{item.goods_name}}</text>
+            <text class="status {{item.status}}">{{getStatusText(item.status)}}</text>
+          </view>
+          
+          <!-- 兑换信息主体 -->
+          <view class="item-body">
+            <!-- 积分消耗 -->
+            <view class="info-row">
+              <text class="label">消耗积分：</text>
+              <text class="points">{{item.points_spent}}分</text>
+            </view>
+            
+            <!-- 兑换码和二维码区域 -->
+            <view class="code-section">
+              <view class="code-row">
+                <text class="label">兑换码：</text>
+                <text class="code">{{item.exchange_code}}</text>
+                <text class="copy-btn" bindtap="copyCode" data-code="{{item.exchange_code}}">复制</text>
+              </view>
+              
+              <!-- 二维码（仅待领取状态显示） -->
+              <view wx:if="{{item.status === 'pending' && item.qrcode_url}}" class="qrcode-row">
+                <image src="{{item.qrcode_url}}" mode="widthFix" class="qrcode-img" />
+                <text class="qrcode-tip">核销员扫码领取</text>
+              </view>
+            </view>
+            
+            <!-- 兑换时间（直接显示原始数据，不经过formatTime） -->
+            <view class="info-row">
+              <text class="label">兑换时间：</text>
+              <text class="time" style="color:#333; font-weight:500;">{{item.created_at || '暂无'}}</text>
+            </view>
+            
+            <!-- 领取时间（仅已完成显示） -->
+            <view wx:if="{{item.status === 'completed' && item.completed_at}}" class="info-row">
+              <text class="label">领取时间：</text>
+              <text class="time" style="color:#333; font-weight:500;">{{item.completed_at}}</text>
+            </view>
+          </view>
+          
+          <!-- 操作按钮（仅待领取显示） -->
+          <view wx:if="{{item.status === 'pending'}}" class="item-footer">
+            <button class="contact-btn" bindtap="contactService">联系客服</button>
+          </view>
+        </view>
+      </block>
+
+      <!-- 空状态 -->
+      <view wx:else class="empty-state">
+        <image src="/images/empty-records.png" mode="aspectFit" class="empty-image"></image>
+        <text class="empty-text">暂无兑换记录</text>
+        <button class="go-mall-btn" bindtap="goToMall">去积分商城</button>
+      </view>
+
+      <!-- 加载更多 -->
+      <view wx:if="{{loadingMore}}" class="loading-more">
+        <text>加载中...</text>
+      </view>
+      
+      <view wx:if="{{!hasMore && records.length > 0}}" class="no-more">
+        <text>没有更多了</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading && records.length === 0}}" class="loading-state">
+    <text>加载中...</text>
+  </view>
+</view>

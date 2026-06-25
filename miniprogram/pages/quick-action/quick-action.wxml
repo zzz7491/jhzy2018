@@ -1,0 +1,254 @@
+<!-- pages/quick-action/quick-action.wxml -->
+<view class="quick-action-page {{seniorMode ? 'senior-mode' : ''}}">
+  <!-- 顶部栏 -->
+  <view class="top-bar">
+    <view class="top-left">
+      <button class="back-btn" bindtap="goBack" hover-class="button-hover">
+        <text class="back-icon">‹</text>
+      </button>
+      <view class="page-title">随手做公益</view>
+    </view>
+    <view class="top-right">
+      <button class="mode-switch-btn {{seniorMode ? 'senior-active' : ''}}" 
+              bindtap="switchDisplayMode" hover-class="button-hover">
+        <text class="mode-switch-icon" wx:if="{{seniorMode}}">👵</text>
+        <text class="mode-switch-icon" wx:else>👤</text>
+        <text class="mode-switch-text">{{seniorMode ? '普通版' : '老年版'}}</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 页面副标题 -->
+  <view class="page-subtitle">随时随地，让爱传递</view>
+
+  <!-- 今日积分卡片 -->
+  <view class="today-card">
+    <view class="points-header">
+      <view class="points-info">
+        <text class="points-label">今日公益积分</text>
+        <text class="points-value">{{todayPoints}}</text>
+        <text class="points-unit">分</text>
+      </view>
+      <view class="points-max">每日上限 {{maxPointsPerDay}} 分</view>
+    </view>
+    
+    <view class="progress-container">
+      <view class="progress-bar" style="width: {{progressPercent}}%"></view>
+    </view>
+    <text class="progress-text">已完成 {{progressPercent}}%</text>
+  </view>
+
+  <!-- 公益行动列表 -->
+  <view class="section-header">
+    <text class="section-title">公益行动</text>
+    <text class="section-tip">点击开始记录公益行为</text>
+  </view>
+
+  <view class="actions-grid">
+    <view class="action-card" wx:for="{{actions}}" wx:key="id" 
+          bindtap="startAction" data-type="{{item.type}}">
+      <view class="action-icon-container">
+        <text class="action-icon">{{item.icon}}</text>
+      </view>
+      
+      <view class="action-content">
+        <view class="action-header">
+          <text class="action-name">{{item.name}}</text>
+          <text class="action-points">+{{item.points}}积分</text>
+        </view>
+        
+        <text class="action-desc">{{item.description}}</text>
+        
+        <view class="action-example">
+          <text class="example-icon">💡</text>
+          <text class="example-text">{{item.example}}</text>
+        </view>
+        
+        <view class="action-footer">
+          <view class="time-badge">
+            <text class="time-icon">⏱️</text>
+            <text class="time-text">约{{item.time}}分钟</text>
+          </view>
+          <view class="action-button">
+            <text class="button-text">开始记录</text>
+            <text class="button-arrow">→</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 今日记录 -->
+  <view class="records-section" wx:if="{{quickRecords.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">今日记录</text>
+      <text class="records-count">共{{quickRecords.length}}条</text>
+    </view>
+    
+    <view class="records-list">
+      <view class="record-item" wx:for="{{quickRecords}}" wx:key="id">
+        <view class="record-header">
+          <text class="record-type">{{item.action_name}}</text>
+          <view class="record-status {{item.status === 'approved' ? 'status-approved' : 'status-pending'}}">
+            {{item.status === 'approved' ? '已通过' : '审核中'}}
+          </view>
+        </view>
+        
+        <text class="record-desc">{{item.description}}</text>
+        
+        <view class="record-footer">
+          <text class="record-time">{{formatTime(item.create_time)}}</text>
+          <text class="record-points">+{{item.points}}积分</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 公益提示 -->
+  <view class="tips-section">
+    <view class="section-header">
+      <text class="section-title">公益小贴士</text>
+      <text class="tips-icon">📋</text>
+    </view>
+    
+    <view class="tips-list">
+      <view class="tip-item">
+        <text class="tip-icon">✅</text>
+        <text class="tip-text">请确保公益行为真实有效</text>
+      </view>
+      <view class="tip-item">
+        <text class="tip-icon">📷</text>
+        <text class="tip-text">建议拍照记录作为凭证</text>
+      </view>
+      <view class="tip-item">
+        <text class="tip-icon">⚠️</text>
+        <text class="tip-text">请注意个人安全，量力而行</text>
+      </view>
+      <view class="tip-item">
+        <text class="tip-icon">🎯</text>
+        <text class="tip-text">每日公益积分有上限</text>
+      </view>
+      <view class="tip-item">
+        <text class="tip-icon">🚫</text>
+        <text class="tip-text">虚假记录将扣除积分</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 拍照记录弹窗 -->
+  <view class="record-modal" wx:if="{{showCameraModal}}">
+    <view class="modal-mask" bindtap="closeCameraModal"></view>
+    <view class="modal-container">
+      <view class="modal-header">
+        <view class="modal-title-area">
+          <text class="modal-title">记录公益行为</text>
+          <text class="modal-subtitle">{{currentAction.name}}</text>
+        </view>
+        <button class="modal-close" bindtap="closeCameraModal">×</button>
+      </view>
+      
+      <scroll-view class="modal-body" scroll-y="true">
+        <!-- 拍照/选择图片 -->
+        <view class="photo-section">
+          <view class="photo-container" wx:if="{{!photoPath}}" bindtap="openCamera">
+            <text class="photo-placeholder-icon">📷</text>
+            <text class="photo-placeholder-text">点击拍照或选择照片</text>
+            <text class="photo-tip">建议拍摄现场照片作为凭证</text>
+          </view>
+          
+          <image class="photo-preview" src="{{photoPath}}" mode="aspectFit" wx:if="{{photoPath}}" 
+                 bindtap="openCamera"></image>
+          
+          <view class="photo-actions" wx:if="{{photoPath}}">
+            <button class="photo-action-btn retake-btn" bindtap="retakePhoto">
+              <text class="action-icon">🔄</text>
+              <text class="action-text">重拍</text>
+            </button>
+            <button class="photo-action-btn choose-btn" bindtap="choosePhoto">
+              <text class="action-icon">📂</text>
+              <text class="action-text">重新选择</text>
+            </button>
+          </view>
+        </view>
+        
+        <!-- 行为描述 -->
+        <view class="description-section">
+          <view class="section-header">
+            <text class="section-title">行为描述</text>
+            <text class="char-count">{{descriptionLength}}/200</text>
+          </view>
+          
+          <textarea class="description-input" 
+                    value="{{actionDescription}}" 
+                    placeholder="请详细描述你的公益行为（至少10个字）"
+                    maxlength="200"
+                    bindinput="onDescriptionInput"></textarea>
+          
+          <view class="description-tips">
+            <text class="tip-item">• 请描述具体的时间、地点和行为</text>
+            <text class="tip-item">• 例如："下午3点在小区门口扶老人过马路"</text>
+            <text class="tip-item">• 详细描述有助于审核通过</text>
+          </view>
+        </view>
+        
+        <!-- 定位信息 -->
+        <view class="location-section">
+          <view class="section-header">
+            <text class="section-title">位置信息</text>
+            <text class="location-status {{location ? 'has-location' : 'no-location'}}">
+              {{location ? '已获取位置' : '未获取位置'}}
+            </text>
+          </view>
+          
+          <view class="location-content" wx:if="{{location}}">
+            <view class="location-detail">
+              <text class="location-icon">📍</text>
+              <view class="location-info">
+                <text class="location-text">{{location.address || location.name || '未知地点'}}</text>
+                <text class="location-coords" wx:if="{{location.latitude}}">
+                  {{location.latitude.toFixed(6)}}, {{location.longitude.toFixed(6)}}
+                </text>
+              </view>
+            </view>
+          </view>
+          
+          <view class="location-actions">
+            <button class="location-btn get-location-btn" bindtap="getLocation">
+              <text class="btn-icon">📍</text>
+              <text class="btn-text">{{location ? '重新获取位置' : '获取当前位置'}}</text>
+            </button>
+            
+            <button class="location-btn manual-location-btn" bindtap="openLocationPicker" wx:if="{{!location}}">
+              <text class="btn-icon">✏️</text>
+              <text class="btn-text">手动输入位置</text>
+            </button>
+          </view>
+          
+          <view class="location-tips">
+            <text class="tip-item">• 获取位置信息有助于审核验证</text>
+            <text class="tip-item">• 位置信息仅用于公益行为验证</text>
+            <text class="tip-item">• 如无法获取位置，请手动输入大致位置</text>
+          </view>
+        </view>
+        
+        <!-- 积分提示 -->
+        <view class="points-notice">
+          <text class="notice-icon">💰</text>
+          <view class="notice-content">
+            <text class="notice-title">积分奖励</text>
+            <text class="notice-desc">完成此行为可获得 {{currentAction.points}} 积分</text>
+          </view>
+        </view>
+      </scroll-view>
+      
+      <view class="modal-footer">
+        <button class="modal-btn cancel-btn" bindtap="closeCameraModal">取消</button>
+        <button class="modal-btn submit-btn" 
+                bindtap="submitAction"
+                disabled="{{!photoPath || !actionDescription || descriptionLength < 10 || !location}}">
+          提交记录 (+{{currentAction.points}}积分)
+        </button>
+      </view>
+    </view>
+  </view>
+</view>

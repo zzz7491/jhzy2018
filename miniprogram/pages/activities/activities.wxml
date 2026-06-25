@@ -1,0 +1,68 @@
+<view class="activities-page">
+  <swiper class="banner-swiper" indicator-dots autoplay interval="3000">
+    <swiper-item wx:for="{{banners}}" wx:key="index">
+      <image src="{{item}}" mode="aspectFill" class="banner-image" />
+    </swiper-item>
+  </swiper>
+
+  <view class="status-filter">
+    <view class="status-item {{status === 'published' ? 'active' : ''}}" data-status="published" bindtap="onStatusChange">全部活动</view>
+    <view class="status-item {{status === 'upcoming' ? 'active' : ''}}" data-status="upcoming" bindtap="onStatusChange">即将开始</view>
+    <view class="status-item {{status === 'ended' ? 'active' : ''}}" data-status="ended" bindtap="onStatusChange">已结束</view>
+  </view>
+
+  <scroll-view class="category-scroll" scroll-x>
+    <view class="category-list">
+      <view class="category-item {{activeCategory === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id" data-id="{{item.id}}" bindtap="onCategoryChange">{{item.name}}</view>
+    </view>
+  </scroll-view>
+
+  <view class="activities-list">
+    <block wx:if="{{activities.length > 0}}">
+      <view 
+        class="activity-card"
+        wx:for="{{activities}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        data-index="{{index}}"
+        bindtap="goToDetail"
+        wx:if="{{(activeCategory === 'all' && status === 'published') ? (isExpanded || index < 10) : true}}"
+      >
+        <view class="activity-image-wrapper">
+          <image src="{{item.cover_image_url || item.cover_image || '/images/default-activity.jpg'}}" mode="aspectFill" class="activity-image" />
+          <view class="status-tag {{item.isEnded ? 'ended' : 'available'}}">{{item.isEnded ? '已结束' : '可报名'}}</view>
+        </view>
+        <view class="activity-info">
+          <view class="activity-header">
+            <view class="activity-title">{{item.title}}</view>
+            <view class="favorite-btn {{item.is_favorite ? 'active' : ''}}" data-id="{{item.id}}" data-index="{{index}}" catchtap="toggleFavorite">❤️</view>
+          </view>
+          <view class="activity-description">{{item.description}}</view>
+          <view class="activity-meta">
+            <view class="meta-item"><text class="meta-icon">🕐</text><text class="meta-text">{{item.displayTime}}</text></view>
+            <view class="meta-item"><text class="meta-icon">📍</text><text class="meta-text">{{item.location}}</text></view>
+          </view>
+          <view class="activity-footer">
+            <view class="activity-points"><text class="points-text">{{item.points_reward}}积分/小时</text></view>
+            <view class="activity-button {{item.isEnded ? 'ended' : 'available'}}">{{item.displayStatus}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view 
+        class="expand-control" 
+        wx:if="{{activeCategory === 'all' && status === 'published' && activities.length > 10}}" 
+        bindtap="onToggleExpand"
+      >
+        <text class="expand-btn-text">{{isExpanded ? '收起多余活动' : '展开更多活动 (共' + activities.length + '个)'}}</text>
+        <text class="expand-icon {{isExpanded ? 'up' : 'down'}}">▼</text>
+      </view>
+    </block>
+
+    <view wx:if="{{!loading && activities.length === 0}}" class="no-data">
+      <text class="no-data-text">暂无活动</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-more">加载中...</view>
+</view>

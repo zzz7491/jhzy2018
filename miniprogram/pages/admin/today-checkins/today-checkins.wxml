@@ -1,0 +1,58 @@
+<view class="container">
+  <view class="header" wx:if="{{total > 0}}">
+    <text class="total">今日签到 {{total}} 人</text>
+    <text class="date">{{date}}</text>
+  </view>
+
+  <view class="empty" wx:if="{{loading === false && checkins.length === 0}}">
+    <text class="empty-icon">📋</text>
+    <text class="empty-text">今日暂无签到记录</text>
+  </view>
+
+  <view class="list" wx:if="{{checkins.length > 0}}">
+    <view class="card" wx:for="{{checkins}}" wx:key="id">
+      <view class="card-header">
+        <view class="avatar">
+          <text class="avatar-text">{{item.real_name.charAt(0)}}</text>
+        </view>
+        <view class="info">
+          <text class="name">{{item.real_name}}</text>
+          <text class="volunteer-id">{{item.volunteer_id}}</text>
+        </view>
+        <view class="status-badge {{item.status === 2 ? 'done' : 'active'}}">
+          {{item.status_text}}
+        </view>
+      </view>
+      <view class="card-body">
+        <view class="activity">
+          <text class="activity-icon">📅</text>
+          <text class="activity-name">{{item.activity_title}}</text>
+        </view>
+        <view class="time-row">
+          <view class="time-item">
+            <text class="time-label">签到</text>
+            <text class="time-value">{{item.checkin_time}}</text>
+          </view>
+          <view class="time-item">
+            <text class="time-label">签退</text>
+            <text class="time-value">{{item.checkout_time || '未签退'}}</text>
+          </view>
+        </view>
+        <view class="stats-row" wx:if="{{item.status === 2}}">
+          <view class="stat-item">
+            <text class="stat-label">时长</text>
+            <text class="stat-value">{{item.duration_hours}}h</text>
+          </view>
+          <view class="stat-item">
+            <text class="stat-label">积分</text>
+            <text class="stat-value points">+{{item.points}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+</view>

@@ -1,0 +1,275 @@
+﻿<view class="container">
+  <view class="header-section">
+    <view class="user-card">
+      <view class="avatar-section">
+        <view class="avatar" style="background: {{adminRole === 'super_admin' ? 'linear-gradient(135deg, #ff6b6b 0%, #ffa8a8 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}};">
+          <text class="avatar-text">{{adminName.charAt(0)}}</text>
+          <view class="role-badge" wx:if="{{adminRole === 'super_admin'}}">超级</view>
+        </view>
+        <view class="user-info">
+          <text class="user-name">{{adminName}}</text>
+          <text class="user-role">{{adminRole === 'super_admin' ? '系统超级管理员' : '管理员'}}</text>
+          <text class="user-email" wx:if="{{adminEmail}}">{{adminEmail}}</text>
+          <text class="current-time">{{currentTime}}</text>
+        </view>
+      </view>
+      <view class="stats-summary">
+        <view class="stat-item">
+          <text class="stat-value">{{stats.volunteers || 0}}</text>
+          <text class="stat-label">志愿者</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{stats.activities || 0}}</text>
+          <text class="stat-label">活动</text>
+        </view>
+        <view class="stat-item" bindtap="viewTodayCheckins">
+          <text class="stat-value">{{stats.checkins || 0}}</text>
+          <text class="stat-label">今日签到</text>
+        </view>
+        <view class="stat-item" wx:if="{{(stats.pending_activity + stats.pending_quick) > 0}}">
+          <text class="stat-value" style="color: #ff9500;">{{stats.pending_activity + stats.pending_quick}}</text>
+          <text class="stat-label">总待审核</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 今日新注册志愿者提醒 -->
+  <view class="todo-section" wx:if="{{stats.today_new_volunteers.length > 0}}">
+    <view class="section-header">
+      <view class="section-title-area">
+        <text class="section-title">📝 今日新注册</text>
+        <text class="section-subtitle">已自动通过审核</text>
+      </view>
+      <view class="section-badge" style="background: #52c41a;">{{stats.today_new_volunteers.length}}</view>
+    </view>
+    <view class="todo-list">
+      <view class="todo-item" wx:for="{{stats.today_new_volunteers}}" wx:key="id">
+        <view class="todo-icon">
+          <text class="icon">👤</text>
+        </view>
+        <view class="todo-content">
+          <text class="todo-title">{{item.real_name}}</text>
+          <text class="todo-desc">{{item.phone}} · 自动通过</text>
+        </view>
+        <view class="todo-arrow" style="color: #52c41a;">✓</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 待办事项区域：显示所有待审核事项 -->
+  <view class="todo-section" wx:if="{{(stats.pending_activity + stats.pending_quick + stats.today_signups) > 0}}">
+    <view class="section-header">
+      <view class="section-title-area">
+        <text class="section-title">待办事项</text>
+        <text class="section-subtitle">需要处理的任务</text>
+      </view>
+      <view class="section-badge">{{stats.pending_activity + stats.pending_quick + stats.today_signups}}</view>
+    </view>
+
+    <view class="todo-list">
+      <!-- 活动报名审核 -->
+      <view class="todo-item" bindtap="gotoPage" data-url="/pages/admin/review-aggregate/index">
+        <view class="todo-icon">
+          <text class="icon">📋</text>
+        </view>
+        <view class="todo-content">
+          <text class="todo-title">活动报名审核</text>
+          <text class="todo-desc">{{stats.pending_activity || 0}}个活动报名待审核</text>
+        </view>
+        <view class="todo-arrow">›</view>
+      </view>
+
+      <!-- 注册提醒 -->
+      <view class="todo-item" wx:if="{{stats.today_signups > 0}}" bindtap="goToRegisterReminder">
+        <view class="todo-icon">
+          <text class="icon">👤</text>
+        </view>
+        <view class="todo-content">
+          <text class="todo-title">注册提醒</text>
+          <text class="todo-desc">{{stats.today_signups || 0}}个新志愿者已自动通过</text>
+        </view>
+        <view class="todo-arrow">›</view>
+      </view>
+
+      <!-- 随手公益审核 -->
+      <view class="todo-item" bindtap="gotoPage" data-url="/pages/admin/quick-action-review/index">
+        <view class="todo-icon">
+          <text class="icon">🖼️</text>
+        </view>
+        <view class="todo-content">
+          <text class="todo-title">随手公益审核</text>
+          <text class="todo-desc">{{stats.pending_quick || 0}}个随手公益待审核</text>
+        </view>
+        <view class="todo-arrow">›</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="functions-section">
+    <view class="section-header">
+      <view class="section-title-area">
+        <text class="section-title">审核中心</text>
+        <text class="section-subtitle">核心审核功能</text>
+      </view>
+    </view>
+
+    <view class="functions-grid">
+      <view class="function-card highlight" bindtap="gotoPage" data-url="/pages/admin/review-aggregate/index">
+        <view class="card-icon">
+          <text class="icon">✅</text>
+        </view>
+        <text class="card-title">报名审核</text>
+        <text class="card-desc">审核志愿者报名</text>
+        <view class="card-badge pending" wx:if="{{stats.pending_activity > 0}}">{{stats.pending_activity}}</view>
+      </view>
+
+      <view class="function-card" wx:if="{{stats.today_signups > 0}}" bindtap="goToRegisterReminder">
+        <view class="card-icon">
+          <text class="icon">👤</text>
+        </view>
+        <text class="card-title">注册提醒</text>
+        <text class="card-desc">查看新注册志愿者</text>
+        <view class="card-badge pending">{{stats.today_signups}}</view>
+      </view>
+
+      <view class="function-card" bindtap="gotoPage" data-url="/pages/admin/qrVerify/qrVerify">
+        <view class="card-icon">
+          <text class="icon">📱</text>
+        </view>
+        <text class="card-title">扫码核销</text>
+        <text class="card-desc">积分兑换核销</text>
+      </view>
+
+      <view class="function-card" bindtap="gotoPage" data-url="/pages/admin/quick-action-review/index">
+        <view class="card-icon">
+          <text class="icon">🖼️</text>
+        </view>
+        <text class="card-title">随手公益审核</text>
+        <text class="card-desc">审核随手公益</text>
+        <view class="card-badge pending" wx:if="{{stats.pending_quick > 0}}">{{stats.pending_quick}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="quick-actions-section">
+    <view class="section-header">
+      <view class="section-title-area">
+        <text class="section-title">快速操作</text>
+        <text class="section-subtitle">应急处置功能</text>
+      </view>
+    </view>
+
+    <view class="quick-grid">
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/admin-manage/admin-manage">
+        <view class="quick-icon">
+          <text class="icon">⚙️</text>
+        </view>
+        <text class="quick-title">管理员</text>
+        <text class="quick-subtitle">创建管理</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/volunteer-manage/index">
+        <view class="quick-icon">
+          <text class="icon">👥</text>
+        </view>
+        <text class="quick-title">志愿者管理</text>
+        <text class="quick-subtitle">管理志愿者</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/activity-abc/index">
+        <view class="quick-icon">
+          <text class="icon">📋</text>
+        </view>
+        <text class="quick-title">活动管理</text>
+        <text class="quick-subtitle">编辑/删除活动</text>
+      </view>
+
+      <view class="quick-card" bindtap="goToPointsManager">
+        <view class="quick-icon" style="background-color: #fff7e6;">
+          <text class="icon">💵</text>
+        </view>
+        <text class="quick-title">积分管理</text>
+        <text class="quick-subtitle">手动增减积分</text>
+      </view>
+
+      <view class="quick-card" bindtap="goToProductsManage">
+        <view class="quick-icon" style="background-color: #fff0f6;">
+          <text class="icon">🛒</text>
+        </view>
+        <text class="quick-title">商品管理</text>
+        <text class="quick-subtitle">上架/编辑商品</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoTrainingCertificates">
+        <view class="quick-icon" style="background-color: #e8f5e9;">
+          <text class="icon">📜</text>
+        </view>
+        <text class="quick-title">培训证书</text>
+        <text class="quick-subtitle">查看考核通过名单</text>
+      </view>
+
+      <view class="quick-card" bindtap="goToExchangeManage">
+        <view class="quick-icon" style="background-color: #e6f7ff;">
+          <text class="icon">📦</text>
+        </view>
+        <text class="quick-title">兑换记录</text>
+        <text class="quick-subtitle">核销/管理兑换</text>
+      </view>
+
+      <view class="quick-card" bindtap="goToSubscribe">
+        <view class="quick-icon" style="background-color: #e8f5e9;">
+          <text class="icon">🔔</text>
+        </view>
+        <text class="quick-title">消息订阅</text>
+        <text class="quick-subtitle">设置通知</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/feedback-manage/index">
+        <view class="quick-icon">
+          <text class="icon">💬</text>
+        </view>
+        <text class="quick-title">反馈管理</text>
+        <text class="quick-subtitle">处理用户反馈</text>
+      </view>
+
+      <view class="quick-card" bindtap="changePassword">
+        <view class="quick-icon">
+          <text class="icon">🔒</text>
+        </view>
+        <text class="quick-title">修改密码</text>
+        <text class="quick-subtitle">账户安全</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="quick-actions">
+    <button class="action-btn refresh" bindtap="refreshData">
+      <text class="action-icon">🔄</text>
+      <text class="action-text">刷新数据</text>
+    </button>
+    <button class="action-btn logout" bindtap="logout">
+      <text class="action-icon">🚪</text>
+      <text class="action-text">退出登录</text>
+    </button>
+  </view>
+
+  <view class="footer-note">
+    <text class="note-title">💡 使用提示</text>
+    <text class="note-item">1. 审核中心包含所有审核功能</text>
+    <text class="note-item">2. 创建活动仅用于应急发布</text>
+    <text class="note-item">3. 完整功能请使用网页管理端</text>
+    <text class="note-item">4. 数据实时同步，保持更新</text>
+  </view>
+
+  <view class="float-buttons">
+    <button class="float-btn help" bindtap="viewFeatureGuide">
+      <text class="float-icon">❓</text>
+      <text class="float-text">帮助</text>
+    </button>
+    <button class="float-btn permission" bindtap="viewPermissions">
+      <text class="float-icon">🔒</text>
+      <text class="float-text">权限</text>
+    </button>
+  </view>
+</view>

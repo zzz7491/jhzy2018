@@ -1,0 +1,31 @@
+.login-container { min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40rpx; display: flex; flex-direction: column; }
+.logo-section { display: flex; flex-direction: column; align-items: center; margin: 80rpx 0 60rpx; }
+.logo-section .logo { width: 120rpx; height: 120rpx; border-radius: 24rpx; margin-bottom: 20rpx; background: white; }
+.logo-section .app-name { font-size: 48rpx; font-weight: bold; color: white; margin-bottom: 10rpx; }
+.logo-section .app-subtitle { font-size: 24rpx; color: rgba(255, 255, 255, 0.9); }
+.login-card { background: white; border-radius: 24rpx; padding: 40rpx; box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.1); }
+.role-tabs { display: flex; background: #f5f7ff; border-radius: 12rpx; margin-bottom: 40rpx; }
+.role-tabs .role-tab { flex: 1; padding: 24rpx; text-align: center; font-size: 28rpx; color: #666; border-radius: 12rpx; transition: all 0.3s; }
+.role-tabs .role-tab.active { background: #667eea; color: white; font-weight: bold; }
+.form-group { margin-bottom: 40rpx; }
+.form-group .form-label { display: block; font-size: 28rpx; color: #333; margin-bottom: 16rpx; font-weight: 500; }
+.form-group .form-input { border: 2rpx solid #e0e0e0; border-radius: 12rpx; padding: 24rpx; font-size: 28rpx; background: #fafafa; }
+.form-group .form-input:focus { border-color: #667eea; background: white; }
+.quick-login { margin-bottom: 40rpx; padding: 20rpx; background: #f8f9ff; border-radius: 12rpx; border-left: 4rpx solid #667eea; }
+.quick-login .quick-title { display: block; font-size: 24rpx; color: #667eea; margin-bottom: 20rpx; font-weight: bold; }
+.quick-login .quick-buttons { display: flex; gap: 20rpx; }
+.quick-login .quick-buttons .quick-btn { flex: 1; padding: 16rpx; font-size: 24rpx; border-radius: 8rpx; background: #667eea; color: white; border: none; }
+.quick-login .quick-buttons .quick-btn.admin { background: #ff6b6b; }
+.submit-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12rpx; padding: 28rpx; font-size: 32rpx; font-weight: bold; margin-top: 20rpx; }
+.submit-btn:active { opacity: 0.9; }
+.register-link { text-align: center; margin-top: 40rpx; font-size: 24rpx; color: #666; }
+.register-link .register-text { color: #667eea; font-weight: bold; margin-left: 10rpx; }
+.footer-tips { margin-top: 60rpx; text-align: center; }
+.footer-tips text { display: block; font-size: 22rpx; color: rgba(255, 255, 255, 0.8); margin-bottom: 10rpx; }
+
+/* 协议样式 */
+.privacy-agreement { margin-top: 40rpx; display: flex; justify-content: center; align-items: center; }
+.privacy-label { display: flex; align-items: center; font-size: 22rpx; }
+.privacy-label checkbox { transform: scale(0.6); margin-right: -4rpx; }
+.privacy-text { color: #999; }
+.privacy-link { color: #667eea; font-weight: bold; padding: 0 4rpx; z-index: 10; }

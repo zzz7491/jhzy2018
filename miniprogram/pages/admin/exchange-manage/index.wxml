@@ -1,0 +1,63 @@
+<view class="container">
+  <!-- 搜索栏 -->
+  <view class="search-box">
+    <input class="search-input" placeholder="搜索商品名/兑换码/用户名" bindinput="onSearchInput" confirm-type="search" bindconfirm="doSearch" value="{{keyword}}" />
+    <button class="search-btn" bindtap="doSearch">搜索</button>
+  </view>
+
+  <!-- 状态筛选 -->
+  <view class="filter-bar">
+    <view class="filter-item {{currentStatus === '' ? 'active' : ''}}" bindtap="filterStatus" data-status="">全部</view>
+    <view class="filter-item {{currentStatus === 'pending' ? 'active' : ''}}" bindtap="filterStatus" data-status="pending">待核销</view>
+    <view class="filter-item {{currentStatus === 'completed' ? 'active' : ''}}" bindtap="filterStatus" data-status="completed">已核销</view>
+    <view class="filter-item {{currentStatus === 'cancelled' ? 'active' : ''}}" bindtap="filterStatus" data-status="cancelled">已取消</view>
+  </view>
+
+  <!-- 记录列表 -->
+  <view class="record-list" wx:if="{{records.length > 0}}">
+    <view class="record-card" wx:for="{{records}}" wx:key="id">
+      <view class="card-header">
+        <text class="goods-name">{{item.goods_name}}</text>
+        <text class="status status-{{item.status}}">
+          {{item.status === 'pending' ? '待核销' : (item.status === 'completed' ? '已核销' : '已取消')}}
+        </text>
+      </view>
+      <view class="card-body">
+        <view class="info-row">
+          <text class="label">兑换人：</text>
+          <text>{{item.user_name || '未知'}} {{item.user_phone ? '(' + item.user_phone + ')' : ''}}</text>
+        </view>
+        <view class="info-row">
+          <text class="label">兑换码：</text>
+          <text class="code">{{item.exchange_code}}</text>
+        </view>
+        <view class="info-row">
+          <text class="label">消耗积分：</text>
+          <text class="points">{{item.points_spent}}</text>
+        </view>
+        <view class="info-row">
+          <text class="label">兑换时间：</text>
+          <text>{{item.created_at}}</text>
+        </view>
+        <view class="info-row" wx:if="{{item.completed_at}}">
+          <text class="label">{{item.status === 'completed' ? '核销时间' : '取消时间'}}：</text>
+          <text>{{item.completed_at}}</text>
+        </view>
+      </view>
+      <view class="card-footer" wx:if="{{item.status === 'pending'}}">
+        <button class="btn-cancel" bindtap="cancelRecord" data-id="{{item.id}}">取消</button>
+        <button class="btn-complete" bindtap="completeRecord" data-id="{{item.id}}">核销</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty" wx:if="{{records.length === 0 && !loading}}">
+    <text>暂无兑换记录</text>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{hasMore}}">
+    <text bindtap="loadMore">{{loading ? '加载中...' : '加载更多'}}</text>
+  </view>
+</view>

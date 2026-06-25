@@ -1,0 +1,210 @@
+﻿<!--pages/activities/my/my.wxml-->
+<view class="page-container">
+  
+  <!-- 统计卡片 -->
+  <view class="stats-card">
+    <view class="stats-row">
+      <view class="stat-item" bindtap="switchTab" data-id="all">
+        <text class="stat-number">{{stats.total || 0}}</text>
+        <text class="stat-label">全部活动</text>
+      </view>
+      <view class="stat-divider"></view>
+      <view class="stat-item" bindtap="switchTab" data-id="ongoing">
+        <text class="stat-number">{{stats.ongoing || 0}}</text>
+        <text class="stat-label">进行中</text>
+      </view>
+      <view class="stat-divider"></view>
+      <view class="stat-item" bindtap="switchTab" data-id="signed">
+        <text class="stat-number">{{stats.signed || 0}}</text>
+        <text class="stat-label">已报名</text>
+      </view>
+      <view class="stat-divider"></view>
+      <view class="stat-item" bindtap="switchTab" data-id="completed">
+        <text class="stat-number">{{stats.completed || 0}}</text>
+        <text class="stat-label">已完成</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 标签栏 -->
+  <view class="tabs-container">
+    <view wx:for="{{tabs}}" wx:key="id" class="tab-item {{activeTab === item.id ? 'active' : ''}}" 
+          bindtap="switchTab" data-id="{{item.id}}">
+      <text class="tab-text">{{item.name}}</text>
+      <text wx:if="{{item.count > 0}}" class="tab-badge">{{item.count}}</text>
+      <view wx:if="{{activeTab === item.id}}" class="tab-indicator"></view>
+    </view>
+  </view>
+
+  <!-- 活动列表 -->
+  <scroll-view class="activities-container" scroll-y>
+    
+    <!-- 加载中 -->
+    <view wx:if="{{loading && activities.length === 0}}" class="loading-container">
+      <image src="/images/loading.gif" class="loading-icon"></image>
+      <text class="loading-text">加载中...</text>
+    </view>
+
+    <!-- 空状态 -->
+    <view wx:if="{{!loading && activities.length === 0}}" class="empty-container">
+      <image src="/images/empty-activity.png" class="empty-icon"></image>
+      <text class="empty-text">暂无活动记录</text>
+      <text class="empty-subtext">快去报名参加活动吧</text>
+      <button class="primary-button" bindtap="goToActivityList">查看活动列表</button>
+    </view>
+
+    <!-- 活动列表 -->
+    <view wx:if="{{activities.length > 0}}">
+      <view wx:for="{{activities}}" wx:key="id" class="activity-card">
+        
+        <!-- 活动状态标签 -->
+        <view class="activity-status {{item.status}}">
+          <text>{{item.status_text || '未知'}}</text>
+        </view>
+
+        <!-- 活动基本信息 -->
+        <view class="activity-header">
+          <text class="activity-title">{{item.title}}</text>
+          <text class="activity-time">{{item.activity_time}}</text>
+          <text wx:if="{{item.time_slots_count > 1}}" class="activity-slots-count">
+            ({{item.time_slots_count}}个时间段)
+          </text>
+        </view>
+
+        <view class="activity-info">
+          <view class="info-item">
+            <image src="/images/icons/location.png" class="info-icon"></image>
+            <text class="info-text">{{item.location || '未设置地点'}}</text>
+          </view>
+          <view class="info-item">
+            <image src="/images/icons/time.png" class="info-icon"></image>
+            <text class="info-text">{{item.duration || '0'}}小时</text>
+          </view>
+        </view>
+
+        <!-- 时间段列表 -->
+        <view wx:if="{{item.time_slots && item.time_slots.length > 0}}" class="time-slots-section">
+          <view class="section-title">
+            <text class="section-title-text">已报名时间段</text>
+          </view>
+          
+          <view wx:for="{{item.time_slots}}" wx:key="id" class="time-slot-item">
+            <view class="slot-info">
+              <text class="slot-date">{{item.slot_date}}</text>
+              <text class="slot-time">{{item.start_time}} - {{item.end_time}}</text>
+              <view class="slot-details">
+                <text class="slot-points">{{item.points_per_slot || 0}}积分</text>
+                <text class="slot-status {{item.checkin_status === 1 ? 'checked-in' : 'not-checked'}}">
+                  {{item.checkin_status === 1 ? '已签到' : '未签到'}}
+                </text>
+                <text wx:if="{{item.checkout_time}}" class="slot-checkout">
+                  签退时间: {{item.checkout_time.split(' ')[1]}}
+                </text>
+              </view>
+            </view>
+            
+            <view class="slot-actions">
+              <!-- 签到按钮 -->
+              <button wx:if="{{item.checkin_status !== 1 && item.status === 'ongoing'}}" 
+                      class="slot-btn slot-btn-primary" 
+                      size="mini" 
+                      bindtap="signInActivity" 
+                      data-id="{{item.activity_id}}"
+                      data-slotid="{{item.id}}">
+                签到
+              </button>
+              
+              <!-- 已签到状态 -->
+              <view wx:if="{{item.checkin_status === 1}}" class="slot-status-badge">
+                已签到
+              </view>
+              
+              <!-- 取消报名按钮 -->
+              <button wx:if="{{item.status === 'upcoming' || item.status === 'ongoing'}}" 
+                      class="slot-btn slot-btn-secondary" 
+                      size="mini" 
+                      bindtap="cancelSignUp" 
+                      data-id="{{item.activity_id}}"
+                      data-slotid="{{item.id}}">
+                取消
+              </button>
+              
+              <!-- 查看详情 -->
+              <button class="slot-btn slot-btn-outline" 
+                      size="mini" 
+                      bindtap="viewTimeSlotDetail" 
+                      data-activityid="{{item.activity_id}}"
+                      data-slotid="{{item.id}}">
+                详情
+              </button>
+            </view>
+          </view>
+        </view>
+
+        <!-- 活动状态详情（仅显示无时间段的活动） -->
+        <view wx:if="{{!item.time_slots || item.time_slots.length === 0}}" class="activity-status-detail">
+          <view class="status-item">
+            <text class="status-label">报名状态：</text>
+            <text class="status-value {{item.sign_status === 'signed' ? 'signed' : ''}}">
+              {{item.sign_status_text || '未报名'}}
+            </text>
+          </view>
+          <view class="status-item">
+            <text class="status-label">签到状态：</text>
+            <text class="status-value {{item.signin_status === 'signed' ? 'signed' : ''}}">
+              {{item.signin_status_text || '未签到'}}
+            </text>
+          </view>
+          <view class="status-item">
+            <text class="status-label">获得积分：</text>
+            <text class="status-value points">{{item.points_earned || 0}}分</text>
+          </view>
+        </view>
+
+        <!-- 操作按钮（仅显示无时间段的活动） -->
+        <view wx:if="{{(!item.time_slots || item.time_slots.length === 0)}}" class="action-buttons">
+          <!-- 签到按钮（进行中且已报名但未签到） -->
+          <button wx:if="{{item.status === 'ongoing' && item.sign_status === 'signed' && item.signin_status !== 'signed'}}" 
+                  class="btn-primary" bindtap="signInActivity" data-id="{{item.id}}" catchtap>
+            立即签到
+          </button>
+          
+          <!-- 取消报名按钮（未开始且已报名） -->
+          <button wx:if="{{item.status === 'upcoming' && item.sign_status === 'signed'}}" 
+                  class="btn-secondary" bindtap="cancelSignUp" data-id="{{item.id}}" catchtap>
+            取消报名
+          </button>
+          
+          <!-- 查看详情按钮 -->
+          <button class="btn-outline" bindtap="viewActivityDetail" data-id="{{item.id}}" catchtap>
+            查看详情
+          </button>
+          
+          <!-- 评价按钮（已完成且未评价） -->
+          <button wx:if="{{item.status === 'completed' && !item.rated}}" 
+                  class="btn-secondary" bindtap="rateActivity" data-id="{{item.id}}" catchtap>
+            评价活动
+          </button>
+        </view>
+
+      </view>
+
+      <!-- 加载更多 -->
+      <view wx:if="{{hasMore && activities.length > 0}}" class="load-more" bindtap="loadMoreData">
+        <text wx:if="{{loading}}">加载中...</text>
+        <text wx:else>点击加载更多</text>
+      </view>
+      
+      <view wx:if="{{!hasMore && activities.length > 0}}" class="no-more">
+        <text>没有更多活动了</text>
+      </view>
+    </view>
+
+  </scroll-view>
+
+  <!-- 刷新按钮 -->
+  <view class="refresh-fab" wx:if="{{activities.length > 0}}" bindtap="manualRefresh">
+    <image src="/images/icons/refresh.png" class="refresh-icon"></image>
+  </view>
+
+</view>

@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="form">
+    <view class="form-item">
+      <text class="label">团队名称</text>
+      <input class="input" placeholder="请输入团队名称" bindinput="onNameInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label">团队描述</text>
+      <textarea class="textarea" placeholder="请输入团队描述" bindinput="onDescInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="label">团队颜色</text>
+      <view class="color-picker">
+        <view class="color-option {{formData.color === '#1890ff' ? 'active' : ''}}" 
+              style="background-color: #1890ff" 
+              data-color="#1890ff"
+              bindtap="selectColor"></view>
+        <view class="color-option {{formData.color === '#eb2f96' ? 'active' : ''}}" 
+              style="background-color: #eb2f96" 
+              data-color="#eb2f96"
+              bindtap="selectColor"></view>
+        <view class="color-option {{formData.color === '#52c41a' ? 'active' : ''}}" 
+              style="background-color: #52c41a" 
+              data-color="#52c41a"
+              bindtap="selectColor"></view>
+        <view class="color-option {{formData.color === '#faad14' ? 'active' : ''}}" 
+              style="background-color: #faad14" 
+              data-color="#faad14"
+              bindtap="selectColor"></view>
+        <view class="color-option {{formData.color === '#f5222d' ? 'active' : ''}}" 
+              style="background-color: #f5222d" 
+              data-color="#f5222d"
+              bindtap="selectColor"></view>
+      </view>
+    </view>
+
+    <button class="submit-btn" type="primary" bindtap="submitForm" disabled="{{!formData.name}}">创建团队</button>
+  </view>
+</view>

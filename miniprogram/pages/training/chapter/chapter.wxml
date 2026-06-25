@@ -1,0 +1,89 @@
+<view class="container">
+  <view class="header">
+    <text class="back-btn" bindtap="goBack">← 返回</text>
+    <text class="title">{{courseTitle}}</text>
+  </view>
+  
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+  
+  <view wx:else class="content">
+    <view class="chapter-list">
+      <view 
+        class="chapter-item {{currentChapter.id == item.id ? 'active' : ''}} {{item.is_completed ? 'completed' : ''}}"
+        wx:for="{{chapters}}"
+        wx:key="id"
+        bindtap="loadChapter"
+        data-id="{{item.id}}"
+        data-index="{{index}}"
+      >
+        <text class="chapter-title">{{item.sort_order}}. {{item.title}}</text>
+        <text class="chapter-status" wx:if="{{item.is_completed}}">✓</text>
+      </view>
+    </view>
+    
+    <view class="chapter-content" wx:if="{{currentChapter}}">
+      <!-- 使用 rich-text 组件显示 HTML 内容 -->
+      <view class="content-text" wx:if="{{currentChapter.content_type == 'text'}}">
+        <rich-text nodes="{{currentChapter.content_text}}"></rich-text>
+      </view>
+      <image wx:if="{{currentChapter.content_type == 'image'}}" src="{{currentChapter.content_url}}" mode="widthFix"></image>
+      <video wx:if="{{currentChapter.content_type == 'video'}}" src="{{currentChapter.content_url}}" controls></video>
+      
+      <!-- 倒计时提示 -->
+      <view class="min-duration-tip" wx:if="{{currentChapter.min_duration > 0 && !currentChapter.is_completed}}">
+        <text class="tip-icon">⏱️</text>
+        <text class="tip-text">本内容需学习至少 
+  {{currentChapter.min_duration >= 60 ? (currentChapter.min_duration / 60) + '分钟' : currentChapter.min_duration + '秒'}}
+</text>
+        <view wx:if="{{remainingSeconds > 0}}" class="countdown">
+          <text class="countdown-icon">⏰</text>
+          <text class="countdown-text">还需 {{remainingSeconds}} 秒</text>
+        </view>
+        <view wx:else class="countdown done">
+          <text class="countdown-icon">✅</text>
+          <text class="countdown-text">已完成学习要求</text>
+        </view>
+      </view>
+      
+      <!-- 已完成的章节显示提示 -->
+      <view class="min-duration-tip completed-tip" wx:if="{{currentChapter.is_completed}}">
+        <text class="tip-icon">✅</text>
+        <text class="tip-text">本章节已完成</text>
+      </view>
+      
+      <!-- 志愿者宣誓章节特殊处理：签名上传 -->
+      <view wx:if="{{currentChapter.title === '志愿者宣誓'}}" class="signature-section">
+        <view class="signature-tip">
+          <text class="tip-icon">✍️</text>
+          <text class="tip-text">志愿者签名</text>
+        </view>
+        
+        <view wx:if="{{signatureImage}}" class="signature-preview">
+          <image src="{{signatureImage}}" class="signature-image" mode="aspectFit"></image>
+          <view class="signature-actions">
+            <button class="reupload-btn" bindtap="chooseSignature">重新上传</button>
+          </view>
+        </view>
+        
+        <view wx:else class="signature-empty" bindtap="chooseSignature">
+          <text class="upload-icon">📷</text>
+          <text class="upload-text">点击拍摄或上传手写签名</text>
+          <text class="upload-desc">请在白纸上手写签名后拍照上传</text>
+        </view>
+        
+        <view wx:if="{{signatureImage && signatureUploaded}}" class="signature-status success">
+          <text>✅ 签名已上传，可继续学习</text>
+        </view>
+        <view wx:elif="{{signatureImage && !signatureUploaded}}" class="signature-status uploading">
+          <text>⏳ 上传中...</text>
+        </view>
+      </view>
+      
+      <button class="next-btn {{!canNext && currentChapter.min_duration > 0 && !currentChapter.is_completed ? 'disabled' : ''}}" 
+              bindtap="goToNextChapter"
+              disabled="{{!canNext && currentChapter.min_duration > 0 && !currentChapter.is_completed}}">
+        {{currentChapterIndex + 1 < chapters.length ? '下一章节' : '完成课程'}}
+      </button>
+    </view>
+  </view>
+</view>

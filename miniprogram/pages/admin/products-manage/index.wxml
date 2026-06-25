@@ -1,0 +1,41 @@
+<view class="container">
+  <!-- 顶部操作栏 -->
+  <view class="top-bar">
+    <view class="title">商品管理</view>
+    <button class="add-btn" bindtap="goAdd">+ 新增商品</button>
+  </view>
+
+  <!-- 状态筛选 -->
+  <view class="filter-bar">
+    <view class="filter-item {{currentStatus === '' ? 'active' : ''}}" bindtap="filterStatus" data-status="">全部</view>
+    <view class="filter-item {{currentStatus === 'available' ? 'active' : ''}}" bindtap="filterStatus" data-status="available">上架中</view>
+    <view class="filter-item {{currentStatus === 'sold_out' ? 'active' : ''}}" bindtap="filterStatus" data-status="sold_out">已下架</view>
+  </view>
+
+  <!-- 商品列表 -->
+  <view class="product-list" wx:if="{{products.length > 0}}">
+    <view class="product-card" wx:for="{{products}}" wx:key="product_id" bindtap="goDetail" data-id="{{item.product_id}}">
+      <image class="product-img" src="{{item.image_url || '/images/placeholder.png'}}" mode="aspectFill" />
+      <view class="product-info">
+        <view class="product-name">{{item.product_name}}</view>
+        <view class="product-desc">{{item.description || '暂无描述'}}</view>
+        <view class="product-meta">
+          <text class="points">🔵 {{item.points_required}}积分</text>
+          <text class="stock">库存: {{item.stock}}</text>
+          <text class="status {{item.status === 'available' ? 'status-on' : 'status-off'}}">{{item.status === 'available' ? '上架' : '下架'}}</text>
+        </view>
+      </view>
+      <view class="arrow">▶</view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty" wx:if="{{products.length === 0 && !loading}}">
+    <text>暂无商品数据</text>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{hasMore}}">
+    <text bindtap="loadMore">{{loading ? '加载中...' : '加载更多'}}</text>
+  </view>
+</view>

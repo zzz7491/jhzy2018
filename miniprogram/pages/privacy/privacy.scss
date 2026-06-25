@@ -1,0 +1,130 @@
+/* pages/privacy/privacy.wxss */
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40rpx 30rpx;
+  color: white;
+}
+
+.title {
+  font-size: 48rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.subtitle {
+  font-size: 28rpx;
+  opacity: 0.9;
+  display: block;
+}
+
+.content {
+  flex: 1;
+  padding: 30rpx;
+  background-color: #f5f5f5;
+}
+
+.section {
+  background-color: white;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 20rpx;
+  position: relative;
+  padding-left: 20rpx;
+}
+
+.section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8rpx;
+  height: 32rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 4rpx;
+}
+
+.section-subtitle {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #444;
+  display: block;
+  margin: 20rpx 0 10rpx;
+}
+
+/* 新增：用于突出显示关键词的样式（如"收集目的："等） */
+.highlight {
+  font-weight: 600;
+  color: #667eea;
+  display: inline-block;
+}
+
+/* 新增：用于列表项的样式，增加缩进和间距 */
+.section-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.6;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+/* 新增：用于嵌套列表的样式（如（1）（2）等） */
+.section-text.indent {
+  padding-left: 30rpx;
+}
+
+.section-text:last-child {
+  margin-bottom: 0;
+}
+
+/* 新增：为列表项添加左侧装饰线（可选，让列表更清晰） */
+.list-item {
+  position: relative;
+  padding-left: 30rpx;
+  margin-bottom: 12rpx;
+}
+
+.list-item::before {
+  content: '•';
+  position: absolute;
+  left: 8rpx;
+  color: #667eea;
+  font-weight: bold;
+}
+
+.footer {
+  padding: 20rpx 30rpx 40rpx;
+  background-color: #f5f5f5;
+}
+
+.back-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 32rpx;
+  border-radius: 44rpx;
+  box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.4);
+}
+
+.back-btn::after {
+  border: none;
+}

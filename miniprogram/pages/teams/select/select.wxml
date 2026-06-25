@@ -1,0 +1,26 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:else class="group-list">
+    <view class="group-card" 
+          wx:for="{{groups}}" 
+          wx:key="id" 
+          data-id="{{item.id}}" 
+          bindtap="selectGroup">
+      <view class="group-info">
+        <view class="group-name">{{item.name}}</view>
+        <view class="group-desc">{{item.description}}</view>
+        <view class="group-meta">
+          <text>成员: {{item.member_count}}人</text>
+        </view>
+      </view>
+      <view class="select-btn">选择</view>
+    </view>
+
+    <view wx:if="{{groups.length === 0}}" class="empty">
+      <text>暂无可用团队</text>
+    </view>
+  </view>
+</view>

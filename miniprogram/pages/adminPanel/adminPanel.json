@@ -1,0 +1,12 @@
+{
+  "navigationBarTitleText": "超级管理员",
+  "navigationBarBackgroundColor": "#667eea",
+  "navigationBarTextStyle": "white",
+  "navigationStyle": "custom",
+  "backgroundColor": "#f5f7ff",
+  "backgroundTextStyle": "dark",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 50,
+  "disableScroll": false,
+  "usingComponents": {}
+}

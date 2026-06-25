@@ -1,0 +1,303 @@
+/* pages/admin/review-aggregate/index.scss */
+.review-page {
+  padding: 20rpx;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* 统计卡片 */
+.stats-cards {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 30rpx;
+  padding: 0 20rpx;
+
+  .stats-card {
+    flex: 1;
+    background: white;
+    border-radius: 16rpx;
+    padding: 30rpx 20rpx;
+    margin: 0 10rpx;
+    text-align: center;
+    box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+
+    .stats-label {
+      font-size: 24rpx;
+      color: #666;
+      margin-bottom: 10rpx;
+    }
+
+    .stats-value {
+      font-size: 48rpx;
+      font-weight: bold;
+      color: #007AFF;
+    }
+
+    &:nth-child(2) .stats-value {
+      color: #34C759;
+    }
+
+    &:nth-child(3) .stats-value {
+      color: #FF3B30;
+    }
+  }
+}
+
+/* 操作栏 */
+.action-bar {
+  background: white;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+
+  .select-all {
+    display: flex;
+    align-items: center;
+    font-size: 28rpx;
+    color: #333;
+
+    checkbox {
+      margin-right: 10rpx;
+      transform: scale(0.8);
+    }
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 15rpx;
+
+    button {
+      border-radius: 10rpx;
+      font-size: 24rpx;
+      padding: 0 20rpx;
+      height: 60rpx;
+      line-height: 60rpx;
+
+      &[disabled] {
+        opacity: 0.5;
+      }
+
+      &.btn-approve {
+        background: #34C759;
+        color: white;
+        border: none;
+      }
+
+      &.btn-reject {
+        background: #FF3B30;
+        color: white;
+        border: none;
+      }
+
+      &.btn-refresh {
+        background: #007AFF;
+        color: white;
+        border: none;
+
+        .icon-refresh {
+          margin-right: 5rpx;
+        }
+      }
+    }
+  }
+}
+
+/* 活动列表 */
+.activity-list {
+  .empty-state {
+    text-align: center;
+    padding: 100rpx 20rpx;
+
+    image {
+      width: 200rpx;
+      height: 200rpx;
+      opacity: 0.5;
+      margin-bottom: 30rpx;
+    }
+
+    text {
+      display: block;
+      color: #999;
+      font-size: 28rpx;
+      margin-bottom: 30rpx;
+    }
+
+    button {
+      background: #007AFF;
+      color: white;
+      border-radius: 10rpx;
+    }
+  }
+}
+
+/* 活动卡片 */
+.activity-card {
+  background: white;
+  border-radius: 16rpx;
+  margin-bottom: 20rpx;
+  padding: 30rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  border: 2rpx solid transparent;
+
+  &.selected {
+    border-color: #007AFF;
+    background-color: #f0f7ff;
+  }
+
+  .activity-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20rpx;
+    padding-bottom: 20rpx;
+    border-bottom: 1rpx solid #eee;
+
+    checkbox {
+      margin-right: 20rpx;
+      transform: scale(0.8);
+    }
+
+    .activity-title {
+      flex: 1;
+      font-size: 32rpx;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .activity-status {
+      font-size: 24rpx;
+      padding: 4rpx 12rpx;
+      border-radius: 20rpx;
+
+      &.pending {
+        background: #FF9500;
+        color: white;
+      }
+    }
+  }
+
+  .activity-content {
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 15rpx;
+      font-size: 28rpx;
+
+      .label {
+        color: #666;
+        min-width: 140rpx;
+        flex-shrink: 0;
+      }
+
+      .value {
+        flex: 1;
+        color: #333;
+        word-break: break-all;
+
+        &.remark {
+          color: #FF9500;
+          font-style: italic;
+        }
+      }
+
+      .link {
+        color: #007AFF;
+        margin-left: 20rpx;
+        flex-shrink: 0;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .activity-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15rpx;
+    margin-top: 30rpx;
+    padding-top: 20rpx;
+    border-top: 1rpx solid #eee;
+
+    button {
+      border-radius: 10rpx;
+      font-size: 24rpx;
+      padding: 0 20rpx;
+      height: 60rpx;
+      line-height: 60rpx;
+
+      &.btn-view {
+        background: #f0f0f0;
+        color: #333;
+        border: none;
+      }
+
+      &.btn-approve-single {
+        background: #34C759;
+        color: white;
+        border: none;
+      }
+
+      &.btn-reject-single {
+        background: #FF3B30;
+        color: white;
+        border: none;
+      }
+    }
+  }
+}
+
+/* 加载状态 */
+.loading {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+  font-size: 28rpx;
+}
+
+/* 浮动操作按钮 */
+.fab-container {
+  position: fixed;
+  bottom: 60rpx;
+  right: 40rpx;
+  z-index: 1000;
+
+  .fab {
+    width: 100rpx;
+    height: 100rpx;
+    border-radius: 50%;
+    background: #007AFF;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6rpx 20rpx rgba(0, 122, 255, 0.3);
+    border: none;
+
+    .icon {
+      font-size: 40rpx;
+    }
+  }
+}
+
+/* 响应式调整 */
+@media (max-width: 750rpx) {
+  .stats-cards {
+    flex-direction: column;
+    gap: 20rpx;
+
+    .stats-card {
+      margin: 0;
+    }
+  }
+
+  .activity-actions {
+    flex-wrap: wrap;
+
+    button {
+      flex: 1;
+      min-width: 150rpx;
+    }
+  }
+}

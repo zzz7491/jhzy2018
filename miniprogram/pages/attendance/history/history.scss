@@ -1,0 +1,200 @@
+.history-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding-bottom: 100rpx;
+}
+
+/* 统计卡片 */
+.stats-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 30rpx;
+  display: flex;
+  justify-content: space-around;
+  color: #fff;
+  margin-bottom: 20rpx;
+}
+
+.stat-item {
+  text-align: center;
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 28rpx;
+  opacity: 0.9;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.stat-value {
+  font-size: 40rpx;
+  font-weight: bold;
+  display: block;
+}
+
+/* 记录列表 */
+.records-list {
+  padding: 20rpx;
+}
+
+.record-card {
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx solid #eee;
+}
+
+.activity-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  flex: 1;
+}
+
+.status {
+  font-size: 24rpx;
+  padding: 6rpx 20rpx;
+  border-radius: 30rpx;
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.status-active {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.status-completed {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+}
+
+.status-forced {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.record-content {
+  margin-bottom: 20rpx;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.label {
+  width: 160rpx;
+  color: #999;
+}
+
+.value {
+  flex: 1;
+  color: #333;
+}
+
+.value.highlight {
+  color: #07c160;
+  font-weight: bold;
+}
+
+.value.points {
+  color: #ff9800;
+  font-weight: bold;
+}
+
+.value.warn {
+  color: #f44336;
+}
+
+.record-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.btn-view {
+  background-color: #f5f5f5;
+  color: #666;
+  font-size: 24rpx;
+  padding: 10rpx 30rpx;
+  border-radius: 40rpx;
+}
+
+.btn-view:active {
+  background-color: #e0e0e0;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 100rpx 0;
+}
+
+.empty-state image {
+  width: 300rpx;
+  height: 300rpx;
+  margin-bottom: 30rpx;
+}
+
+.empty-state text {
+  font-size: 28rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 30rpx;
+}
+
+.empty-state button {
+  background-color: #07c160;
+  color: #fff;
+  font-size: 28rpx;
+  width: 200rpx;
+}
+
+.empty-state button:active {
+  background-color: #06a050;
+}
+
+/* 加载更多 */
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 30rpx;
+  color: #999;
+  font-size: 26rpx;
+}
+
+/* 返回按钮 */
+.back-btn {
+  position: fixed;
+  bottom: 30rpx;
+  right: 30rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.2);
+}
+
+.back-btn:active {
+  background-color: rgba(0, 0, 0, 0.8);
+}

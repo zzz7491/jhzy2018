@@ -1,0 +1,94 @@
+<view class="container">
+  <!-- 头部 -->
+  <view class="header">
+    <view class="header-left">
+      <view class="back-btn" bindtap="goBack">
+        <text class="back-icon">←</text>
+      </view>
+      <text class="title">报名列表</text>
+    </view>
+    <view class="header-right">
+      <view class="refresh-btn" bindtap="refresh">
+        <text class="refresh-icon">⟳</text>
+      </view>
+      <view class="export-btn" bindtap="exportSignups" wx:if="{{signups.length > 0}}">
+        <text class="export-icon">📋</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 活动信息卡片 -->
+  <view class="activity-card" wx:if="{{activity}}">
+    <text class="activity-title">{{activity.title}}</text>
+    <view class="activity-info">
+      <view class="info-row">
+        <text>📅 {{activity.activity_date}} {{activity.start_time}}-{{activity.end_time}}</text>
+      </view>
+      <view class="info-row">
+        <text>📍 {{activity.location}}</text>
+      </view>
+      <view class="info-row">
+        <text>👥 {{signups.length}} / {{activity.max_participants}} 人报名</text>
+        <text>⭐ {{activity.points_reward}} 积分</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loadingSignups}}">
+    <text>加载报名列表...</text>
+  </view>
+
+  <!-- 报名列表 -->
+  <view class="signup-list" wx:else>
+    <view class="list-header">
+      <text class="list-title">志愿者名单 ({{signups.length}}人)</text>
+    </view>
+
+    <view class="empty" wx:if="{{signups.length === 0}}">
+      <text>暂无志愿者报名</text>
+    </view>
+
+    <block wx:for="{{signups}}" wx:key="signup_id">
+      <view class="signup-item">
+        <view class="signup-header">
+          <view class="vol-name-box">
+            <text class="vol-name">{{item.real_name || '未知'}}</text>
+            <text class="vol-phone" bindtap="makePhoneCall" data-phone="{{item.phone}}">{{item.phone || '无手机号'}}</text>
+          </view>
+          <view class="status-badge {{getStatusClass(item.signup_status)}}">
+            {{getStatusText(item.signup_status)}}
+          </view>
+        </view>
+        
+        <view class="signup-detail">
+          <view class="detail-row">
+            <text class="detail-label">志愿者编号：</text>
+            <text class="detail-value" bindtap="copyText" data-text="{{item.volunteer_id}}">{{item.volunteer_id || '-'}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="detail-label">报名时间：</text>
+            <text class="detail-value">{{formatDate(item.signup_time)}}</text>
+          </view>
+          <view class="detail-row" wx:if="{{item.checkin_time}}">
+            <text class="detail-label">签到时间：</text>
+            <text class="detail-value">{{formatDate(item.checkin_time)}}</text>
+          </view>
+          <view class="detail-row" wx:if="{{item.signup_status === 'checked' && !item.checkin_time}}">
+            <text class="detail-label">签到时间：</text>
+            <text class="detail-value">已签到（时间待同步）</text>
+          </view>
+          <view class="detail-row">
+            <text class="detail-label">当前积分：</text>
+            <text class="detail-value">{{item.current_points || 0}} 分</text>
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 底部提示 -->
+  <view class="footer-tip" wx:if="{{signups.length > 0}}">
+    <text class="tip-text">— 共 {{signups.length}} 人报名 —</text>
+  </view>
+</view>

@@ -1,0 +1,169 @@
+<!-- 状态筛选选项卡 -->
+<view class="filter-tabs">
+  <view 
+    class="filter-tab {{status === 'pending' ? 'active' : ''}}" 
+    data-status="pending" 
+    bindtap="switchStatus"
+  >
+    待审核
+    <text class="count-badge" wx:if="{{stats.pending > 0}}">{{stats.pending}}</text>
+  </view>
+  <view 
+    class="filter-tab {{status === 'approved' ? 'active' : ''}}" 
+    data-status="approved" 
+    bindtap="switchStatus"
+  >
+    已通过
+    <text class="count-badge" wx:if="{{stats.approved > 0}}">{{stats.approved}}</text>
+  </view>
+  <view 
+    class="filter-tab {{status === 'rejected' ? 'active' : ''}}" 
+    data-status="rejected" 
+    bindtap="switchStatus"
+  >
+    已拒绝
+    <text class="count-badge" wx:if="{{stats.rejected > 0}}">{{stats.rejected}}</text>
+  </view>
+</view>
+
+<!-- 记录列表 -->
+<scroll-view 
+  class="record-list" 
+  scroll-y 
+  bindscrolltolower="onReachBottom"
+  refresher-enabled="{{true}}"
+  bindrefresherrefresh="onPullDownRefresh"
+  refresher-triggered="{{refreshing}}"
+>
+  <view wx:for="{{records}}" wx:key="id" class="record-item">
+    <!-- 选择框 -->
+    <view class="select-checkbox" bindtap="toggleSelect" data-id="{{item.id}}">
+      <checkbox checked="{{selectedIds.indexOf(item.id) > -1}}" />
+    </view>
+    
+    <!-- 记录内容 -->
+    <view class="record-content">
+      <view class="record-header">
+        <text class="record-title">{{item.title || getServiceTypeText(item.type)}}</text>
+        <view class="record-status" style="color: {{getStatusColor(item.status)}}">
+          {{getStatusText(item.status)}}
+        </view>
+      </view>
+      
+      <view class="record-info">
+        <!-- 修改点：real_name 和 phone 是后端返回的字段名 -->
+        <text class="info-item">提交人：{{item.real_name || '匿名用户'}}</text>
+        <text class="info-item">电话：{{item.phone || '未填写'}}</text>
+        <text class="info-item">时间：{{item.created_at_str || item.created_at}}</text>
+        <text class="info-item">地点：{{item.location || '未记录位置'}}</text>
+      </view>
+      
+      <view class="record-description">
+        {{item.description}}
+      </view>
+      
+      <!-- 图片预览 -->
+      <view class="record-images" wx:if="{{item.images && item.images.length > 0}}">
+        <view 
+          class="image-item" 
+          wx:for="{{item.images}}" 
+          wx:key="*this" 
+          bindtap="viewImage" 
+          data-images="{{item.images}}"
+        >
+          <image src="{{item}}" mode="aspectFill" class="preview-image" />
+        </view>
+      </view>
+      
+      <!-- 审核备注 -->
+      <view class="review-remark" wx:if="{{item.review_remark}}">
+        <text class="remark-label">审核备注：</text>
+        <text class="remark-content">{{item.review_remark}}</text>
+      </view>
+      
+      <!-- 操作按钮 -->
+      <view class="record-actions" wx:if="{{item.status == 0}}">
+        <button 
+          class="action-btn approve-btn" 
+          bindtap="approveSingle" 
+          data-id="{{item.id}}" 
+          data-title="{{item.title}}"
+        >
+          通过
+        </button>
+        <button 
+          class="action-btn reject-btn" 
+          bindtap="rejectSingle" 
+          data-id="{{item.id}}" 
+          data-title="{{item.title}}"
+        >
+          拒绝
+        </button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 加载状态 -->
+  <view class="loading-status" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+  <view class="loading-status" wx:if="{{!hasMore && records.length > 0}}">
+    <text>没有更多了</text>
+  </view>
+  <view class="loading-status" wx:if="{{records.length === 0 && !loading}}">
+    <text>暂无记录</text>
+  </view>
+</scroll-view>
+
+<!-- 批量操作栏 -->
+<view class="batch-actions" wx:if="{{records.length > 0}}">
+  <view class="batch-select">
+    <checkbox checked="{{selectAll}}" bindtap="toggleSelectAll" />
+    <text>全选 ({{getSelectedCount()}})</text>
+  </view>
+  
+  <view class="batch-buttons">
+    <button class="batch-btn batch-approve" bindtap="batchApprove" disabled="{{selectedIds.length === 0}}">
+      批量通过
+    </button>
+    <button class="batch-btn batch-reject" bindtap="batchReject" disabled="{{selectedIds.length === 0}}">
+      批量拒绝
+    </button>
+  </view>
+</view>
+
+<!-- 图片预览模态框 -->
+<view class="image-preview-modal" wx:if="{{showImagePreview}}">
+  <view class="modal-mask" bindtap="closeImagePreview"></view>
+  <view class="modal-content">
+    <swiper 
+      class="image-swiper" 
+      current="{{currentImageIndex}}" 
+      bindchange="swiperImageChange"
+    >
+      <swiper-item wx:for="{{previewImages}}" wx:key="*this">
+        <image src="{{item}}" mode="aspectFit" class="preview-image-full" />
+      </swiper-item>
+    </swiper>
+    <view class="image-counter">
+      {{currentImageIndex + 1}} / {{previewImages.length}}
+    </view>
+  </view>
+</view>
+
+<!-- 确认对话框 -->
+<view class="confirm-dialog" wx:if="{{showConfirmDialog}}">
+  <view class="dialog-mask" bindtap="hideConfirmDialog"></view>
+  <view class="dialog-content">
+    <view class="dialog-header">
+      <text class="dialog-title">{{confirmTitle}}</text>
+    </view>
+    <view class="dialog-body">
+      <text class="dialog-message">{{confirmContent}}</text>
+    </view>
+    <view class="dialog-footer">
+      <button class="dialog-btn cancel-btn" bindtap="hideConfirmDialog">取消</button>
+      <button class="dialog-btn confirm-btn" bindtap="onConfirmDialogConfirm">确认</button>
+    </view>
+  </view>
+</view>

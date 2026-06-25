@@ -1,0 +1,83 @@
+<view class="container">
+  <!-- 标签页 -->
+  <view class="tabs">
+    <view class="tab-item {{currentTab === index ? 'active' : ''}}" 
+          wx:for="{{tabs}}" wx:key="index" 
+          data-index="{{index}}" 
+          bindtap="switchTab">
+      <text>{{item}}</text>
+      <view class="active-line" wx:if="{{currentTab === index}}"></view>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view wx:if="{{currentTab === 0}}" class="action-buttons">
+    <view class="action-btn" bindtap="joinTeam">
+      <text class="btn-icon">➕</text>
+      <text>加入团队</text>
+    </view>
+    <!-- 只有管理员可见的创建团队按钮 -->
+    <view wx:if="{{canCreateTeam}}" class="action-btn" bindtap="createTeam">
+      <text class="btn-icon">✨</text>
+      <text>创建团队</text>
+    </view>
+  </view>
+
+  <!-- 内容区域 -->
+  <view class="content">
+    <view wx:if="{{loading}}" class="loading">
+      <text>加载中...</text>
+    </view>
+
+    <!-- 我的团队 -->
+    <block wx:elif="{{currentTab === 0}}">
+      <view wx:if="{{teams.length === 0}}" class="empty">
+        <text>暂无团队</text>
+      </view>
+
+      <view wx:else class="team-list">
+        <view class="team-card" 
+              wx:for="{{teams}}" 
+              wx:key="id" 
+              data-id="{{item.id}}" 
+              bindtap="goToTeamDetail">
+          <image class="team-avatar" src="{{item.avatar}}"></image>
+          <view class="team-info">
+            <view class="team-name-row">
+              <text class="team-name">{{item.name}}</text>
+              <text class="team-role">{{item.role}}</text>
+            </view>
+            <view class="team-stats">
+              <text class="stat-item">👥 {{item.members}}人</text>
+              <text class="stat-item">📊 {{item.activity_count}}次活动</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 团队活动 -->
+    <block wx:elif="{{currentTab === 1}}">
+      <view wx:if="{{activities && activities.length === 0}}" class="empty">
+        <text>暂无团队活动</text>
+      </view>
+
+      <view wx:else class="activity-list">
+        <view class="activity-card" 
+              wx:for="{{activities}}" 
+              wx:key="id" 
+              data-id="{{item.id}}" 
+              bindtap="goToActivityDetail">
+          <view class="activity-title">{{item.title}}</view>
+          <view class="activity-meta">
+            <text class="activity-team">{{item.team}}</text>
+            <text class="activity-date">{{item.date}}</text>
+          </view>
+          <view class="activity-status {{item.status === '进行中' ? 'ongoing' : 'ended'}}">
+            {{item.status}}
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+</view>

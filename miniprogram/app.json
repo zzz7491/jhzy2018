@@ -1,0 +1,107 @@
+{
+  "pages": [
+    "pages/login-unified/index",
+    "pages/index/index",
+    "pages/mine/mine",
+    "pages/register/register",
+    "pages/quick-action/quick-action",
+    "pages/training/training",
+    "pages/activities/activities",
+    "pages/antiCheatTest/antiCheatTest",
+    "pages/detail/detail",
+    "pages/mall/mall",
+    "pages/goods-detail/goods-detail",
+    "pages/points/points",
+    "pages/sign/sign",
+    "pages/activities/my/my",
+    "pages/profile/edit/edit",
+    "pages/profile/change-password/change-password",
+    "pages/help/help",
+    "pages/feedback/feedback",
+    "pages/exchange-records/exchange-records",
+    "pages/activities/checkout-confirm/sign-confirm",
+    "pages/rankings/rankings",
+    "pages/adminPanel/adminPanel",
+    "pages/admin/review-aggregate/index",
+    "pages/admin/qrVerify/qrVerify",
+    "pages/admin/quick-action-review/index",
+    "pages/admin/change-password/change-password",
+    "pages/admin/activity-create-flow/basic",
+    "pages/admin/volunteer-manage/index",
+    "pages/admin/feedback-manage/index",
+    "pages/admin/activity-abc/index",
+    "pages/admin/login/login",
+    "pages/login/index",
+    "pages/activities/timer/timer",
+    "pages/admin/volunteer-detail/index",
+    "pages/attendance/history/history",
+    "pages/privacy/privacy",
+    "pages/settings/terms/terms",
+    "pages/certificates/certificates",
+    "pages/trainings/trainings",
+    "pages/favorites/favorites",
+    "pages/teams/teams",
+    "pages/stats/stats",
+    "pages/certificates/detail/detail",
+    "pages/admin/admin-manage/admin-manage",
+    "pages/teams/select/select",
+    "pages/teams/create/create",
+    "pages/webview/webview",
+    "pages/admin/points-manager/index",
+    "pages/admin/today-checkins/today-checkins",
+    "pages/message/message",
+    "pages/subscribe/subscribe",
+    "pages/admin/products-manage/index",
+    "pages/admin/products-manage/detail/index",
+    "pages/admin/exchange-manage/index",
+    "pages/training/chapter/chapter",
+    "pages/admin/activity-signups/activity-signups",
+    "pages/admin/training-certificates/index"
+  ],
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#FF6B35",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/quick-action/quick-action",
+        "text": "随手公益"
+      },
+      {
+        "pagePath": "pages/activities/activities",
+        "text": "活动"
+      },
+      {
+        "pagePath": "pages/mall/mall",
+        "text": "积分"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "个人"
+      }
+    ]
+  },
+  "window": {
+    "navigationStyle": "default",
+    "navigationBarTitleText": "嘉禾志愿",
+    "navigationBarBackgroundColor": "#FF6B35",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f8f9fa"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "scope.userLocation": {
+      "desc": "你的位置信息将用于签到功能和地图选点"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation",
+    "chooseLocation"
+  ],
+  "sitemapLocation": "sitemap.json"
+}

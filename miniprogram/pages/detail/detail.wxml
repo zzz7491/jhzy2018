@@ -1,0 +1,366 @@
+<!-- pages/activity/detail/detail.wxml -->
+<view class="activity-detail-container">
+  <!-- 顶部导航栏 -->
+  <view class="header">
+    <view class="nav-back" bindtap="goBack">
+      <text>←</text>
+    </view>
+    <view class="header-title">活动详情</view>
+    <view class="nav-right">
+      <view class="elder-mode-btn" bindtap="toggleElderMode">
+        <text>{{elderMode ? '大字版' : '普通版'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 活动封面图 -->
+  <view wx:if="{{activity}}" class="activity-cover">
+    <image src="{{activity.cover_image || '/images/default-cover.jpg'}}" mode="aspectFill" class="cover-image" />
+    <view wx:if="{{activityStatus.isFull}}" class="full-badge">名额已满</view>
+  </view>
+
+  <!-- 主要内容区域 -->
+  <scroll-view scroll-y class="content-scroll" enable-back-to-top>
+    
+    <!-- 活动基本信息 -->
+    <view wx:if="{{activity}}" class="basic-info">
+      <!-- 活动标题 -->
+      <view class="activity-title">{{activity.title}}</view>
+      
+      <!-- 重复活动信息 - 新增 -->
+      <view wx:if="{{recurrenceInfo}}" class="recurrence-section" style="margin-top: 16rpx; margin-bottom: 16rpx; padding: 16rpx 24rpx; background-color: #e6f7ff; border-left: 6rpx solid #07c160; border-radius: 8rpx;">
+        <view style="display: flex; align-items: center;">
+          <text style="font-size: 28rpx; color: #07c160; font-weight: 500; margin-right: 12rpx;">🔄</text>
+          <text style="font-size: 28rpx; color: #07c160; font-weight: 500;">{{recurrenceInfo.detail}}</text>
+        </view>
+      </view>
+      
+      <!-- 活动分类 -->
+      <view class="info-item">
+        <text class="info-label">活动分类：</text>
+        <text class="info-value">{{activity.category_name || activity.category || '未分类'}}</text>
+      </view>
+      
+      <!-- 活动时间 -->
+      <view class="info-item">
+        <text class="info-label">活动时间：</text>
+        <text class="info-value" wx:if="{{recurrenceInfo && recurrenceInfo.detail}}">{{recurrenceInfo.detail}}</text>
+        <text class="info-value" wx:else>{{activity.display_time}}</text>
+      </view>
+      
+      <!-- 活动地点 -->
+      <view class="info-item">
+        <text class="info-label">活动地点：</text>
+        <text class="info-value">{{activity.address}}</text>
+      </view>
+      
+      <!-- 主办方 -->
+      <view class="info-item">
+        <text class="info-label">主办方：</text>
+        <text class="info-value">{{activity.organizer || '嘉兴市嘉禾志愿服务中心'}}</text>
+      </view>
+      
+      <!-- 联系人 -->
+      <view class="info-item">
+        <text class="info-label">联系人：</text>
+        <text class="info-value">{{contactPerson}} {{contactPhone}}</text>
+      </view>
+      
+      <!-- 允许的角色 -->
+      <view wx:if="{{allowedRoles && allowedRoles.length > 0}}" class="info-item">
+        <text class="info-label">适用角色：</text>
+        <text class="info-value">{{allowedRoles.join('、')}}</text>
+      </view>
+      
+      <!-- 报名人数 -->
+      <view class="info-item">
+        <text class="info-label">报名情况：</text>
+        <text class="info-value">{{activity.current_participants || 0}}/{{activity.max_participants || 0}}人</text>
+        <text wx:if="{{activityStatus.remainingSlots > 0}}" class="remaining-slots">（剩余{{activityStatus.remainingSlots}}个名额）</text>
+      </view>
+      
+      <!-- 积分奖励 -->
+      <view class="info-item">
+        <text class="info-label">积分奖励：</text>
+        <text class="info-value">{{activity.points_reward || 0}}积分/小时</text>
+      </view>
+      
+      <!-- 签到信息（仅显示） -->
+      <view wx:if="{{activity.formatted_checkin_start && activity.formatted_checkin_end}}" class="info-item">
+        <text class="info-label">签到范围：</text>
+        <text class="info-value">{{activity.formatted_checkin_start}} - {{activity.formatted_checkin_end}}</text>
+      </view>
+      
+      <!-- 签到地点信息 -->
+      <view wx:if="{{activity.location_lat && activity.location_lng}}" class="info-item">
+        <text class="info-label">签到地点：</text>
+        <text class="info-value">{{activity.location}}（{{activity.signin_radius || 800}}米范围内）</text>
+      </view>
+      
+      <!-- 用户报名信息 -->
+      <view wx:if="{{userSignupInfo}}" class="user-signup-info">
+        <view class="signup-title">您的报名信息</view>
+        <view wx:if="{{userSignupInfo.selected_role && selectedPosition}}" class="position-info">
+          <text class="info-text">选择岗位：{{selectedPosition.name}}</text>
+          <text wx:if="{{selectedPosition.points}}" class="info-points">（积分：{{selectedPosition.points}}）</text>
+        </view>
+        <view wx:if="{{userSignupInfo.time_slot_id}}" class="time-slot-info">
+          <text class="info-text">选择时段：{{userSignupInfo.slot_date_display || userSignupInfo.slot_date}} {{userSignupInfo.weekday || ''}}</text>
+        </view>
+        <view class="signup-time-info">
+          <text class="info-text">报名时间：{{userSignupInfo.signup_time}}</text>
+        </view>
+        <view wx:if="{{userSignupInfo.checkin_status > 0}}" class="checkin-info">
+          <text class="info-text">签到状态：{{userSignupInfo.checkin_status == 1 ? '已签到' : '已签退'}}</text>
+        </view>
+        <view wx:if="{{userSignupInfo.final_points}}" class="points-info">
+          <text class="info-text">获得积分：{{userSignupInfo.final_points}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 岗位信息（如果活动有岗位） -->
+    <view wx:if="{{hasPositions && positions.length > 0}}" class="positions-section">
+      <view class="section-title">活动岗位</view>
+      <view class="positions-list">
+        <view wx:for="{{positions}}" wx:key="id" class="position-item {{item.status}}">
+          <view class="position-header">
+            <text class="position-name">{{item.name}}</text>
+            <view class="position-status">
+              <text wx:if="{{item.status === 'full'}}" class="status-badge full">已满</text>
+              <text wx:if="{{item.status === 'signed'}}" class="status-badge signed">已报名</text>
+              <text wx:if="{{item.status === 'available' && item.remaining <= 3}}" class="status-badge few">仅剩{{item.remaining}}席</text>
+            </view>
+          </view>
+          <view class="position-details">
+            <text class="detail-item">名额：{{item.current}}/{{item.quota}}</text>
+            <text wx:if="{{item.points}}" class="detail-item">积分：{{item.points}}</text>
+            <text class="detail-item">要求：{{item.allowed_roles.join('、') || '不限'}}</text>
+          </view>
+          <view wx:if="{{item.user_can_apply && item.status === 'available'}}" class="position-actions">
+            <button 
+              class="select-position-btn {{selectedPosition && selectedPosition.id === item.id ? 'selected' : ''}}"
+              bindtap="handlePositionSelect"
+              data-id="{{item.id}}"
+            >
+              {{selectedPosition && selectedPosition.id === item.id ? '✓ 已选择' : '选择此岗位'}}
+            </button>
+          </view>
+          <view wx:if="{{!item.user_can_apply}}" class="position-hint">
+            <text class="hint-text">您不符合此岗位要求</text>
+          </view>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 活动描述 -->
+    <view wx:if="{{activity && activity.description}}" class="description-section">
+      <view class="section-title">活动详情</view>
+      <view class="description-content">{{activity.description}}</view>
+    </view>
+
+  </scroll-view>
+
+  <!-- 底部报名按钮 -->
+  <view class="bottom-action-bar">
+    <button 
+      class="join-btn" 
+      style="background-color: {{buttonBgColor}}"
+      bindtap="handleMainButtonClick"
+    >
+      {{buttonText}}
+    </button>
+  </view>
+
+  <!-- 岗位选择弹窗 -->
+  <view wx:if="{{showPositionModal}}" class="position-modal">
+    <view class="modal-mask" catchtap="closePositionModal"></view>
+    <view class="modal-content">
+      <!-- 弹窗标题 -->
+      <view class="modal-header">
+        <text class="modal-title">选择报名岗位</text>
+        <text class="close-btn" catchtap="closePositionModal">×</text>
+      </view>
+      
+      <!-- 岗位列表 -->
+      <scroll-view scroll-y class="position-list">
+        <!-- 无岗位状态 -->
+        <view wx:if="{{!positions || positions.length === 0}}" class="no-positions">
+          <text>暂无可用岗位</text>
+        </view>
+        
+        <!-- 岗位列表 -->
+        <block wx:elif="{{positions && positions.length > 0}}">
+          <view wx:for="{{positions}}" wx:key="id" class="modal-position-item {{item.status}} {{selectedPosition && selectedPosition.id === item.id ? 'selected' : ''}}">
+            <view 
+              class="modal-position-content"
+              bindtap="handlePositionSelect"
+              data-id="{{item.id}}"
+            >
+              <!-- 岗位基本信息 -->
+              <view class="modal-position-header">
+                <text class="modal-position-name">{{item.name}}</text>
+                <view class="modal-position-status">
+                  <text wx:if="{{item.status === 'full'}}" class="modal-badge full">已满</text>
+                  <text wx:if="{{item.status === 'signed'}}" class="modal-badge signed">已报名</text>
+                  <text wx:if="{{item.status === 'available' && item.remaining <= 3}}" class="modal-badge few">仅剩{{item.remaining}}席</text>
+                </view>
+              </view>
+              
+              <!-- 岗位详情 -->
+              <view class="modal-position-details">
+                <view class="modal-detail-row">
+                  <text class="modal-detail-label">名额：</text>
+                  <text class="modal-detail-value">{{item.current}}/{{item.quota}}</text>
+                  <text wx:if="{{item.remaining > 0 && item.status === 'available'}}" class="modal-remaining">（剩余{{item.remaining}}个）</text>
+                </view>
+                
+                <view wx:if="{{item.points}}" class="modal-detail-row">
+                  <text class="modal-detail-label">积分：</text>
+                  <text class="modal-detail-value">{{item.points}}</text>
+                </view>
+                
+                <view class="modal-detail-row">
+                  <text class="modal-detail-label">要求：</text>
+                  <text class="modal-detail-value">{{item.allowed_roles.join('、') || '不限'}}</text>
+                </view>
+                
+                <view wx:if="{{!item.user_can_apply}}" class="modal-detail-row">
+                  <text class="modal-detail-warning">您没有此岗位的报名权限</text>
+                </view>
+              </view>
+              
+              <!-- 选择标记 -->
+              <view wx:if="{{selectedPosition && selectedPosition.id === item.id}}" class="selected-indicator">
+                <text>✓</text>
+              </view>
+            </view>
+          </view>
+        </block>
+      </scroll-view>
+      
+      <!-- 底部提示 -->
+      <view class="modal-footer">
+        <view wx:if="{{selectedPosition}}" class="selected-position-info">
+          已选择：{{selectedPosition.name}}
+          <text wx:if="{{selectedPosition.points}}">（积分：{{selectedPosition.points}}）</text>
+        </view>
+        <view wx:else class="position-hint-text">
+          请选择一个岗位继续
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 时间段选择弹窗 -->
+  <view wx:if="{{showTimeSlotModal}}" class="time-slot-modal">
+    <view class="modal-mask" catchtap="closeTimeSlotModal"></view>
+    <view class="modal-content">
+      <!-- 弹窗标题 -->
+      <view class="modal-header">
+        <text class="modal-title">选择参与时段</text>
+        <text class="close-btn" catchtap="closeTimeSlotModal">×</text>
+      </view>
+      
+      <!-- 日期选择 -->
+      <view class="date-selection">
+        <scroll-view scroll-x class="date-scroll">
+          <view class="date-list">
+            <view 
+              wx:for="{{availableDates}}" 
+              wx:key="index"
+              class="date-item {{selectedDate === item ? 'selected' : ''}}"
+              bindtap="handleDateSelect"
+              data-date="{{item}}"
+            >
+              <text class="date-text">{{formatDateDisplay(item)}}</text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+      
+      <!-- 时间段列表 -->
+      <scroll-view scroll-y class="time-slot-list">
+        <!-- 加载中状态 -->
+        <view wx:if="{{loadingTimeSlots}}" class="loading-slots">
+          <text>加载时间段中...</text>
+        </view>
+        
+        <!-- 无时间段状态 -->
+        <view wx:elif="{{!loadingTimeSlots && (!timeSlots || timeSlots.length === 0)}}" class="no-slots">
+          <text>该日期暂无可用时段</text>
+        </view>
+        
+        <!-- 时间段列表 -->
+        <block wx:elif="{{!loadingTimeSlots && timeSlots && timeSlots.length > 0}}">
+          <view wx:for="{{timeSlots}}" wx:key="id" class="time-slot-item-container">
+            <view 
+              class="time-slot-item {{selectedTimeSlot && selectedTimeSlot.id === item.id ? 'selected' : ''}} {{item.status}}"
+              bindtap="handleTimeSlotSelect"
+              data-id="{{item.id}}"
+            >
+              <!-- 时间段基本信息 -->
+              <view class="slot-main-info">
+                <text class="slot-time">{{item.display_time}}</text>
+                <view class="slot-status-badge">
+                  <text wx:if="{{item.status === 'full'}}" class="badge full">已满</text>
+                  <text wx:if="{{item.status === 'signed'}}" class="badge signed">已报名</text>
+                  <text wx:if="{{item.status === 'available' && item.remaining <= 5}}" class="badge few">仅剩{{item.remaining}}席</text>
+                </view>
+              </view>
+              
+              <!-- 名额信息 -->
+              <view class="slot-quota-info">
+                <text class="quota-text">名额：{{item.current_participants}}/{{item.max_participants}}</text>
+                <text wx:if="{{item.remaining > 0 && item.status === 'available'}}" class="remaining-text">（剩余{{item.remaining}}个）</text>
+              </view>
+              
+              <!-- 选择标记 -->
+              <view wx:if="{{selectedTimeSlot && selectedTimeSlot.id === item.id}}" class="selected-mark">
+                <text>✓</text>
+              </view>
+            </view>
+          </view>
+        </block>
+      </scroll-view>
+      
+      <!-- 底部确认按钮 -->
+      <view class="modal-footer">
+        <view class="selected-info" wx:if="{{selectedTimeSlot}}">
+          已选择：{{selectedTimeSlot.display_time}}
+          <text wx:if="{{selectedPosition}}">（岗位：{{selectedPosition.name}}）</text>
+        </view>
+        <button 
+          class="confirm-btn {{selectedTimeSlot ? '' : 'disabled'}}"
+          bindtap="confirmTimeSlotSignup"
+          disabled="{{!selectedTimeSlot}}"
+        >
+          确认报名
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 保险购买弹窗 -->
+  <view wx:if="{{showInsuranceModal}}" class="insurance-modal">
+    <view class="modal-mask" catchtap="closeInsuranceModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">购买保险保障</text>
+        <text class="close-btn" catchtap="closeInsuranceModal">×</text>
+      </view>
+      
+      <view class="insurance-content">
+        <text class="insurance-tip">为了您的安全，建议活动前购买保险</text>
+        <image src="{{insuranceQRCode}}" mode="widthFix" class="insurance-qrcode" />
+        <text class="insurance-instruction">长按识别二维码购买保险</text>
+      </view>
+      
+      <view class="modal-footer">
+        <button class="save-btn" bindtap="saveInsuranceQRCode">保存二维码</button>
+        <button class="close-modal-btn" bindtap="closeInsuranceModal">我知道了</button>
+      </view>
+    </view>
+  </view>
+
+</view>

@@ -1,0 +1,162 @@
+.container {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 20rpx;
+}
+
+.search-bar {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.search-input {
+  flex: 1;
+  background: white;
+  height: 80rpx;
+  padding: 0 20rpx;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+}
+
+.search-btn {
+  width: 140rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: #07c160;
+  color: white;
+  font-size: 28rpx;
+  border-radius: 10rpx;
+}
+
+.filter-bar {
+  margin-bottom: 20rpx;
+}
+
+.filter-item {
+  display: inline-block;
+  background: white;
+  padding: 15rpx 30rpx;
+  border-radius: 50rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.stats {
+  background: white;
+  padding: 20rpx;
+  border-radius: 10rpx;
+  margin-bottom: 20rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.card {
+  background: white;
+  border-radius: 16rpx;
+  margin-bottom: 20rpx;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.name {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: white;
+}
+
+.score {
+  font-size: 32rpx;
+  font-weight: bold;
+  padding: 8rpx 20rpx;
+  border-radius: 30rpx;
+  background: rgba(255,255,255,0.3);
+  color: white;
+}
+
+.score.high {
+  background: #f5b042;
+}
+
+.card-body {
+  padding: 30rpx;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 20rpx;
+  font-size: 28rpx;
+}
+
+.info-row .label {
+  width: 140rpx;
+  color: #999;
+}
+
+.info-row .value {
+  flex: 1;
+  color: #333;
+}
+
+.cert-code {
+  font-size: 24rpx;
+  color: #07c160;
+  word-break: break-all;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.status {
+  font-size: 26rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+}
+
+.status.registered {
+  background: #e6f7e6;
+  color: #07c160;
+}
+
+.status.unregistered {
+  background: #fff0f0;
+  color: #ff4d4f;
+}
+
+.detail-btn {
+  background: none;
+  color: #07c160;
+  font-size: 28rpx;
+  padding: 0;
+  margin: 0;
+  line-height: normal;
+}
+
+.loading, .empty {
+  text-align: center;
+  padding: 100rpx;
+  color: #999;
+}
+
+.load-more {
+  margin-top: 20rpx;
+  margin-bottom: 40rpx;
+}
+
+.load-more-btn {
+  background: white;
+  color: #07c160;
+  border-radius: 10rpx;
+}

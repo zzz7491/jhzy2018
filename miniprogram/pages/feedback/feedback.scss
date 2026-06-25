@@ -1,0 +1,488 @@
+/* pages/feedback/feedback.wxss */
+.page-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 顶部导航 */
+.nav-header {
+  background: white;
+  padding: 20rpx 30rpx;
+  display: flex;
+  align-items: center;
+  border-bottom: 1rpx solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+}
+
+.nav-icon {
+  font-size: 40rpx;
+  color: #333;
+  margin-right: 15rpx;
+}
+
+.nav-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+/* 反馈容器 */
+.feedback-container {
+  height: calc(100vh - 120rpx);
+  padding: 0 30rpx;
+}
+
+/* 欢迎语 */
+.welcome-section {
+  text-align: center;
+  padding: 50rpx 0 40rpx;
+}
+
+.welcome-icon {
+  font-size: 80rpx;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.welcome-text {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.welcome-subtext {
+  font-size: 28rpx;
+  color: #666;
+  display: block;
+}
+
+/* 表单区域 */
+.form-section {
+  background: white;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.form-item {
+  margin-bottom: 40rpx;
+}
+
+.form-item:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
+  display: inline-block;
+  margin-bottom: 20rpx;
+}
+
+.form-label.required::after {
+  content: "*";
+  color: #ff4d4f;
+  margin-left: 8rpx;
+}
+
+.form-hint {
+  font-size: 26rpx;
+  color: #999;
+  margin-left: 10rpx;
+}
+
+/* 反馈类型选项 */
+.type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+}
+
+.type-option {
+  flex: 1;
+  min-width: 180rpx;
+  padding: 25rpx 15rpx;
+  border: 2rpx solid #e9ecef;
+  border-radius: 10rpx;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.type-option:active {
+  background: #f8f9fa;
+}
+
+.type-option.selected {
+  border-color: #2196f3;
+  background: rgba(33, 150, 243, 0.05);
+}
+
+.type-icon {
+  font-size: 40rpx;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.type-text {
+  font-size: 26rpx;
+  color: #333;
+  display: block;
+}
+
+.type-option.selected .type-text {
+  color: #2196f3;
+  font-weight: 500;
+}
+
+/* 文本域 */
+.form-textarea {
+  width: 100%;
+  min-height: 200rpx;
+  padding: 25rpx;
+  font-size: 28rpx;
+  color: #333;
+  background: #f8f9fa;
+  border-radius: 10rpx;
+  border: 1rpx solid #e9ecef;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.form-textarea:focus {
+  border-color: #2196f3;
+  background: white;
+  box-shadow: 0 0 0 2rpx rgba(33, 150, 243, 0.1);
+}
+
+.form-textarea.error {
+  border-color: #ff4d4f;
+  background: #fff2f0;
+}
+
+.placeholder {
+  color: #999;
+  font-size: 28rpx;
+}
+
+.char-count {
+  font-size: 24rpx;
+  color: #999;
+  text-align: right;
+  margin-top: 10rpx;
+}
+
+.error-message {
+  font-size: 24rpx;
+  color: #ff4d4f;
+  margin-top: 10rpx;
+  line-height: 1.4;
+}
+
+/* 图片上传 */
+.image-uploader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.image-preview {
+  width: 160rpx;
+  height: 160rpx;
+  position: relative;
+  border-radius: 10rpx;
+  overflow: hidden;
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  background: #f8f9fa;
+}
+
+.image-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40rpx;
+  height: 40rpx;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom-left-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-icon {
+  font-size: 28rpx;
+  color: white;
+  font-weight: bold;
+}
+
+.upload-btn {
+  width: 160rpx;
+  height: 160rpx;
+  border: 2rpx dashed #d9d9d9;
+  border-radius: 10rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.upload-btn:active {
+  background: #f8f9fa;
+  border-color: #2196f3;
+}
+
+.upload-icon {
+  font-size: 48rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.upload-text {
+  font-size: 26rpx;
+  color: #999;
+  display: block;
+}
+
+.upload-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 0 10rpx;
+}
+
+.upload-tips text {
+  font-size: 24rpx;
+  color: #999;
+  display: block;
+}
+
+/* 输入框 */
+.form-input {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 25rpx;
+  font-size: 28rpx;
+  color: #333;
+  background: #f8f9fa;
+  border-radius: 10rpx;
+  border: 1rpx solid #e9ecef;
+  box-sizing: border-box;
+}
+
+/* 提交区域 */
+.submit-section {
+  text-align: center;
+  margin-bottom: 50rpx;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #2196F3, #03A9F4);
+  color: white;
+  border: none;
+  border-radius: 10rpx;
+  padding: 25rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  margin-bottom: 20rpx;
+  transition: all 0.2s ease;
+}
+
+.submit-btn:active {
+  opacity: 0.9;
+  transform: scale(0.98);
+}
+
+.submit-btn[disabled] {
+  opacity: 0.6;
+}
+
+.submit-tips {
+  font-size: 26rpx;
+  color: #999;
+  display: block;
+}
+
+/* 其他联系方式 */
+.contact-section {
+  background: white;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  margin-bottom: 50rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 30rpx;
+  text-align: center;
+}
+
+.contact-options {
+  display: flex;
+  justify-content: center;
+  gap: 60rpx;
+}
+
+.contact-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.contact-option:active {
+  transform: scale(0.95);
+}
+
+.contact-icon {
+  font-size: 48rpx;
+  margin-bottom: 15rpx;
+}
+
+.contact-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* 加载状态 */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 80rpx;
+  height: 80rpx;
+  border: 6rpx solid #f0f0f0;
+  border-top-color: #2196f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 30rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 30rpx;
+  color: #666;
+}
+
+/* 老年版样式 */
+.senior-mode .nav-title {
+  font-size: 38rpx !important;
+}
+
+.senior-mode .welcome-text {
+  font-size: 40rpx !important;
+}
+
+.senior-mode .welcome-subtext {
+  font-size: 32rpx !important;
+}
+
+.senior-mode .form-label,
+.senior-mode .type-text,
+.senior-mode .contact-text,
+.senior-mode .section-title {
+  font-size: 34rpx !important;
+}
+
+.senior-mode .form-hint,
+.senior-mode .form-textarea,
+.senior-mode .form-input,
+.senior-mode .char-count,
+.senior-mode .error-message,
+.senior-mode .upload-text,
+.senior-mode .upload-tips text,
+.senior-mode .submit-tips {
+  font-size: 30rpx !important;
+}
+
+.senior-mode .type-option {
+  padding: 30rpx 20rpx !important;
+  border-radius: 15rpx !important;
+  border-width: 3rpx !important;
+}
+
+.senior-mode .type-icon {
+  font-size: 48rpx !important;
+  margin-bottom: 15rpx !important;
+}
+
+.senior-mode .form-textarea {
+  min-height: 250rpx !important;
+  padding: 30rpx !important;
+  border-radius: 15rpx !important;
+}
+
+.senior-mode .form-input {
+  height: 100rpx !important;
+  padding: 0 30rpx !important;
+  border-radius: 15rpx !important;
+}
+
+.senior-mode .image-preview,
+.senior-mode .upload-btn {
+  width: 180rpx !important;
+  height: 180rpx !important;
+  border-radius: 15rpx !important;
+}
+
+.senior-mode .image-delete {
+  width: 50rpx !important;
+  height: 50rpx !important;
+}
+
+.senior-mode .delete-icon {
+  font-size: 34rpx !important;
+}
+
+.senior-mode .upload-icon {
+  font-size: 56rpx !important;
+}
+
+.senior-mode .submit-btn {
+  font-size: 36rpx !important;
+  padding: 30rpx !important;
+  border-radius: 15rpx !important;
+}
+
+.senior-mode .contact-icon {
+  font-size: 56rpx !important;
+}

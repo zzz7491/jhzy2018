@@ -1,0 +1,64 @@
+<view class="login-container">
+  <view class="logo-section">
+    <image src="/images/logo.png" class="logo" mode="aspectFit"></image>
+    <text class="app-name">嘉禾志愿</text>
+    <text class="app-subtitle">志愿服务管理系统</text>
+  </view>
+
+  <view class="login-card">
+    <view class="role-tabs">
+      <view class="role-tab {{currentRole === 'volunteer' ? 'active' : ''}}" bindtap="switchRole" data-role="volunteer">
+        <text>志愿者登录</text>
+      </view>
+      <view class="role-tab {{currentRole === 'admin' ? 'active' : ''}}" bindtap="switchRole" data-role="admin">
+        <text>管理员登录</text>
+      </view>
+    </view>
+
+    <form bindsubmit="onSubmit">
+      <view class="form-group">
+        <text class="form-label">{{currentRole === 'volunteer' ? '手机号/用户名' : '管理员账号'}}</text>
+        <input class="form-input" name="account" placeholder="请输入{{currentRole === 'volunteer' ? '手机号或用户名' : '管理员账号'}}" value="{{account}}" bindinput="onAccountInput" />
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">密码</text>
+        <input class="form-input" name="password" password placeholder="请输入密码" value="{{password}}" bindinput="onPasswordInput" />
+      </view>
+
+      <view class="quick-login" wx:if="{{isDev}}">
+        <text class="quick-title">开发环境快速登录</text>
+        <view class="quick-buttons">
+          <button class="quick-btn" bindtap="quickLogin" data-account="volunteer1" data-password="123456">志愿者测试</button>
+          <button class="quick-btn admin" bindtap="quickLogin" data-account="admin" data-password="admin123">管理员测试</button>
+        </view>
+      </view>
+
+      <button class="submit-btn" formType="submit" loading="{{loading}}">
+        {{loading ? '登录中...' : '登录'}}
+      </button>
+
+      <view class="register-link" wx:if="{{currentRole === 'volunteer'}}">
+        <text>还没有账号？</text>
+        <text class="register-text" bindtap="gotoRegister">立即注册</text>
+      </view>
+
+      <view class="privacy-agreement">
+        <checkbox-group bindchange="onPrivacyChange">
+          <label class="privacy-label">
+            <checkbox value="agree" checked="{{isAgree}}" color="#667eea" />
+            <text class="privacy-text">我已阅读并同意</text>
+            <text class="privacy-link" catchtap="gotoServiceProtocol">《用户服务协议》</text>
+            <text class="privacy-text">和</text>
+            <text class="privacy-link" catchtap="gotoPrivacyPolicy">《隐私政策》</text>
+          </label>
+        </checkbox-group>
+      </view>
+    </form>
+  </view>
+
+  <view class="footer-tips">
+    <text>提示：管理员账号请联系系统管理员获取</text>
+    <text>志愿者账号可通过手机号注册</text>
+  </view>
+</view>

@@ -1,0 +1,85 @@
+<view class="container">
+  <scroll-view scroll-y class="form-scroll">
+    <!-- 商品图片 -->
+    <view class="form-section">
+      <view class="section-title">商品图片</view>
+      <view class="image-upload" bindtap="uploadImage">
+        <image wx:if="{{form.image_url}}" class="preview-img" src="{{form.image_url}}" mode="aspectFill" />
+        <view wx:else class="upload-placeholder">
+          <text class="upload-icon">📷</text>
+          <text class="upload-text">点击上传商品图片</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 基本信息 -->
+    <view class="form-section">
+      <view class="section-title">基本信息</view>
+      <view class="form-item">
+        <text class="label">商品名称 <text class="required">*</text></text>
+        <input class="input" placeholder="请输入商品名称" value="{{form.product_name}}" bindinput="onInput" data-field="product_name" />
+      </view>
+      <view class="form-item">
+        <text class="label">商品简介</text>
+        <textarea class="textarea" placeholder="请输入商品简介" value="{{form.description}}" bindinput="onInput" data-field="description" />
+      </view>
+      <view class="form-item">
+        <text class="label">商品类型</text>
+        <input class="input" placeholder="如：生活用品、食品饮料等" value="{{form.category_name}}" bindinput="onInput" data-field="category_name" />
+      </view>
+      <view class="form-item">
+        <text class="label">来源类型</text>
+        <picker mode="selector" range="{{sourceTypeOptions}}" bindchange="onSourceTypeChange" value="{{sourceTypeIndex}}">
+          <view class="picker-value">{{sourceTypeOptions[sourceTypeIndex] || '请选择来源类型'}}</view>
+        </picker>
+      </view>
+      <view class="form-item" wx:if="{{form.source_type === 'personal'}}">
+        <text class="label">捐赠人 <text class="required">*</text></text>
+        <input class="input" placeholder="请输入捐赠人姓名" value="{{form.source_name}}" bindinput="onInput" data-field="source_name" />
+      </view>
+      <view class="form-item" wx:if="{{form.source_type === 'company'}}">
+        <text class="label">捐赠单位 <text class="required">*</text></text>
+        <input class="input" placeholder="请输入捐赠单位名称" value="{{form.source_name}}" bindinput="onInput" data-field="source_name" />
+      </view>
+    </view>
+
+    <!-- 积分与库存 -->
+    <view class="form-section">
+      <view class="section-title">积分与库存</view>
+      <view class="form-item">
+        <text class="label">所需积分 <text class="required">*</text></text>
+        <input class="input" type="number" placeholder="请输入所需积分" value="{{form.points_required}}" bindinput="onInput" data-field="points_required" />
+      </view>
+      <view class="form-item">
+        <text class="label">库存数量 <text class="required">*</text></text>
+        <input class="input" type="number" placeholder="请输入库存数量" value="{{form.stock}}" bindinput="onInput" data-field="stock" />
+      </view>
+      <!-- 新增：每人限兑数量 -->
+      <view class="form-item">
+        <text class="label">每人限兑数量</text>
+        <input class="input" type="number" placeholder="0表示不限" value="{{form.limit_per_user}}" bindinput="onInput" data-field="limit_per_user" />
+        <text class="tips" style="font-size: 24rpx; color: #999; margin-top: 10rpx; display: block;">每个用户最多可兑换此商品的数量，0表示不限</text>
+      </view>
+    </view>
+
+    <!-- 上下架状态 -->
+    <view class="form-section" wx:if="{{isEdit}}">
+      <view class="section-title">上下架管理</view>
+      <view class="form-item">
+        <text class="label">当前状态</text>
+        <switch checked="{{form.status === 'available'}}" bindchange="onStatusChange" color="#07c160" />
+        <text class="switch-label">{{form.status === 'available' ? '上架中' : '已下架'}}</text>
+      </view>
+      <view class="form-item" wx:if="{{form.sold_out_at}}">
+        <text class="label">下架时间</text>
+        <text class="value">{{form.sold_out_at}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 底部按钮 -->
+  <view class="bottom-bar">
+    <button wx:if="{{isEdit}}" class="btn-delete" bindtap="deleteProduct">删除商品</button>
+    <button class="btn-submit" bindtap="submitForm">{{isEdit ? '保存修改' : '立即添加'}}</button>
+  </view>
+</view>

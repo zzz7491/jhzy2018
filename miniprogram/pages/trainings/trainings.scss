@@ -1,0 +1,60 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding: 20rpx;
+}
+
+.loading, .empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 500rpx;
+  color: #999;
+}
+
+.training-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.training-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.training-name {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.training-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.training-date {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.training-status {
+  font-size: 24rpx;
+  padding: 6rpx 20rpx;
+  border-radius: 30rpx;
+}
+
+.training-status.completed {
+  background: #e6f7e6;
+  color: #52c41a;
+}
+
+.training-status.ongoing {
+  background: #fff7e6;
+  color: #fa8c16;
+}

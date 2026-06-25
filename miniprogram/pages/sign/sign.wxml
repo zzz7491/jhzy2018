@@ -1,0 +1,182 @@
+<!-- sign/index.wxml -->
+<view class="container safe-top">
+  
+  <!-- 🔴 新增：醒目签到区域 - 放在最顶部 -->
+  <view class="quick-sign-area" wx:if="{{checkinStatus === 0 || checkinStatus === 1}}">
+    <view class="quick-sign-card">
+      <view class="quick-sign-status">
+        <text class="quick-sign-icon">{{checkinStatus === 0 ? '📍' : '✅'}}</text>
+        <text class="quick-sign-title">{{checkinStatus === 0 ? '等待签到' : '已签到'}}</text>
+      </view>
+      <button 
+        class="quick-sign-btn {{checkinStatus === 0 ? 'signin' : 'signout'}} {{isChecking ? 'loading' : ''}}"
+        bindtap="{{checkinStatus === 0 ? 'onSigninTap' : 'onSignoutTap'}}"
+        disabled="{{isChecking || buttonDisabled}}"
+      >
+        <text>{{checkinStatus === 0 ? (isChecking ? '验证中...' : '📍 立即签到') : (isChecking ? '提交中...' : '✅ 立即签退')}}</text>
+      </button>
+      <text wx:if="{{checkinStatus === 1}}" class="quick-sign-warning">⚠️ 活动结束后请及时签退</text>
+      <text wx:if="{{checkinStatus === 0 && activityInfo && activityInfo.radius}}" class="quick-sign-tip">请在活动地点{{activityInfo.radius}}米范围内签到</text>
+    </view>
+  </view>
+
+  <!-- 1. 活动信息卡片 -->
+  <view class="box" wx:if="{{activityInfo}}">
+    <text class="title">{{activityInfo.activity_name || '活动签到'}}</text>
+    
+    <!-- 活动基本信息 -->
+    <view class="info-row">
+      <text class="label">活动时间：</text>
+      <text class="value">{{activityInfo.start_time}} 至 {{activityInfo.end_time}}</text>
+    </view>
+    
+    <view class="info-row">
+      <text class="label">签到范围：</text>
+      <text class="value">距离活动点 {{activityInfo.radius || 300}} 米内</text>
+    </view>
+    
+    <view class="info-row">
+      <text class="label">活动积分：</text>
+      <text class="value">{{activityInfo.checkin_points || 10}} 分</text>
+    </view>
+    
+    <!-- 当前状态显示 -->
+    <view class="status-box" wx:if="{{checkinStatus !== null}}">
+      <view class="status-item {{checkinStatus >= 1 ? 'active' : ''}}">
+        <view class="status-dot">{{checkinStatus >= 1 ? '✓' : '1'}}</view>
+        <text>签到</text>
+      </view>
+      <view class="status-connector"></view>
+      <view class="status-item {{checkinStatus >= 2 ? 'active' : ''}}">
+        <view class="status-dot">{{checkinStatus >= 2 ? '✓' : '2'}}</view>
+        <text>签退</text>
+      </view>
+    </view>
+
+    <!-- 倒计时显示 -->
+    <view class="countdown-box" wx:if="{{countdown && activityInfo.status === 'ongoing'}}">
+      <text class="countdown-text">⏰ 活动剩余时间：{{countdown}}</text>
+    </view>
+  </view>
+
+  <!-- 2. 圆形大按钮区域（原有功能保留） -->
+  <view class="button-area">
+    <!-- 情况1：未签到 -->
+    <view wx:if="{{checkinStatus === 0}}" class="button-container">
+      <view class="button-description">
+        <text class="desc-title">请点击下方按钮签到</text>
+        <text class="desc-text">确保您已在活动地点附近</text>
+      </view>
+      
+      <!-- 圆形签到按钮 -->
+      <button 
+        class="circle-button signin-btn {{isChecking ? 'loading' : ''}}"
+        bindtap="onSigninTap"
+        disabled="{{isChecking || buttonDisabled}}"
+      >
+        <view class="button-content">
+          <view class="button-icon" wx:if="{{!isChecking}}">📍</view>
+          <view class="loading-icon" wx:else>
+            <view class="spinner"></view>
+          </view>
+          <text class="button-text">{{isChecking ? '验证中...' : '签 到'}}</text>
+        </view>
+      </button>
+    </view>
+
+    <!-- 情况2：已签到，等待签退 -->
+    <view wx:elif="{{checkinStatus === 1}}" class="button-container">
+      <view class="button-description">
+        <text class="desc-title">✓ 签到成功</text>
+        <text class="desc-text">请参与活动，结束后点击下方按钮签退</text>
+      </view>
+      
+      <!-- 圆形签退按钮 -->
+      <button 
+        class="circle-button signout-btn {{isChecking ? 'loading' : ''}}"
+        bindtap="onSignoutTap"
+        disabled="{{isChecking || buttonDisabled}}"
+      >
+        <view class="button-content">
+          <view class="button-icon" wx:if="{{!isChecking}}">✅</view>
+          <view class="loading-icon" wx:else>
+            <view class="spinner"></view>
+          </view>
+          <text class="button-text">{{isChecking ? '提交中...' : '签 退'}}</text>
+        </view>
+      </button>
+      
+      <text class="warning-text">⚠️ 忘记签退将扣除50%积分</text>
+    </view>
+
+    <!-- 情况3：已完成签到签退 -->
+    <view wx:elif="{{checkinStatus === 2}}" class="completed-container">
+      <view class="completed-icon">🎉</view>
+      <text class="completed-title">已完成签到签退</text>
+      <text class="completed-points">+{{activityInfo.checkin_points || 10}} 积分</text>
+      <text class="completed-desc">积分已计入您的账户</text>
+    </view>
+
+    <!-- 情况4：活动已结束但未签退 -->
+    <view wx:elif="{{checkinStatus === 1 && activityInfo.status === 'ended'}}" class="button-container">
+      <view class="button-description">
+        <text class="desc-title">活动已结束</text>
+        <text class="desc-text">您已签到但未签退，请尽快签退获取部分积分</text>
+      </view>
+      
+      <button 
+        class="circle-button signout-btn"
+        bindtap="onSignoutTap"
+        disabled="{{isChecking || buttonDisabled}}"
+      >
+        <view class="button-content">
+          <view class="button-icon">⏰</view>
+          <text class="button-text">立即签退</text>
+        </view>
+      </button>
+    </view>
+  </view>
+
+  <!-- 3. 位置状态提示 -->
+  <view class="location-tips">
+    <text class="tips-title">📍 位置验证说明</text>
+    <view class="tip-item">
+      <text class="tip-dot">•</text>
+      <text class="tip-text">签到/签退时需要开启手机GPS定位</text>
+    </view>
+    <view class="tip-item">
+      <text class="tip-dot">•</text>
+      <text class="tip-text">您需要在活动地点{{activityInfo.radius || 300}}米范围内</text>
+    </view>
+    <view class="tip-item">
+      <text class="tip-dot">•</text>
+      <text class="tip-text">系统会记录您的签到位置和时间，防止作弊</text>
+    </view>
+  </view>
+
+  <!-- 4. 辅助按钮 -->
+  <view class="helper-buttons">
+    <button 
+      class="helper-btn" 
+      bindtap="loadActivityDetail"
+      wx:if="{{activityInfo}}"
+    >
+      🔄 刷新信息
+    </button>
+    
+    <button 
+      class="helper-btn" 
+      bindtap="viewLocation"
+      wx:if="{{activityInfo && activityInfo.location_lat}}"
+    >
+      🗺️ 查看地图
+    </button>
+    
+    <button 
+      class="helper-btn" 
+      bindtap="loadCheckinStatus"
+    >
+      📊 刷新状态
+    </button>
+  </view>
+</view>

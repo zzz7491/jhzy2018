@@ -1,0 +1,206 @@
+<!--pages/profile/edit/edit.wxml-->
+<view class="page-container">
+  
+  <!-- 加载状态 -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <image src="/images/loading.gif" class="loading-icon"></image>
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <scroll-view wx:else class="content-container" scroll-y>
+    
+    <!-- 头像区域（只读，点击跳转到我的页面修改） -->
+    <view class="avatar-section">
+      <view class="avatar-wrapper" bindtap="chooseAvatar">
+        <image class="avatar-image" src="{{userInfo.personalInfo.avatar}}" mode="aspectFill"></image>
+        <view class="avatar-overlay">
+          <text class="avatar-text">点击修改</text>
+        </view>
+      </view>
+      <text class="avatar-hint">点击头像跳转到"我的"页面修改</text>
+    </view>
+
+    <!-- 基本信息区域（只读，管理员管理） -->
+    <view class="form-section readonly-section">
+      <view class="section-title">基本信息 <text class="section-subtitle">（由管理员管理）</text></view>
+      
+      <!-- 志愿者ID -->
+      <view class="info-item">
+        <text class="info-label">志愿者ID</text>
+        <view class="info-value">
+          <text>{{userInfo.basicInfo.volunteer_id}}</text>
+          <image src="/images/icons/copy.png" class="copy-icon" bindtap="copyVolunteerId"></image>
+        </view>
+      </view>
+
+      <!-- 真实姓名 -->
+      <view class="info-item">
+        <text class="info-label">真实姓名</text>
+        <text class="info-value">{{userInfo.basicInfo.real_name}}</text>
+      </view>
+
+      <!-- 身份证号 -->
+      <view class="info-item">
+        <text class="info-label">身份证号</text>
+        <text class="info-value">{{userInfo.basicInfo.id_card}}</text>
+      </view>
+
+      <!-- 注册时间 -->
+      <view class="info-item">
+        <text class="info-label">注册时间</text>
+        <text class="info-value">{{userInfo.basicInfo.register_date}}</text>
+      </view>
+
+      <!-- 修改申请按钮 -->
+      <view class="modify-request" bindtap="contactAdminForModify">
+        <text class="modify-text">如需修改核心信息，请联系管理员</text>
+        <image src="/images/icons/contact.png" class="modify-icon"></image>
+      </view>
+    </view>
+
+    <!-- 联系信息（用户可修改） -->
+    <view class="form-section">
+      <view class="section-title">联系信息 <text class="section-subtitle">（可自行修改）</text></view>
+      
+      <!-- 手机号码 -->
+      <view class="form-item">
+        <text class="form-label required">手机号码</text>
+        <input class="form-input {{formErrors.phone ? 'error' : ''}}" 
+               value="{{userInfo.contactInfo.phone}}" 
+               placeholder="请输入手机号码"
+               placeholder-class="placeholder"
+               type="number"
+               maxlength="11"
+               data-category="contactInfo"
+               data-field="phone"
+               bindinput="onInputChange" />
+        <view wx:if="{{formErrors.phone}}" class="error-message">
+          {{formErrors.phone}}
+        </view>
+      </view>
+
+      <!-- 邮箱 -->
+      <view class="form-item">
+        <text class="form-label">电子邮箱</text>
+        <input class="form-input {{formErrors.email ? 'error' : ''}}" 
+               value="{{userInfo.contactInfo.email}}" 
+               placeholder="请输入邮箱（选填）"
+               placeholder-class="placeholder"
+               type="email"
+               data-category="contactInfo"
+               data-field="email"
+               bindinput="onInputChange" />
+        <view wx:if="{{formErrors.email}}" class="error-message">
+          {{formErrors.email}}
+        </view>
+      </view>
+
+      <!-- 紧急联系人 -->
+      <view class="form-item">
+        <text class="form-label">紧急联系人</text>
+        <input class="form-input" 
+               value="{{userInfo.contactInfo.emergency_contact}}" 
+               placeholder="请输入紧急联系人姓名（选填）"
+               placeholder-class="placeholder"
+               maxlength="10"
+               data-category="contactInfo"
+               data-field="emergency_contact"
+               bindinput="onInputChange" />
+      </view>
+
+      <!-- 紧急联系人电话 -->
+      <view class="form-item">
+        <text class="form-label">联系人电话</text>
+        <input class="form-input {{formErrors.emergency_phone ? 'error' : ''}}" 
+               value="{{userInfo.contactInfo.emergency_phone}}" 
+               placeholder="请输入紧急联系人电话（选填）"
+               placeholder-class="placeholder"
+               type="number"
+               maxlength="11"
+               data-category="contactInfo"
+               data-field="emergency_phone"
+               bindinput="onInputChange" />
+        <view wx:if="{{formErrors.emergency_phone}}" class="error-message">
+          {{formErrors.emergency_phone}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 个人资料（用户可修改） -->
+    <view class="form-section">
+      <view class="section-title">个人资料 <text class="section-subtitle">（可自行修改）</text></view>
+      
+      <!-- 性别 -->
+      <view class="form-item">
+        <text class="form-label">性别</text>
+        <view class="gender-options">
+          <view wx:for="{{genders}}" wx:key="value" 
+                class="gender-option {{userInfo.personalInfo.gender === item.value ? 'selected' : ''}}"
+                bindtap="onGenderSelect" data-gender="{{item.value}}">
+            <text class="gender-text">{{item.label}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 生日 -->
+      <view class="form-item">
+        <text class="form-label">出生日期</text>
+        <view class="form-input date-input" bindtap="onBirthdaySelect">
+          <text wx:if="{{userInfo.personalInfo.birthday}}" class="date-value">{{userInfo.personalInfo.birthday}}</text>
+          <text wx:else class="placeholder">请选择出生日期（选填）</text>
+          <image src="/images/icons/calendar.png" class="date-icon"></image>
+        </view>
+      </view>
+
+      <!-- 居住地址 -->
+      <view class="form-item">
+        <text class="form-label">居住地址</text>
+        <input class="form-input" 
+               value="{{userInfo.personalInfo.address}}" 
+               placeholder="请输入居住地址（选填）"
+               placeholder-class="placeholder"
+               maxlength="100"
+               data-category="personalInfo"
+               data-field="address"
+               bindinput="onInputChange" />
+      </view>
+
+      <!-- 个性签名 -->
+      <view class="form-item">
+        <text class="form-label">个性签名</text>
+        <textarea class="form-textarea" 
+                  value="{{userInfo.personalInfo.signature}}" 
+                  placeholder="请输入个性签名（选填）"
+                  placeholder-class="placeholder"
+                  maxlength="50"
+                  auto-height
+                  data-category="personalInfo"
+                  data-field="signature"
+                  bindinput="onInputChange" />
+        <view class="char-count">{{userInfo.personalInfo.signature.length || 0}}/50</view>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-section">
+      <button class="btn-secondary" bindtap="onReset" disabled="{{submitting}}">重置</button>
+      <button class="btn-primary" bindtap="onSubmit" loading="{{submitting}}">保存修改</button>
+    </view>
+
+    <!-- 修改密码功能 -->
+    <view class="function-section">
+      <view class="function-item" bindtap="onChangePassword">
+        <text class="function-text">修改密码</text>
+        <image src="/images/icons/arrow-right.png" class="function-arrow"></image>
+      </view>
+    </view>
+
+    <!-- 安全提示 -->
+    <view class="safety-tips">
+      <text class="tips-title">温馨提示：</text>
+      <text class="tips-content">• 姓名、身份证号等核心信息如需修改请联系管理员\n• 请保持联系方式准确以便接收活动通知\n• 定期更新个人信息确保资料有效性\n• 修改头像请点击上方头像区域</text>
+    </view>
+
+  </scroll-view>
+
+</view>

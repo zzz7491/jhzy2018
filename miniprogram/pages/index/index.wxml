@@ -1,0 +1,354 @@
+<!-- pages/index/index.wxml - 重构版（集成随手公益 + 排行榜） -->
+<view class="container safe-top {{isSeniorMode ? 'senior-mode' : ''}}">
+
+<!-- 顶部轮播图 -->
+<view class="swiper-container" wx:if="{{mainBanners.length > 0}}">
+  <swiper class="home-swiper" autoplay="true" interval="3500" circular="true" indicator-dots="true" indicator-color="rgba(255,255,255,0.5)" indicator-active-color="#FF6B35">
+    <block wx:for="{{mainBanners}}" wx:key="index">
+      <swiper-item>
+        <view class="swiper-item" bindtap="onMainSwiperTap" data-index="{{index}}">
+          <image src="{{item.image}}" mode="aspectFill" class="swiper-image" />
+          <view class="swiper-overlay" wx:if="{{item.title}}">
+            <text class="swiper-title">{{item.title}}</text>
+            <text class="swiper-desc" wx:if="{{item.description}}">{{item.description}}</text>
+          </view>
+        </view>
+      </swiper-item>
+    </block>
+  </swiper>
+</view>
+
+<!-- 动态滚动横幅（新增） -->
+<view class="marquee-container" wx:if="{{feedList.length > 0}}">
+  <swiper vertical="{{true}}" autoplay="{{true}}" interval="3000" duration="500" circular="{{true}}" class="marquee-swiper">
+    <swiper-item wx:for="{{feedList}}" wx:key="id" wx:for-item="feed">
+      <view class="marquee-item">
+        <text class="marquee-icon">{{feed.type === 'exchange' ? '🎁' : feed.type === 'quick' ? '🤝' : '📍'}}</text>
+        <text class="marquee-text">{{feed.display_message}}</text>
+      </view>
+    </swiper-item>
+  </swiper>
+</view>
+
+<!-- 顶部栏：日期+模式切换 -->
+<view class="top-header">
+  <view class="header-left">
+    <text class="today-date">{{today}}</text>
+  </view>
+  <view class="header-right">
+    <view class="mode-toggle-btn" bindtap="toggleDisplayMode">
+      <view class="mode-btn-inner {{isSeniorMode ? 'senior-active' : ''}}">
+        <text class="mode-icon">{{isSeniorMode ? '👴' : '👦'}}</text>
+      </view>
+      <text class="mode-label">{{isSeniorMode ? '大字版' : '普通版'}}</text>
+    </view>
+  </view>
+</view>
+
+<!-- 欢迎区域 -->
+<view class="welcome-area">
+  <text class="greeting">{{greeting}}，{{userInfo ? userInfo.real_name || '志愿者' : '志愿者'}}</text>
+  <text class="welcome-text">{{userInfo ? '感谢您为志愿服务的付出' : '立即登录，开启志愿服务之旅'}}</text>
+</view>
+
+<!-- 积分卡片 -->
+<view class="points-card" bindtap="goToPointsMall">
+  <view class="points-header">
+    <text class="points-title">志愿服务积分</text>
+    <view class="points-badge" wx:if="{{userInfo}}">
+      <text class="badge-text">可兑换</text>
+    </view>
+  </view>
+  
+  <view class="points-content">
+    <view class="current-points">
+      <text class="points-label">当前积分</text>
+      <text class="points-value">{{stats.totalPoints || 0}}</text>
+    </view>
+    
+    <view class="points-details">
+      <view class="detail-item">
+        <text class="detail-label">累计服务</text>
+        <text class="detail-value">{{stats.totalActivities || 0}}次</text>
+      </view>
+      <view class="detail-divider"></view>
+      <view class="detail-item">
+        <text class="detail-label">服务时长</text>
+        <text class="detail-value">{{stats.totalHours || 0}}小时</text>
+      </view>
+      <view class="detail-divider"></view>
+      <view class="detail-item">
+        <text class="detail-label">累计积分</text>
+        <text class="detail-value">{{stats.totalPoints || 0}}分</text>
+      </view>
+    </view>
+  </view>
+  
+  <view class="points-footer">
+    <text class="footer-text">点击查看积分激励物品</text>
+    <text class="footer-arrow">›</text>
+  </view>
+</view>
+
+<!-- 志愿者排行榜 -->
+<view class="rankings-section" wx:if="{{rankings.length > 0}}">
+  <view class="section-title">
+    <text class="title-text">志愿者排行榜</text>
+    <view class="title-line"></view>
+    <text class="view-all" bindtap="viewAllRankings">查看全部</text>
+  </view>
+  
+  <!-- 加载状态 -->
+  <view wx:if="{{rankingsLoading}}" class="loading-container">
+    <text class="loading-text">加载排行榜中...</text>
+  </view>
+  
+  <!-- 排行榜内容 -->
+  <view wx:if="{{!rankingsLoading && rankings.length > 0}}" class="rankings-container">
+    
+    <!-- 前三名特殊展示 -->
+    <view class="top-three" wx:if="{{topRankings.length > 0}}">
+      <block wx:for="{{topRankings}}" wx:key="id">
+        <view class="top-item rank-{{index + 1}}" data-index="{{index}}" bindtap="viewVolunteerRank">
+          <view class="crown" wx:if="{{index === 0}}">👑</view>
+          <view class="top-avatar-wrap">
+            <image class="top-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+            <view class="rank-badge rank-{{index + 1}}">{{index + 1}}</view>
+          </view>
+          <text class="top-name">{{item.name || item.real_name || '志愿者'}}</text>
+          <text class="top-points">{{item.points || item.total_points || 0}}分</text>
+          <text class="top-hours" wx:if="{{item.hours}}">{{item.hours}}小时</text>
+        </view>
+      </block>
+    </view>
+    
+    <!-- 其他名次列表（折叠/展开） -->
+    <view class="rankings-list" wx:if="{{showAllRankings && otherRankings.length > 0}}">
+      <block wx:for="{{otherRankings}}" wx:for-index="outerIndex" wx:key="id">
+        <view class="ranking-item" data-index="{{outerIndex + 3}}" bindtap="viewVolunteerRank">
+          <view class="rank-medal">
+            <text class="rank-number">{{outerIndex + 4}}</text>
+          </view>
+          
+          <image class="rank-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+          
+          <view class="rank-info">
+            <text class="rank-name">{{item.name || item.real_name || '志愿者'}}</text>
+          </view>
+          
+          <view class="rank-points">
+            <text class="points-value">{{item.points || item.total_points || 0}}分</text>
+            <text class="points-unit">积分</text>
+          </view>
+        </view>
+      </block>
+    </view>
+    
+    <!-- 查看更多/收起按钮 -->
+    <view class="rankings-toggle" wx:if="{{rankings.length > 3}}" bindtap="toggleRankingsExpand">
+      <text class="toggle-text">{{showAllRankings ? '收起' : '查看更多'}}</text>
+      <text class="toggle-icon">{{showAllRankings ? '▲' : '▼'}}</text>
+    </view>
+  </view>
+</view>
+
+<!-- 随手公益展示 -->
+<view class="casual-welfare-section" wx:if="{{userInfo}}">
+  <view class="section-title">
+    <text class="title-text">随手公益</text>
+    <view class="title-line"></view>
+    <text class="view-all" bindtap="goToQuickAction">发布记录</text>
+  </view>
+  
+  <!-- 随手公益积分统计 -->
+  <view class="welfare-stats" bindtap="goToQuickAction">
+    <view class="welfare-stat-item">
+      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #4CAF50, #8BC34A);">
+        <text class="welfare-icon-text">🌟</text>
+      </view>
+      <view class="welfare-stat-info">
+        <text class="welfare-stat-label">已参与活动</text>
+        <text class="welfare-stat-value">{{casualWelfareStats.totalCompleted || 0}}次</text>
+      </view>
+    </view>
+    
+    <view class="welfare-stat-item">
+      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #2196F3, #03A9F4);">
+        <text class="welfare-icon-text">⏰</text>
+      </view>
+      <view class="welfare-stat-info">
+        <text class="welfare-stat-label">审核中</text>
+        <text class="welfare-stat-value">{{casualWelfareStats.totalPending || 0}}个</text>
+      </view>
+    </view>
+    
+    <view class="welfare-stat-item">
+      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #FF9800, #FFB74D);">
+        <text class="welfare-icon-text">🎁</text>
+      </view>
+      <view class="welfare-stat-info">
+        <text class="welfare-stat-label">累计积分</text>
+        <text class="welfare-stat-value">{{casualWelfareStats.totalPoints || 0}}分</text>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 已审核的随手公益展示 -->
+  <view wx:if="{{!casualWelfareLoading && approvedCasualWelfare.length > 0}}">
+    <view class="casual-welfare-title">
+      <text class="casual-title-text">已审核通过</text>
+      <view class="casual-title-line"></view>
+    </view>
+    
+    <view class="casual-welfare-list">
+      <block wx:for="{{approvedCasualWelfare}}" wx:key="id">
+        <view class="casual-welfare-item" bindtap="viewCasualWelfareDetail" data-id="{{item.id}}">
+          <view class="casual-welfare-icon">
+            <text class="casual-item-icon">{{item.icon || '🌟'}}</text>
+          </view>
+          <view class="casual-welfare-content">
+            <text class="casual-welfare-title">{{item.title}}</text>
+            <text class="casual-welfare-desc">{{item.description}}</text>
+            <view class="casual-welfare-footer">
+              <text class="casual-welfare-time">{{formatDate(item.created_at)}}</text>
+              <text class="casual-welfare-points">+{{item.points_reward}}积分</text>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+  </view>
+  
+  <!-- 无数据提示 -->
+  <view wx:if="{{!casualWelfareLoading && approvedCasualWelfare.length === 0}}">
+    <view class="casual-welfare-empty">
+      <text class="casual-empty-icon">📝</text>
+      <text class="casual-empty-text">暂无审核通过的随手公益记录</text>
+      <text class="casual-empty-subtext">发布您的第一个随手公益吧</text>
+      <button class="casual-empty-btn" bindtap="goToQuickAction">去发布</button>
+    </view>
+  </view>
+</view>
+
+<!-- 热点活动轮播 -->
+<view class="hot-activities" wx:if="{{hotActivities.length > 0}}">
+  <view class="section-title">
+    <text class="title-text">热点志愿活动</text>
+    <view class="title-line"></view>
+    <text class="view-all" bindtap="goToAllActivities">查看全部</text>
+  </view>
+  
+  <swiper class="hot-swiper" autoplay="true" interval="4000" circular="true" indicator-dots="true" indicator-color="rgba(0,0,0,0.3)" indicator-active-color="#FF6B35" display-multiple-items="1.2">
+    <block wx:for="{{hotActivities}}" wx:key="id">
+      <swiper-item>
+        <view class="hot-activity-card" bindtap="goToActivityDetail" data-id="{{item.id}}">
+          <image wx:if="{{item.coverImage}}" src="{{item.coverImage}}" mode="aspectFill" class="hot-card-image" />
+          <view class="hot-card-content">
+            <text class="hot-card-title">{{item.title}}</text>
+            <view class="hot-card-info">
+              <view class="hot-info-line">
+                <text class="hot-info-icon">⏰</text>
+                <text class="hot-info-text">{{item.time}}</text>
+              </view>
+              <view class="hot-info-line">
+                <text class="hot-info-icon">📍</text>
+                <text class="hot-info-text">{{item.location}}</text>
+              </view>
+            </view>
+            <view class="hot-card-footer">
+              <text class="hot-card-points">+{{item.points}}积分</text>
+              <view class="hot-card-status {{item.status}}">
+                {{item.statusText}}
+              </view>
+            </view>
+          </view>
+        </view>
+      </swiper-item>
+    </block>
+  </swiper>
+</view>
+
+<!-- 热门兑换物品 -->
+<view class="hot-exchange-items">
+  <view class="section-title">
+    <text class="title-text">热门兑换物品</text>
+    <view class="title-line"></view>
+    <text class="view-all" bindtap="goToPointsMall">查看全部</text>
+  </view>
+  
+  <!-- 加载状态 -->
+  <view wx:if="{{exchangeLoading}}" class="loading-container">
+    <text class="loading-text">加载中...</text>
+  </view>
+  
+  <!-- 有数据时显示 -->
+  <scroll-view wx:if="{{!exchangeLoading && exchangeItems.length > 0}}" class="exchange-scroll" scroll-x="true">
+    <view class="exchange-list">
+      <block wx:for="{{exchangeItems}}" wx:key="id">
+        <view class="exchange-item" bindtap="goToExchangeDetail" data-id="{{item.id}}">
+          <!-- 物品图片 -->
+          <image wx:if="{{item.image}}" src="{{item.image}}" mode="aspectFill" class="exchange-image" />
+          <image wx:else src="/images/default-product.png" mode="aspectFill" class="exchange-image" />
+          <text class="exchange-name">{{item.name}}</text>
+          <view class="exchange-info">
+            <text class="exchange-price">{{item.points}}积分</text>
+            <text class="exchange-points">价值 ¥{{item.value}}元</text>
+          </view>
+          <view class="exchange-footer">
+            <button class="exchange-btn" size="mini" bindtap="exchangeItem" data-id="{{item.id}}">立即兑换</button>
+          </view>
+        </view>
+      </block>
+    </view>
+  </scroll-view>
+  
+  <!-- 无数据时显示 -->
+  <view wx:if="{{!exchangeLoading && exchangeItems.length === 0}}" class="empty-container">
+    <text class="empty-icon">🎁</text>
+    <text class="empty-text">暂无热门兑换物品</text>
+    <text class="empty-subtext">请稍后再来查看</text>
+  </view>
+</view>
+
+<!-- 志愿服务宣言 -->
+<view class="volunteer-motto">
+  <view class="motto-content">
+    <text class="motto-icon">❤️</text>
+    <text class="motto-text">奉献、友爱、互助、进步</text>
+  </view>
+  <text class="motto-subtext">志愿精神，你我同行</text>
+</view>
+
+<!-- 备案信息 -->
+<view class="footer-info">
+  <view class="footer-content">
+    <text class="footer-text">© 2026 嘉兴市嘉禾志愿服务中心 版权所有</text>
+    <text class="footer-text">备案号：浙ICP备2025213173号-1X</text>
+    <text class="footer-text">技术支持：嘉兴市东诚信息咨询有限公司</text>
+    <text class="footer-text">志愿热线：0573-82099982</text>
+  </view>
+</view>
+
+<!-- 底部安全区域 -->
+<view class="safe-bottom"></view>
+</view>
+
+<!-- 协议弹窗 -->
+<view class="protocol-modal" wx:if="{{showProtocolModal}}">
+  <view class="protocol-modal-content">
+    <view class="protocol-modal-header">
+      <text class="protocol-modal-title">用户协议与隐私政策</text>
+    </view>
+    <view class="protocol-modal-body">
+      <text class="protocol-text">感谢您使用嘉禾志愿。在您使用我们的服务前，请仔细阅读并同意以下协议：</text>
+      <view class="protocol-links">
+        <text class="protocol-link" bindtap="viewUserProtocol">《用户协议》</text>
+        <text class="protocol-link" bindtap="viewPrivacyPolicy">《隐私政策》</text>
+      </view>
+    </view>
+    <view class="protocol-modal-footer">
+      <button class="protocol-btn reject" bindtap="rejectProtocol">拒绝</button>
+      <button class="protocol-btn agree" bindtap="agreeProtocol">同意</button>
+    </view>
+  </view>
+</view>

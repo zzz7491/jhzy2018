@@ -1,0 +1,166 @@
+﻿<view class="mall-page safe-top {{isSeniorMode ? 'senior-mode' : ''}}">
+
+  <!-- 顶部栏 -->
+  <view class="mall-header">
+    <view class="header-left">
+      <text class="page-title">积分激励</text>
+      <text class="page-subtitle">志愿服务，温暖你我</text>
+    </view>
+    <view class="header-right">
+      <!-- 圆形模式切换按钮 -->
+      <view class="mode-toggle-btn" bindtap="toggleDisplayMode">
+        <view class="mode-btn-inner {{isSeniorMode ? 'senior-active' : ''}}">
+          <text class="mode-icon">{{isSeniorMode ? '👴' : '👦'}}</text>
+        </view>
+        <text class="mode-label">{{isSeniorMode ? '大字版' : '普通版'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 积分概览卡片 -->
+  <view class="points-overview-card">
+    <view class="points-main">
+      <text class="points-label">志愿服务积分</text>
+      <text class="points-value">{{userPoints || 0}}</text>
+      <text class="points-unit">分</text>
+    </view>
+    <view class="points-tips">
+      <text class="tip-icon">✨</text>
+      <text class="tip-text">每1积分 = 1小时志愿服务</text>
+    </view>
+    <view class="points-actions">
+      <view class="action-item" bindtap="goToPointsDetail">
+        <text class="action-icon">📊</text>
+        <text class="action-text">积分明细</text>
+      </view>
+      <view class="action-divider"></view>
+      <view class="action-item" bindtap="goToExchangeRecords">
+        <text class="action-icon">📝</text>
+        <text class="action-text">兑换记录</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 分类标签 -->
+  <scroll-view class="category-scroll" scroll-x="true">
+    <view class="category-list">
+      <view class="category-item {{activeCategory === 0 ? 'active' : ''}}"
+            bindtap="switchCategory" data-category="0">
+        <text class="category-name">全部激励</text>
+        <view class="category-badge" wx:if="{{activeCategory === 0}}"></view>
+      </view>
+
+      <view class="category-item {{activeCategory === 1 ? 'active' : ''}}"
+            bindtap="switchCategory" data-category="1">
+        <text class="category-name">生活用品</text>
+        <view class="category-badge" wx:if="{{activeCategory === 1}}"></view>
+      </view>
+
+      <view class="category-item {{activeCategory === 2 ? 'active' : ''}}"
+            bindtap="switchCategory" data-category="2">
+        <text class="category-name">志愿纪念</text>
+        <view class="category-badge" wx:if="{{activeCategory === 2}}"></view>
+      </view>
+
+      <view class="category-item {{activeCategory === 3 ? 'active' : ''}}"
+            bindtap="switchCategory" data-category="3">
+        <text class="category-name">虚拟权益</text>
+        <view class="category-badge" wx:if="{{activeCategory === 3}}"></view>
+      </view>
+
+      <view class="category-item {{activeCategory === 4 ? 'active' : ''}}"
+            bindtap="switchCategory" data-category="4">
+        <text class="category-name">爱心回馈</text>
+        <view class="category-badge" wx:if="{{activeCategory === 4}}"></view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 激励物品网格 -->
+  <view class="goods-section">
+    <view class="section-title">
+      <text class="title-text">志愿服务激励</text>
+      <view class="title-line"></view>
+      <text class="goods-count" wx:if="{{goodsList.length > 0}}">
+        共{{goodsList.length}}个物品
+      </text>
+    </view>
+
+    <view class="goods-grid" wx:if="{{goodsList.length > 0}}">
+      <block wx:for="{{goodsList}}" wx:key="id">
+        <view class="goods-card" catchtap="viewGoodsDetail" data-id="{{item.id}}">
+          <!-- 商品图片区域 -->
+          <view class="goods-image-container">
+            <image class="goods-image" src="{{item.image || '/images/default-goods.png'}}" mode="aspectFill"></image>
+            <!-- 库存状态 -->
+            <view class="stock-badge {{item.stock <= 0 ? 'out-of-stock' : 'in-stock'}}">
+              {{item.stock <= 0 ? '已兑完' : '剩' + item.stock + '件'}}
+            </view>
+            <!-- 热门标签 -->
+            <view class="hot-badge" wx:if="{{item.is_hot}}">
+              <text class="hot-icon">🔥</text>
+              <text class="hot-text">热门</text>
+            </view>
+          </view>
+
+          <!-- 商品信息 -->
+          <view class="goods-info">
+            <text class="goods-name">{{item.name}}</text>
+            <text class="goods-desc">{{item.description}}</text>
+
+            <view class="goods-footer">
+              <!-- 物品来源 -->
+              <view class="goods-source" wx:if="{{item.source}}">
+                <text class="source-icon">🎁</text>
+                <text class="source-text">来自: {{item.source}}</text>
+              </view>
+
+              <view class="footer-bottom">
+                <view class="points-info">
+                  <text class="points-icon">⭐</text>
+                  <text class="points-value">{{item.points_required}}</text>
+                  <text class="points-text">积分</text>
+                </view>
+
+                <view class="exchange-btn-container">
+                  <button class="exchange-btn {{canExchange(item) ? '' : 'disabled'}}"
+                          bindtap="exchangeGoods"
+                          data-id="{{item.id}}"
+                          hover-class="button-hover"
+                          disabled="{{!canExchange(item)}}">
+                    {{getExchangeBtnText(item)}}
+                  </button>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <!-- 空状态 -->
+    <view class="empty-state" wx:if="{{goodsList.length === 0 && !loading}}">
+      <view class="empty-content">
+        <text class="empty-icon">🎁</text>
+        <text class="empty-title">暂无激励物品</text>
+        <text class="empty-tips">更多激励物品正在筹备中</text>
+        <button class="empty-action-btn" bindtap="refreshGoodsList">
+          刷新看看
+        </button>
+      </view>
+    </view>
+
+    <!-- 加载更多 -->
+    <view class="load-more" wx:if="{{hasMore && goodsList.length > 0}}">
+      <text class="load-more-text" bindtap="loadMore">点击加载更多</text>
+    </view>
+
+    <!-- 加载状态 -->
+    <view class="loading-container" wx:if="{{loading}}">
+      <text class="loading-text">加载中...</text>
+    </view>
+  </view>
+
+  <!-- 底部安全区域 -->
+  <view class="safe-bottom"></view>
+</view>

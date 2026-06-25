@@ -1,0 +1,351 @@
+/* pages/activities/timer/timer.wxss */
+
+.timer-page {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* 头部样式 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx;
+  background-color: white;
+  border-bottom: 1rpx solid #eee;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  font-size: 32rpx;
+  color: #333;
+}
+
+.back-icon {
+  font-size: 40rpx;
+  margin-right: 10rpx;
+}
+
+.back-text {
+  font-size: 28rpx;
+}
+
+.title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.placeholder {
+  width: 100rpx;
+}
+
+/* 加载状态 */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-text {
+  font-size: 32rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 40rpx;
+}
+
+.loading-spinner {
+  width: 80rpx;
+  height: 80rpx;
+  border: 8rpx solid #f3f3f3;
+  border-top: 8rpx solid #07c160;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 错误状态 */
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  padding: 40rpx;
+}
+
+.error-content {
+  text-align: center;
+  background-color: white;
+  padding: 60rpx 40rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.1);
+}
+
+.error-icon {
+  font-size: 80rpx;
+  display: block;
+  margin-bottom: 30rpx;
+}
+
+.error-text {
+  font-size: 32rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 40rpx;
+}
+
+.reload-btn {
+  background-color: #07c160;
+  color: white;
+  border-radius: 50rpx;
+  padding: 20rpx 40rpx;
+  font-size: 28rpx;
+  margin-top: 20rpx;
+}
+
+/* 主要内容 */
+.main-content {
+  padding: 30rpx;
+}
+
+/* 活动信息 */
+.activity-info {
+  background-color: white;
+  padding: 30rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+}
+
+.activity-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.activity-id {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 28rpx;
+  color: #666;
+  padding: 15rpx 20rpx;
+  background-color: #f8f9fa;
+  border-radius: 8rpx;
+}
+
+.copy-hint {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 计时器显示 */
+.timer-display-container {
+  background-color: white;
+  padding: 50rpx 30rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  text-align: center;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+}
+
+.timer-display {
+  margin-bottom: 20rpx;
+}
+
+.timer-text {
+  font-size: 80rpx;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  color: #333;
+  letter-spacing: 4rpx;
+}
+
+.timer-status {
+  font-size: 28rpx;
+  color: #07c160;
+}
+
+.status-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-text::before {
+  margin-right: 10rpx;
+}
+
+/* 服务时长信息 */
+.duration-info {
+  background-color: white;
+  padding: 30rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+}
+
+.duration-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30rpx;
+}
+
+.duration-label {
+  font-size: 32rpx;
+  color: #666;
+}
+
+.duration-value {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+/* 最低时长进度 */
+.minimum-duration {
+  margin-top: 30rpx;
+  padding-top: 30rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.progress-label {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.progress-percent {
+  font-size: 28rpx;
+  color: #07c160;
+  font-weight: bold;
+}
+
+/* 达到最低时长 */
+.minimum-reached {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e8f5e9;
+  padding: 25rpx;
+  border-radius: 12rpx;
+  margin-top: 20rpx;
+}
+
+.reached-icon {
+  color: #07c160;
+  font-size: 36rpx;
+  margin-right: 15rpx;
+  font-weight: bold;
+}
+
+.reached-text {
+  font-size: 30rpx;
+  color: #07c160;
+  font-weight: bold;
+}
+
+/* 状态提示 */
+.status-tips {
+  background-color: white;
+  padding: 30rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 25rpx;
+}
+
+.tip-item:last-child {
+  margin-bottom: 0;
+}
+
+.tip-icon {
+  font-size: 32rpx;
+  margin-right: 20rpx;
+  margin-top: 2rpx;
+  color: #666;
+}
+
+.tip-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* 操作按钮 */
+.action-buttons {
+  background-color: white;
+  padding: 40rpx 30rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+}
+
+.checkout-btn {
+  background-color: #ff4444;
+  color: white;
+  border-radius: 50rpx;
+  font-size: 32rpx;
+  height: 90rpx;
+  line-height: 90rpx;
+}
+
+.checkout-btn[disabled] {
+  background-color: #cccccc;
+  color: white;
+}
+
+.action-tips {
+  margin-top: 30rpx;
+  text-align: center;
+}
+
+.action-tip {
+  font-size: 24rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.action-tip:last-child {
+  margin-bottom: 0;
+}
+
+/* 调试信息 */
+.debug-info {
+  margin-top: 30rpx;
+  padding: 20rpx;
+  background-color: #f8f9fa;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.debug-info text {
+  display: block;
+  margin-bottom: 10rpx;
+}

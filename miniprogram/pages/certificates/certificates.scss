@@ -1,0 +1,55 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding: 20rpx;
+}
+
+.loading, .empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 500rpx;
+  color: #999;
+}
+
+.certificate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.certificate-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  position: relative;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.certificate-name {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 16rpx;
+}
+
+.certificate-date {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.certificate-status {
+  position: absolute;
+  top: 30rpx;
+  right: 30rpx;
+  font-size: 24rpx;
+  color: #999;
+  background: #f0f0f0;
+  padding: 6rpx 20rpx;
+  border-radius: 30rpx;
+}
+
+.certificate-status.active {
+  background: #e6f7e6;
+  color: #52c41a;
+}

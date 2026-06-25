@@ -1,0 +1,39 @@
+<view class="container">
+  <view class="search-box">
+    <input class="search-input" placeholder="输入姓名或手机号" bindinput="onInputSearch" confirm-type="search" bindconfirm="searchVolunteer" value="{{searchText}}" />
+    <button class="search-btn" bindtap="searchVolunteer">搜索</button>
+  </view>
+
+  <view class="result-card" wx:if="{{volunteer}}">
+    <view class="user-info">
+      <text class="name">{{volunteer.real_name}}</text>
+      <text class="id">ID: {{volunteer.volunteer_id}} | 手机: {{volunteer.phone}}</text>
+    </view>
+
+    <view class="points-display">
+      <view class="point-item">
+        <text class="label">当前可用积分</text>
+        <text class="value">{{volunteer.current_points || 0}}</text>
+      </view>
+      <view class="point-item">
+        <text class="label">累计总积分</text>
+        <text class="value">{{volunteer.total_points || 0}}</text>
+      </view>
+    </view>
+
+    <view class="action-section">
+      <view class="input-group">
+        <text>调整分值：</text>
+        <input class="points-input" type="number" placeholder="正数加分，负数减分" bindinput="onInputPoints" value="{{inputPoints}}" />
+      </view>
+      
+      <view class="input-group">
+        <text>操作理由：</text>
+        <input class="points-input" placeholder="例如：手动发放活动补贴" bindinput="onInputReason" value="{{inputReason}}" />
+      </view>
+
+      <button class="submit-btn" type="primary" bindtap="submitPoints">确认修改并存入数据库</button>
+      <view class="tip">所有操作将被记录，备查理由请务必填写准确</view>
+    </view>
+  </view>
+</view>

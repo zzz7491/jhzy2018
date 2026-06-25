@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "志愿活动",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f5f5f5",
+  "onReachBottomDistance": 50
+}

@@ -1,0 +1,210 @@
+/* 注册页样式 - 适配老年版/普通版 */
+.container {
+  padding: 20rpx;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 老年版切换按钮样式 */
+.elder-toggle {
+  position: fixed;
+  top: 20rpx;
+  right: 20rpx;
+  z-index: 999;
+  padding: 10rpx 20rpx;
+  background-color: #007aff;
+  color: #fff;
+  border-radius: 50rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  /* 点击反馈 */
+  &:active {
+    background-color: #0066cc;
+    transform: scale(0.98);
+  }
+}
+
+/* 表单整体样式 */
+.form-item {
+  background-color: #fff;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  
+  label {
+    display: block;
+    margin-bottom: 12rpx;
+    color: #333;
+    /* 基础字体，具体大小由wxml的style覆盖 */
+    font-size: 28rpx;
+  }
+  
+  input {
+    width: 100%;
+    padding: 0 10rpx;
+    border: 1px solid #e5e5e5;
+    border-radius: 12rpx;
+    box-sizing: border-box;
+    /* 基础样式，具体大小由wxml的style覆盖 */
+    height: 88rpx;
+    font-size: 28rpx;
+    
+    &:focus {
+      border-color: #007aff;
+      outline: none;
+      box-shadow: 0 0 0 2rpx rgba(0, 122, 255, 0.2);
+    }
+    
+    &::placeholder {
+      color: #999;
+      font-size: 26rpx;
+    }
+    
+    // ********** 新增：密码输入框样式兼容 **********
+    &[type="password"] {
+      // 统一密码框和普通输入框样式，避免差异
+      letter-spacing: 2rpx;
+      
+      // 老年版密码框占位符增强
+      &::placeholder {
+        letter-spacing: 0;
+      }
+    }
+  }
+}
+
+/* 性别选择按钮组 */
+.gender-btns {
+  display: flex;
+  gap: 20rpx;
+  
+  button {
+    flex: 1;
+    border-radius: 12rpx;
+    /* 基础样式，具体大小由wxml的style覆盖 */
+    height: 88rpx;
+    font-size: 32rpx;
+    
+    &.active {
+      background-color: #007aff;
+      color: #fff;
+    }
+    
+    &:not(.active) {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+  }
+}
+
+/* 提交按钮样式 */
+button {
+  border-radius: 16rpx;
+  border: none;
+  /* 基础样式，具体大小由wxml的style覆盖 */
+  height: 88rpx;
+  font-size: 32rpx;
+  
+  &:not([type="default"]) {
+    background-color: #007aff;
+    color: #fff;
+    
+    &:disabled {
+      background-color: #999;
+      color: #fff;
+      opacity: 0.7;
+    }
+    
+    &:active {
+      background-color: #0066cc;
+    }
+  }
+  
+  &[type="default"] {
+    background-color: #f0f0f0;
+    color: #333;
+    
+    &:active {
+      background-color: #e0e0e0;
+    }
+  }
+}
+
+/* 老年版专属样式增强（兜底） */
+.elder-mode {
+  .form-item {
+    padding: 30rpx;
+    margin-bottom: 30rpx;
+    
+    label {
+      font-weight: bold;
+    }
+    
+    input {
+      font-weight: bold;
+      
+      &::placeholder {
+        font-size: 34rpx;
+        font-weight: bold;
+      }
+      
+      // ********** 新增：老年版密码框样式增强 **********
+      &[type="password"] {
+        font-weight: bold;
+        letter-spacing: 4rpx; // 老年版密码框字符间距增大，更易识别
+      }
+    }
+  }
+  
+  .gender-btns {
+    gap: 30rpx;
+    
+    button {
+      font-weight: bold;
+    }
+  }
+  
+  button {
+    font-weight: bold;
+  }
+}
+
+/* 适配不同屏幕 */
+@media (min-width: 750rpx) {
+  .container {
+    max-width: 750rpx;
+    margin: 0 auto;
+  }
+}
+
+/* 通用动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form-item {
+  animation: fadeIn 0.3s ease-out;
+  // ********** 新增：密码项动画延迟，提升体验 **********
+  &:nth-last-child(4), // 登录密码项
+  &:nth-last-child(3) { // 确认密码项
+    animation-delay: 0.1s;
+  }
+}
+
+button {
+  transition: all 0.2s ease;
+}
+
+// ********** 新增：密码输入框焦点样式增强 **********
+input[type="password"]:focus {
+  border-color: #007aff;
+  box-shadow: 0 0 0 3rpx rgba(0, 122, 255, 0.3);
+}

@@ -1,0 +1,123 @@
+<view class="container">
+  <!-- 搜索和操作栏 -->
+  <view class="header">
+    <view class="search-box">
+      <input class="search-input" placeholder="搜索用户名/姓名/邮箱/电话" bindinput="onSearchInput" bindconfirm="loadAdminList" confirm-type="search" />
+      <button class="search-btn" size="mini" type="primary" bindtap="loadAdminList">搜索</button>
+    </view>
+    <button class="add-btn" type="primary" size="mini" bindtap="showAddModal">+ 新增管理员</button>
+  </view>
+
+  <!-- 筛选栏 -->
+  <view class="filter-bar">
+    <picker bindchange="onRoleFilterChange" range="{{roleOptions}}" range-key="label" value="{{roleFilterIndex}}">
+      <view class="filter-item">
+        <text>{{roleOptions[roleFilterIndex].label}}</text>
+        <text class="iconfont">▼</text>
+      </view>
+    </picker>
+    <picker bindchange="onStatusFilterChange" range="{{statusOptions}}" range-key="label" value="{{statusFilterIndex}}">
+      <view class="filter-item">
+        <text>{{statusOptions[statusFilterIndex].label}}</text>
+        <text class="iconfont">▼</text>
+      </view>
+    </picker>
+    <button class="reset-filter" size="mini" bindtap="resetFilter">重置</button>
+  </view>
+
+  <!-- 管理员列表 -->
+  <view class="admin-list">
+    <view class="list-header">
+      <text>共 {{total}} 个管理员</text>
+    </view>
+
+    <block wx:if="{{adminList.length > 0}}">
+      <view class="admin-item" wx:for="{{adminList}}" wx:key="id">
+        <view class="admin-info">
+          <view class="info-row">
+            <text class="real-name">{{item.real_name}}</text>
+            <text class="username">({{item.username}})</text>
+            <view class="role-tag role-{{item.role}}">{{getRoleName(item.role)}}</view>
+            <view class="status-tag status-{{item.status}}">{{getStatusName(item.status)}}</view>
+          </view>
+          <view class="info-row">
+            <text class="contact" wx:if="{{item.phone}}">📞 {{item.phone}}</text>
+            <text class="contact" wx:if="{{item.email}}">📧 {{item.email}}</text>
+          </view>
+          <view class="info-row">
+            <text class="login-info">最后登录：{{item.last_login_time || '未登录'}}</text>
+            <text class="login-info">登录次数：{{item.login_count || 0}}</text>
+          </view>
+        </view>
+        <view class="admin-actions">
+          <button class="action-btn" size="mini" bindtap="showEditModal" data-admin="{{item}}">编辑</button>
+          <button class="action-btn" size="mini" bindtap="showResetPwdModal" data-id="{{item.id}}" data-name="{{item.real_name}}">重置密码</button>
+          <button class="action-btn delete" size="mini" bindtap="confirmDelete" data-id="{{item.id}}" data-name="{{item.real_name}}" data-role="{{item.role}}">删除</button>
+        </view>
+      </view>
+    </block>
+
+    <view class="empty-list" wx:else>
+      <text>暂无管理员数据</text>
+    </view>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{hasMore}}">
+    <button bindtap="loadMore" loading="{{loading}}" disabled="{{loading}}">点击加载更多</button>
+  </view>
+
+  <!-- 新增/编辑管理员弹窗 -->
+  <view class="modal" wx:if="{{showModal}}">
+    <view class="modal-content">
+      <view class="modal-header">
+        <text>{{modalTitle}}管理员</text>
+        <text class="close-btn" bindtap="closeModal">✕</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-item" wx:if="{{!isEdit}}">
+          <text class="label">用户名 <text class="required">*</text></text>
+          <input class="input" placeholder="请输入用户名" bindinput="onFieldChange" data-field="username" value="{{formData.username}}" />
+        </view>
+        <view class="form-item" wx:if="{{!isEdit || isResetPwd}}">
+          <text class="label">密码 <text class="required">*</text></text>
+          <input class="input" type="password" placeholder="{{isResetPwd ? '请输入新密码' : '请输入密码'}}" bindinput="onFieldChange" data-field="password" value="{{formData.password}}" />
+        </view>
+        <view class="form-item">
+          <text class="label">真实姓名 <text class="required">*</text></text>
+          <input class="input" placeholder="请输入真实姓名" bindinput="onFieldChange" data-field="real_name" value="{{formData.real_name}}" />
+        </view>
+        <view class="form-item">
+          <text class="label">邮箱</text>
+          <input class="input" placeholder="请输入邮箱" bindinput="onFieldChange" data-field="email" value="{{formData.email}}" />
+        </view>
+        <view class="form-item">
+          <text class="label">手机号</text>
+          <input class="input" placeholder="请输入手机号" bindinput="onFieldChange" data-field="phone" value="{{formData.phone}}" />
+        </view>
+        <view class="form-item">
+          <text class="label">角色 <text class="required">*</text></text>
+          <picker bindchange="onRoleChange" range="{{roleOptions}}" range-key="label" value="{{formData.roleIndex}}">
+            <view class="picker">
+              <text>{{roleOptions[formData.roleIndex].label}}</text>
+              <text class="iconfont">▼</text>
+            </view>
+          </picker>
+        </view>
+        <view class="form-item">
+          <text class="label">状态</text>
+          <picker bindchange="onStatusChange" range="{{statusOptions}}" range-key="label" value="{{formData.statusIndex}}">
+            <view class="picker">
+              <text>{{statusOptions[formData.statusIndex].label}}</text>
+              <text class="iconfont">▼</text>
+            </view>
+          </picker>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="cancel-btn" bindtap="closeModal">取消</button>
+        <button class="confirm-btn" type="primary" bindtap="saveAdmin">{{modalTitle}}</button>
+      </view>
+    </view>
+  </view>
+</view>

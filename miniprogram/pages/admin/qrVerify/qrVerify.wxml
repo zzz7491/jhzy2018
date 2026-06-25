@@ -1,0 +1,141 @@
+<view class="container">
+  <!-- 头部信息 -->
+  <view class="header">
+    <view class="admin-info">
+      <text class="admin-name">{{adminName}}</text>
+      <text class="admin-role">核销员</text>
+    </view>
+    <text class="current-time">{{currentTime}}</text>
+  </view>
+
+  <!-- 标题 -->
+  <view class="title-section">
+    <text class="title">嘉禾志愿</text>
+    <text class="subtitle">扫描二维码进行核销</text>
+  </view>
+
+  <!-- 统计卡片 -->
+  <view class="stats-section">
+    <view class="stat-card">
+      <text class="stat-number">{{todayCount}}</text>
+      <text class="stat-label">今日核销</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-number">{{todayPoints}}</text>
+      <text class="stat-label">今日积分</text>
+    </view>
+  </view>
+
+  <!-- 扫码区域 -->
+  <view class="scan-area">
+    <view class="scan-box" bindtap="startScan">
+      <view class="scan-icon">
+        <text class="icon">📱</text>
+      </view>
+      <text class="scan-text">点击开始扫码</text>
+      <text class="scan-desc">扫描志愿者兑换二维码</text>
+    </view>
+
+    <!-- 手动输入区域 -->
+    <view class="manual-input" wx:if="{{showManualInput}}">
+      <view class="input-title">
+        <text>手动输入核销码</text>
+      </view>
+      <input 
+        type="text" 
+        placeholder="请输入兑换码" 
+        value="{{manualCode}}"
+        bindinput="onManualInput"
+        class="code-input"
+      />
+      <button class="btn btn-verify" bindtap="verifyManualCode">
+        确认核销
+      </button>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="action-buttons">
+    <button class="btn btn-scan" bindtap="startScan">
+      <text class="btn-icon">📷</text>
+      <text>扫一扫核销</text>
+    </button>
+    
+    <button class="btn btn-toggle" bindtap="toggleManualInput">
+      <text class="btn-icon">{{showManualInput ? '📋' : '⌨️'}}</text>
+      <text>{{showManualInput ? '隐藏手动输入' : '手动输入'}}</text>
+    </button>
+  </view>
+
+  <!-- 历史记录 -->
+  <view class="history-section" wx:if="{{historyList.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">📋 我的核销记录</text>
+      <text class="section-badge">{{historyList.length}}</text>
+    </view>
+    
+    <scroll-view class="history-list" scroll-y enhanced show-scrollbar="{{false}}">
+      <view 
+        class="history-item" 
+        wx:for="{{historyList}}" 
+        wx:key="id"
+      >
+        <view class="history-icon">
+          <text class="icon">✓</text>
+        </view>
+        <view class="history-info">
+          <text class="history-name">{{item.volunteer_name || '志愿者'}}</text>
+          <text class="history-time">{{formatTime(item.completed_at)}}</text>
+          <text class="history-goods">{{item.goods_name}}</text>
+          <text class="history-points">-{{item.points_spent}}分</text>
+          <text class="history-code">兑换码: {{item.exchange_code}}</text>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{historyList.length === 0 && !isLoading}}">
+    <text class="empty-icon">📭</text>
+    <text class="empty-text">暂无核销记录</text>
+    <text class="empty-desc">扫码核销后，记录将显示在这里</text>
+  </view>
+
+  <!-- 退出登录 -->
+  <view class="logout-section">
+    <button class="btn-logout" bindtap="logout">
+      <text class="icon">🚪</text>
+      <text>退出登录</text>
+    </button>
+  </view>
+
+  <!-- 核销结果弹窗 -->
+  <view class="modal" wx:if="{{showResultModal}}">
+    <view class="modal-mask" bindtap="closeResultModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">{{verifySuccess ? '✓ 核销成功' : '✗ 核销失败'}}</text>
+      </view>
+      
+      <view class="modal-body">
+        <view class="result-icon {{verifySuccess ? 'success' : 'fail'}}">
+          <text class="icon">{{verifySuccess ? '✓' : '✗'}}</text>
+        </view>
+        
+        <text class="result-message">{{verifyMessage}}</text>
+        
+        <button class="btn btn-close" bindtap="closeResultModal">
+          {{verifySuccess ? '继续核销' : '重新尝试'}}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载状态 -->
+  <view class="loading" wx:if="{{isLoading}}">
+    <view class="loading-content">
+      <view class="spinner"></view>
+      <text>处理中...</text>
+    </view>
+  </view>
+</view>

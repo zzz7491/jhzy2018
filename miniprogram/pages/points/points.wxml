@@ -1,0 +1,228 @@
+<!-- pages/my/points/index.wxml -->
+<view class="container {{isSeniorMode ? 'senior-mode' : ''}}">
+  <!-- 安全区域 -->
+  <view class="safe-top"></view>
+  
+  <!-- 顶部导航栏 -->
+  <view class="top-navbar">
+    <view class="nav-left">
+      <text class="nav-title">我的积分</text>
+    </view>
+    <view class="nav-right">
+      <!-- 显示模式切换按钮 -->
+      <view class="mode-toggle-btn {{isSeniorMode ? 'senior-active' : ''}}" 
+            bindtap="switchDisplayMode">
+        <text class="mode-icon">{{isSeniorMode ? '👴' : '👤'}}</text>
+        <text class="mode-text">{{isSeniorMode ? '普通版' : '老年版'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 积分概览 -->
+  <view class="points-overview">
+    <view class="points-card">
+      <view class="points-main">
+        <text class="points-label">当前可用积分</text>
+        <view class="points-number-wrapper">
+          <text class="points-number">{{pointsData.current_points}}</text>
+          <text class="points-unit">分</text>
+        </view>
+      </view>
+      
+      <view class="points-secondary">
+        <view class="total-points">
+          <image src="/images/icons/total.png" class="total-icon"></image>
+          <text>历史累计: {{pointsData.total_points}}分</text>
+        </view>
+        <view class="points-rank">
+          <image src="/images/icons/star.png" class="star-icon"></image>
+          <text>{{pointsData.level || '初级志愿者'}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 进度条 -->
+    <view class="progress-section">
+      <view class="progress-header">
+        <text>成长进度</text>
+        <text>{{Math.min(pointsData.current_points, pointsData.next_level_points)}}/{{pointsData.next_level_points}}</text>
+      </view>
+      <view class="progress-bar">
+        <view class="progress-fill" style="width: {{pointsData.progress || 0}}%"></view>
+      </view>
+      <view class="progress-labels">
+        <text>{{pointsData.level || '初级志愿者'}}</text>
+        <text>{{pointsData.next_level_points > pointsData.current_points ? '下一等级' : '最高等级'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 快捷入口 -->
+  <view class="quick-entries">
+    <view class="entry-item" bindtap="goToMallDirect">
+      <view class="entry-icon mall">
+        <image src="/images/icons/mall.png"></image>
+      </view>
+      <text class="entry-title">积分商城</text>
+      <text class="entry-desc">兑换服务与物品</text>
+    </view>
+    <view class="entry-item" bindtap="goToQuickAction">
+      <view class="entry-icon quick">
+        <image src="/images/icons/action.png"></image>
+      </view>
+      <text class="entry-title">参与服务</text>
+      <text class="entry-desc">获取更多积分</text>
+    </view>
+    <view class="entry-item" bindtap="onRefresh">
+      <view class="entry-icon refresh">
+        <image src="/images/icons/refresh.png"></image>
+      </view>
+      <text class="entry-title">刷新数据</text>
+      <text class="entry-desc">更新最新状态</text>
+    </view>
+  </view>
+
+  <!-- 积分统计 -->
+  <view class="stats-section card">
+    <view class="section-header">
+      <view class="section-title-wrapper">
+        <image src="/images/icons/stats.png" class="section-icon"></image>
+        <text class="section-title">服务记录统计</text>
+      </view>
+    </view>
+    
+    <view class="stats-grid">
+      <view class="stat-row">
+        <view class="stat-item">
+          <text class="stat-value">{{pointsStats.total_income}}</text>
+          <text class="stat-label">服务获得积分</text>
+          <text class="stat-desc">志愿服务获得</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{pointsStats.total_expense}}</text>
+          <text class="stat-label">已使用积分</text>
+          <text class="stat-desc">兑换物品/服务</text>
+        </view>
+      </view>
+      
+      <view class="stat-row">
+        <view class="stat-item">
+          <text class="stat-value">{{pointsStats.income_count}}</text>
+          <text class="stat-label">获得次数</text>
+          <text class="stat-desc">参与服务活动</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{pointsStats.expense_count}}</text>
+          <text class="stat-label">使用次数</text>
+          <text class="stat-desc">进行积分兑换</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 积分规则 -->
+  <view class="rules-section card">
+    <view class="section-header" bindtap="toggleRules">
+      <view class="section-title-wrapper">
+        <image src="/images/icons/rules.png" class="section-icon"></image>
+        <text class="section-title">积分规则说明</text>
+      </view>
+      <view class="section-action">
+        <text class="section-arrow">{{showRules ? '收起' : '展开'}}</text>
+        <text class="section-arrow-icon">{{showRules ? '▲' : '▼'}}</text>
+      </view>
+    </view>
+    
+    <view class="rules-content slide-down" wx:if="{{showRules}}">
+      <view class="rules-tips">
+        <view class="tip-item">
+          <image src="/images/icons/clock.png" class="tip-icon"></image>
+          <text>积分长期有效，记录您的志愿服务历程</text>
+        </view>
+        <view class="tip-item">
+          <image src="/images/icons/gift.png" class="tip-icon"></image>
+          <text>积分可用于兑换志愿服务相关物品或服务</text>
+        </view>
+        <view class="tip-item">
+          <image src="/images/icons/update.png" class="tip-icon"></image>
+          <text>积分累计可提升志愿者等级，享受更多权益</text>
+        </view>
+        <view class="tip-item">
+          <image src="/images/icons/notice.png" class="tip-icon"></image>
+          <text>点击上方按钮查看完整积分规则</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 积分记录 -->
+  <view class="records-section-wrapper">
+    <view class="records-section card">
+      <view class="section-header">
+        <view class="section-title-wrapper">
+          <image src="/images/icons/record.png" class="section-icon"></image>
+          <text class="section-title">服务记录明细</text>
+          <text class="record-count">({{filteredRecords.length}}条)</text>
+        </view>
+        <view class="filter-trigger" bindtap="showFilter">
+          <image src="/images/icons/filter.png" class="filter-icon"></image>
+          <text class="filter-text">{{currentFilter === 'all' ? '全部' : 
+            currentFilter === 'income' ? '获得' : '使用'}}</text>
+        </view>
+      </view>
+      
+      <view class="records-list">
+        <block wx:for="{{filteredRecords}}" wx:key="id">
+          <view class="record-item fade-in">
+            <view class="record-left">
+              <view class="record-type-wrapper">
+                <view class="record-type-icon {{item.is_income ? 'income' : 'expense'}}">
+                  <image src="/images/icons/{{item.is_income ? 'add' : 'minus'}}.png"></image>
+                </view>
+                <view class="record-info">
+                  <text class="record-type">{{item.type_text}}</text>
+                  <text class="record-time">{{formatTime(item.time)}}</text>
+                </view>
+              </view>
+              <text class="record-desc" wx:if="{{item.description}}">{{item.description}}</text>
+            </view>
+            <view class="record-right">
+              <text class="record-points {{item.is_income ? 'add' : 'minus'}}">
+                {{item.is_income ? '+' : ''}}{{item.points}}
+              </text>
+              <text class="record-status completed">已完成</text>
+            </view>
+          </view>
+        </block>
+        
+        <!-- 空状态 -->
+        <view class="empty-state" wx:if="{{filteredRecords.length === 0}}">
+          <image src="/images/empty/points.png" class="empty-image"></image>
+          <text class="empty-text">暂无服务记录</text>
+          <text class="empty-tip">快去参与志愿服务获取积分吧！</text>
+          <button class="empty-btn" bindtap="goToQuickAction">去参与服务</button>
+        </view>
+      </view>
+      
+      <!-- 加载更多 -->
+      <view class="load-more" wx:if="{{hasMore && filteredRecords.length > 0}}">
+        <view class="load-more-content" bindtap="loadMoreRecords">
+          <text class="load-text">加载更多记录</text>
+          <image src="/images/icons/more.png" class="load-icon"></image>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 过滤菜单 -->
+    <view class="filter-options-container slide-down" wx:if="{{showFilter}}">
+      <view class="filter-options">
+        <text class="filter-option {{currentFilter === 'all' ? 'active' : ''}}" 
+              bindtap="setFilter" data-type="all">全部记录</text>
+        <text class="filter-option {{currentFilter === 'income' ? 'active' : ''}}" 
+              bindtap="setFilter" data-type="income">获得积分</text>
+        <text class="filter-option {{currentFilter === 'expense' ? 'active' : ''}}" 
+              bindtap="setFilter" data-type="expense">使用积分</text>
+      </view>
+    </view>
+  </view>
+</view>

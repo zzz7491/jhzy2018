@@ -1,0 +1,82 @@
+<view class="history-page">
+  <!-- 统计卡片 -->
+  <view class="stats-card">
+    <view class="stat-item">
+      <text class="stat-label">总服务时长</text>
+      <text class="stat-value">{{stats.total_duration}}小时</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">总获得积分</text>
+      <text class="stat-value">{{stats.total_points}}分</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-label">签到次数</text>
+      <text class="stat-value">{{stats.total_count}}次</text>
+    </view>
+  </view>
+
+  <!-- 列表 -->
+  <view class="records-list">
+    <view wx:if="{{records.length === 0 && !loading}}" class="empty-state">
+      <image src="/images/empty.png" mode="aspectFit" />
+      <text>暂无签到记录</text>
+      <button size="mini" bindtap="loadHistory">刷新</button>
+    </view>
+
+    <block wx:for="{{records}}" wx:key="id">
+      <view class="record-card">
+        <view class="record-header">
+          <text class="activity-title">{{item.activity_title}}</text>
+          <text class="status {{getStatusClass(item.status)}}">{{getStatusText(item.status)}}</text>
+        </view>
+        
+        <view class="record-content">
+          <view class="info-row">
+            <text class="label">签到时间：</text>
+            <text class="value">{{formatDate(item.checkin_time)}}</text>
+          </view>
+          
+          <view class="info-row" wx:if="{{item.checkout_time}}">
+            <text class="label">签退时间：</text>
+            <text class="value">{{formatDate(item.checkout_time)}}</text>
+          </view>
+          
+          <view class="info-row" wx:if="{{item.duration_minutes > 0}}">
+            <text class="label">服务时长：</text>
+            <text class="value highlight">{{formatDuration(item.duration_minutes)}}</text>
+          </view>
+          
+          <view class="info-row" wx:if="{{item.points > 0}}">
+            <text class="label">获得积分：</text>
+            <text class="value points">{{item.points}}分</text>
+          </view>
+          
+          <view class="info-row" wx:if="{{item.violation_log}}">
+            <text class="label">违规记录：</text>
+            <text class="value warn">有违规行为</text>
+          </view>
+        </view>
+        
+        <view class="record-footer">
+          <button class="btn-view" size="mini" bindtap="viewActivityDetail" data-id="{{item.activity_id}}">
+            查看活动
+          </button>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 加载更多 -->
+  <view wx:if="{{loading}}" class="loading-more">
+    <text>加载中...</text>
+  </view>
+  
+  <view wx:if="{{!hasMore && records.length > 0}}" class="no-more">
+    <text>没有更多了</text>
+  </view>
+
+  <!-- 返回按钮 -->
+  <view class="back-btn" bindtap="goBack">
+    <text>返回</text>
+  </view>
+</view>

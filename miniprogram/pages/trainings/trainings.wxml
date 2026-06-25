@@ -1,0 +1,28 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 未参加过考试 -->
+  <view wx:elif="{{!hasExam}}" class="empty">
+    <text>您还未参加培训考试</text>
+    <button class="exam-btn" bindtap="goToExam" type="primary">我要考试</button>
+  </view>
+
+  <!-- 参加过考试但未合格 -->
+  <view wx:elif="{{hasExam && !isPassed}}" class="fail">
+    <text>您的考试成绩未达到合格线</text>
+    <button class="exam-btn" bindtap="goToExam" type="default">重新考试</button>
+  </view>
+
+  <!-- 考试合格，显示证书 -->
+  <view wx:elif="{{hasExam && isPassed}}" class="success">
+    <view class="cert-card">
+      <view class="cert-icon">✅</view>
+      <view class="cert-title">培训考试合格</view>
+      <view class="cert-code">证书编号：{{certificate.cert_code}}</view>
+      <view class="cert-date">颁发时间：{{certificate.issued_at}}</view>
+      <button class="view-cert-btn" bindtap="viewCertificate" type="primary">查看证书</button>
+    </view>
+  </view>
+</view>

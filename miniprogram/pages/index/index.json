@@ -1,0 +1,13 @@
+{
+  "usingComponents": {},
+  "navigationBarTitleText": "嘉禾志愿服务",
+  "navigationBarBackgroundColor": "#1890ff",
+  "navigationBarTextStyle": "white",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "backgroundColor": "#f8f9fa",
+  "onReachBottomDistance": 50,
+  "disableScroll": false,
+  "backgroundColorTop": "#1890ff",
+  "backgroundColorBottom": "#f8f9fa"
+}

@@ -1,0 +1,293 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.year-selector {
+  background: #fff;
+  padding: 20rpx;
+  border-bottom: 1rpx solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.year-list {
+  display: flex;
+  gap: 20rpx;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 10rpx 0;
+}
+
+.year-list::-webkit-scrollbar {
+  display: none;
+}
+
+.year-item {
+  padding: 16rpx 40rpx;
+  background: #f5f5f5;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  color: #666;
+  display: inline-block;
+}
+
+.year-item.active {
+  background: #07c160;
+  color: #fff;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 500rpx;
+  color: #999;
+}
+
+.content {
+  height: calc(100vh - 120rpx);
+  padding: 20rpx;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx 16rpx;
+  text-align: center;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.stat-value {
+  display: block;
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #07c160;
+  margin-bottom: 8rpx;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.continuous-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.continuous-item {
+  text-align: center;
+}
+
+.continuous-label {
+  display: block;
+  font-size: 26rpx;
+  color: #999;
+  margin-bottom: 10rpx;
+}
+
+.continuous-value {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20rpx;
+  padding: 0 10rpx;
+}
+
+.title-text {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.title-tag {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.chart-section, .category-section, .achievement-section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.bar-chart {
+  display: flex;
+  height: 300rpx;
+  margin-top: 30rpx;
+}
+
+.chart-y-axis {
+  width: 80rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-right: 20rpx;
+  color: #999;
+  font-size: 22rpx;
+}
+
+.chart-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+}
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 12rpx;
+}
+
+.bar {
+  width: 12rpx;
+  background: #07c160;
+  border-radius: 6rpx 6rpx 0 0;
+  position: relative;
+}
+
+.bar-value {
+  position: absolute;
+  top: -40rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20rpx;
+  color: #999;
+  white-space: nowrap;
+}
+
+.bar-label {
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: #999;
+  transform: rotate(-45deg);
+  transform-origin: left top;
+}
+
+.category-list {
+  margin-top: 20rpx;
+}
+
+.category-item {
+  margin-bottom: 30rpx;
+}
+
+.category-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+
+.category-name {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.category-value {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.progress-bar {
+  height: 16rpx;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 8rpx;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20rpx;
+  margin-top: 20rpx;
+}
+
+.achievement-card {
+  background: #f8f8f8;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  text-align: center;
+}
+
+.achievement-card.unlocked {
+  opacity: 0.6;
+}
+
+.achievement-icon {
+  font-size: 48rpx;
+  margin-bottom: 10rpx;
+}
+
+.achievement-icon.gray {
+  filter: grayscale(100%);
+  opacity: 0.5;
+}
+
+.achievement-name {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 6rpx;
+}
+
+.achievement-desc {
+  display: block;
+  font-size: 20rpx;
+  color: #999;
+  margin-bottom: 8rpx;
+}
+
+.achievement-date {
+  font-size: 18rpx;
+  color: #07c160;
+}
+
+.achievement-locked {
+  font-size: 18rpx;
+  color: #999;
+}
+
+.share-btn {
+  background: #07c160;
+  color: #fff;
+  text-align: center;
+  padding: 30rpx;
+  border-radius: 50rpx;
+  font-size: 32rpx;
+  margin: 30rpx 0;
+}
+
+.share-btn:active {
+  opacity: 0.9;
+}

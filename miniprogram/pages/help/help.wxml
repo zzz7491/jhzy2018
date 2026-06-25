@@ -1,0 +1,164 @@
+<!-- pages/help/help.wxml - 帮助中心 -->
+<view class="page-container safe-top">
+  
+  <!-- 顶部导航 -->
+  <view class="nav-header">
+    <view class="nav-left" bindtap="goBack">
+      <text class="nav-icon">‹</text>
+      <text class="nav-title">帮助中心</text>
+    </view>
+  </view>
+
+  <!-- 帮助内容 -->
+  <scroll-view class="help-container" scroll-y>
+    
+    <!-- 欢迎语 -->
+    <view class="welcome-section">
+      <text class="welcome-icon">🤝</text>
+      <text class="welcome-text">嘉禾志愿帮助中心</text>
+      <text class="welcome-subtext">为您解答使用中的疑问</text>
+    </view>
+
+    <!-- 常见问题 -->
+    <view class="faq-section">
+      <text class="section-title">常见问题</text>
+      
+      <view class="faq-list">
+        <!-- 问题1 -->
+        <view class="faq-item" bindtap="toggleFaq" data-index="0">
+          <view class="faq-question">
+            <text class="question-text">如何报名参加志愿服务活动？</text>
+            <text class="question-arrow {{faqOpen[0] ? 'open' : ''}}">›</text>
+          </view>
+          <view class="faq-answer {{faqOpen[0] ? 'open' : ''}}">
+            <text>1. 登录嘉禾志愿小程序\n2. 在"志愿活动"页面浏览活动\n3. 点击想参加的活动查看详情\n4. 点击"立即报名"提交申请\n5. 等待管理员审核通过</text>
+          </view>
+        </view>
+
+        <!-- 问题2 -->
+        <view class="faq-item" bindtap="toggleFaq" data-index="1">
+          <view class="faq-question">
+            <text class="question-text">志愿服务积分如何获得？</text>
+            <text class="question-arrow {{faqOpen[1] ? 'open' : ''}}">›</text>
+          </view>
+          <view class="faq-answer {{faqOpen[1] ? 'open' : ''}}">
+            <text>1. 参与志愿服务活动获得积分\n2. 完成"随手公益"任务获得积分\n3. 积分按服务时长计算\n4. 积分可用于兑换激励物品</text>
+          </view>
+        </view>
+
+        <!-- 问题3 -->
+        <view class="faq-item" bindtap="toggleFaq" data-index="2">
+          <view class="faq-question">
+            <text class="question-text">如何签到参与活动？</text>
+            <text class="faqOpen[2] ? 'open' : ''}}">›</text>
+          </view>
+          <view class="faq-answer {{faqOpen[2] ? 'open' : ''}}">
+            <text>1. 活动审核通过后，在"我的志愿"页面查看可参与活动\n2. 在活动开始前30分钟至结束后30分钟内\n3. 到达活动地点后点击"参与签到"\n4. 系统自动验证位置和时间</text>
+          </view>
+        </view>
+
+        <!-- 问题4 -->
+        <view class="faq-item" bindtap="toggleFaq" data-index="3">
+          <view class="faq-question">
+            <text class="question-text">如何兑换积分激励物品？</text>
+            <text class="question-arrow {{faqOpen[3] ? 'open' : ''}}">›</text>
+          </view>
+          <view class="faq-answer {{faqOpen[3] ? 'open' : ''}}">
+            <text>1. 进入"积分激励"页面\n2. 浏览可兑换物品\n3. 点击物品查看详情\n4. 确认积分足够后点击"立即兑换"\n5. 兑换后积分自动扣除</text>
+          </view>
+        </view>
+
+        <!-- 问题5 -->
+        <view class="faq-item" bindtap="toggleFaq" data-index="4">
+          <view class="faq-question">
+            <text class="question-text">忘记密码怎么办？</text>
+            <text class="question-arrow {{faqOpen[4] ? 'open' : ''}}">›</text>
+          </view>
+          <view class="faq-answer {{faqOpen[4] ? 'open' : ''}}">
+            <text>1. 在登录页面点击"忘记密码"\n2. 通过注册手机号找回\n3. 或联系管理员重置密码\n管理员电话：0573-82099982</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 联系我们 -->
+    <view class="contact-section">
+      <text class="section-title">联系我们</text>
+      
+      <view class="contact-info">
+        <view class="contact-item">
+          <text class="contact-icon">📞</text>
+          <view class="contact-detail">
+            <text class="contact-label">客服电话</text>
+            <text class="contact-value">0573-82099982</text>
+            <text class="contact-time">工作时间：周一至周五 9:00-17:00</text>
+          </view>
+        </view>
+        
+        <view class="contact-item">
+          <text class="contact-icon">✉️</text>
+          <view class="contact-detail">
+            <text class="contact-label">电子邮箱</text>
+            <text class="contact-value">jhzy2026@jhzyfw.com</text>
+            <text class="contact-time">一般24小时内回复</text>
+          </view>
+        </view>
+        
+        <view class="contact-item">
+          <text class="contact-icon">📍</text>
+          <view class="contact-detail">
+            <text class="contact-label">办公地址</text>
+            <text class="contact-value">浙江省嘉兴市中环西路500号2-2103</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 使用指南 -->
+    <view class="guide-section">
+      <text class="section-title">使用指南</text>
+      
+      <view class="guide-steps">
+        <view class="step-item">
+          <text class="step-number">1</text>
+          <view class="step-content">
+            <text class="step-title">注册登录</text>
+            <text class="step-desc">完成志愿者实名注册，登录后使用全部功能</text>
+          </view>
+        </view>
+        
+        <view class="step-item">
+          <text class="step-number">2</text>
+          <view class="step-content">
+            <text class="step-title">浏览活动</text>
+            <text class="step-desc">查看志愿服务活动，选择感兴趣的项目报名</text>
+          </view>
+        </view>
+        
+        <view class="step-item">
+          <text class="step-number">3</text>
+          <view class="step-content">
+            <text class="step-title">参与服务</text>
+            <text class="step-desc">审核通过后，按时到达活动地点签到参与</text>
+          </view>
+        </view>
+        
+        <view class="step-item">
+          <text class="step-number">4</text>
+          <view class="step-content">
+            <text class="step-title">获得积分</text>
+            <text class="step-desc">完成志愿服务获得积分，可用于兑换物品</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 底部提示 -->
+    <view class="bottom-tips">
+      <text class="tips-text">如果还有其他问题，请通过意见反馈或直接联系我们</text>
+      <button class="feedback-btn" bindtap="goToFeedback">意见反馈</button>
+    </view>
+
+  </scroll-view>
+
+</view>

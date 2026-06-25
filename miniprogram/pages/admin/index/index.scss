@@ -1,0 +1,190 @@
+/* pages/admin/index/index.wxss */
+.container {
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* 头部信息 */
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40rpx;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  border: 3rpx solid white;
+  margin-right: 25rpx;
+  background: white;
+}
+
+.user-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.username {
+  font-size: 34rpx;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+}
+
+.role {
+  font-size: 26rpx;
+  opacity: 0.9;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2rpx solid rgba(255, 255, 255, 0.5);
+}
+
+.logout-btn::after {
+  border: none;
+}
+
+/* 统计卡片 */
+.stats-grid {
+  display: flex;
+  padding: 30rpx;
+  gap: 20rpx;
+}
+
+.stat-card {
+  flex: 1;
+  background: white;
+  border-radius: 15rpx;
+  padding: 30rpx 20rpx;
+  text-align: center;
+  box-shadow: 0 5rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.stat-number {
+  display: block;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 15rpx;
+}
+
+.stat-label {
+  font-size: 26rpx;
+  color: #666;
+}
+
+/* 功能菜单 */
+.menu-section {
+  background: white;
+  margin: 20rpx 30rpx;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  box-shadow: 0 5rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 30rpx;
+  display: block;
+}
+
+.menu-grid {
+  display: flex;
+  justify-content: space-around;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 150rpx;
+}
+
+.menu-icon {
+  width: 80rpx;
+  height: 80rpx;
+  margin-bottom: 20rpx;
+}
+
+.menu-text {
+  font-size: 26rpx;
+  color: #555;
+}
+
+/* 最近证书 */
+.recent-section {
+  background: white;
+  margin: 20rpx 30rpx 50rpx;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  box-shadow: 0 5rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30rpx;
+}
+
+.view-all {
+  font-size: 26rpx;
+  color: #667eea;
+}
+
+.certificate-list {
+  max-height: 500rpx;
+}
+
+.certificate-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 25rpx 0;
+  border-bottom: 1rpx solid #eee;
+}
+
+.certificate-item:last-child {
+  border-bottom: none;
+}
+
+.certificate-info {
+  flex: 1;
+}
+
+.cert-name {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.cert-number {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.cert-time {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 60rpx;
+  color: #999;
+  font-size: 28rpx;
+}

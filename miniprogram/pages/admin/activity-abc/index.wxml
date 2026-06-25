@@ -1,0 +1,256 @@
+<view class="activity-abc-page">
+  <view class="search-filter">
+    <view class="search-box">
+      <input 
+        placeholder="搜索活动名称、地点或描述..." 
+        value="{{searchKeyword}}" 
+        bindinput="handleSearch"
+        class="search-input"
+      />
+      <text class="iconfont icon-search search-icon"></text>
+    </view>
+    
+    <picker 
+      range="{{statusOptions}}" 
+      range-key="label" 
+      value="{{filterStatusIndex}}" 
+      bindchange="handleStatusChange"
+      class="status-picker"
+    >
+      <view class="picker-content">
+        <text>{{getStatusLabel(filterStatus)}}</text>
+        <text class="iconfont icon-down"></text>
+      </view>
+    </picker>
+  </view>
+
+  <view class="header-actions">
+    <view class="stats-info">
+      <text>共 {{pagination.total}} 个活动</text>
+    </view>
+    <button class="create-btn" bindtap="goToCreate">
+      <text class="iconfont icon-plus"></text>
+      新建活动
+    </button>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-container">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <view wx:else class="activity-list">
+    <block wx:for="{{activityList}}" wx:key="id">
+      <view class="activity-item">
+        <view class="activity-header">
+          <text class="activity-title">{{item.title}}</text>
+          <text class="activity-status status-{{item.status}}">
+            {{getStatusText(item.status)}}
+          </text>
+        </view>
+        
+        <view class="activity-info">
+          <view class="info-row">
+            <text class="iconfont icon-calendar"></text>
+            <text>{{item.activity_date}} {{item.start_time}}-{{item.end_time}}</text>
+          </view>
+          <view class="info-row">
+            <text class="iconfont icon-location"></text>
+            <text>{{item.location}}</text>
+          </view>
+          <view class="info-row">
+            <text class="iconfont icon-user"></text>
+            <text>{{item.current_participants}}/{{item.max_participants}} 人</text>
+            <text class="iconfont icon-star"></text>
+            <text>{{item.points_reward}} 积分</text>
+          </view>
+        </view>
+
+        <view class="activity-actions">
+          <button class="btn-copy" bindtap="copyActivity" data-id="{{item.id}}" style="background-color: #f0f9eb; color: #67c23a; border-color: #c2e7b0; border-radius: 8rpx; padding: 10rpx 20rpx; font-size: 26rpx; margin-right: 15rpx; border: 1rpx solid #c2e7b0;">复制为新活动</button>
+          
+          <button class="btn-view" bindtap="goToDetail" data-id="{{item.id}}" data-title="{{item.title}}">查看报名</button>
+          <button class="btn-edit" bindtap="goToEdit" data-id="{{item.id}}">修改</button>
+          <button class="btn-delete" bindtap="showDeleteDialog" data-id="{{item.id}}">删除</button>
+        </view>
+      </view>
+    </block>
+
+    <view wx:if="{{activityList.length === 0}}" class="empty-state">
+      <text class="iconfont icon-empty"></text>
+      <text class="empty-text">暂无活动数据</text>
+    </view>
+  </view>
+
+  <view wx:if="{{pagination.total_pages > 1}}" class="pagination">
+    <button 
+      class="page-btn" 
+      bindtap="loadPrevPage" 
+      disabled="{{pagination.current_page <= 1}}"
+    >
+      上一页
+    </button>
+    <text class="page-info">
+      第 {{pagination.current_page}} 页 / 共 {{pagination.total_pages}} 页
+    </text>
+    <button 
+      class="page-btn" 
+      bindtap="loadNextPage" 
+      disabled="{{pagination.current_page >= pagination.total_pages}}"
+    >
+      下一页
+    </button>
+  </view>
+
+  <view wx:if="{{showEditModal}}" class="modal-overlay">
+    <view class="modal-container">
+      <view class="modal-header">
+        <text class="modal-title">修改活动</text>
+        <text class="iconfont icon-close modal-close" bindtap="closeEditModal"></text>
+      </view>
+      
+      <scroll-view class="modal-content" scroll-y>
+        <view class="form-group">
+          <text class="form-label">活动标题</text>
+          <input 
+            class="form-input" 
+            value="{{editForm.title}}" 
+            data-field="title"
+            bindinput="handleEditInput"
+            placeholder="请输入活动标题"
+          />
+        </view>
+        
+        <view class="form-group">
+          <text class="form-label">活动描述</text>
+          <textarea 
+            class="form-textarea" 
+            value="{{editForm.description}}" 
+            data-field="description"
+            bindinput="handleEditInput"
+            placeholder="请输入活动描述"
+            maxlength="500"
+          />
+        </view>
+        
+        <view class="form-row">
+          <view class="form-group half">
+            <text class="form-label">活动日期</text>
+            <input 
+              class="form-input" 
+              type="date" 
+              value="{{editForm.activity_date}}" 
+              data-field="activity_date"
+              bindinput="handleEditInput"
+            />
+          </view>
+          
+          <view class="form-group half">
+            <text class="form-label">活动状态</text>
+            <picker 
+              range="{{statusOptions}}" 
+              range-key="label"
+              value="{{editForm.statusIndex}}"
+              bindchange="handleStatusPickerChange"
+            >
+              <view class="form-picker">
+                {{getStatusText(editForm.status)}}
+              </view>
+            </picker>
+          </view>
+        </view>
+        
+        <view class="form-row">
+          <view class="form-group half">
+            <text class="form-label">开始时间</text>
+            <input 
+              class="form-input" 
+              type="time" 
+              value="{{editForm.start_time}}" 
+              data-field="start_time"
+              bindinput="handleEditInput"
+            />
+          </view>
+          
+          <view class="form-group half">
+            <text class="form-label">结束时间</text>
+            <input 
+              class="form-input" 
+              type="time" 
+              value="{{editForm.end_time}}" 
+              data-field="end_time"
+              bindinput="handleEditInput"
+            />
+          </view>
+        </view>
+        
+        <view class="form-group">
+          <text class="form-label">活动地点</text>
+          <input 
+            class="form-input" 
+            value="{{editForm.location}}" 
+            data-field="location"
+            bindinput="handleEditInput"
+            placeholder="请输入活动地点"
+          />
+        </view>
+
+        <view class="form-group">
+          <text class="form-label">活动证书</text>
+          <view class="certificate-switch">
+            <switch 
+              checked="{{editForm.enable_certificate}}"
+              bindchange="onCertificateChange"
+              color="#07c160"
+            />
+            <text class="switch-tip">开启后，志愿者签退时自动生成服务证书（需服务时长≥2小时）</text>
+          </view>
+        </view>
+        
+        <view class="form-row">
+          <view class="form-group half">
+            <text class="form-label">最大人数</text>
+            <input 
+              class="form-input" 
+              type="number" 
+              value="{{editForm.max_participants}}" 
+              data-field="max_participants"
+              bindinput="handleEditInput"
+            />
+          </view>
+          
+          <view class="form-group half">
+            <text class="form-label">积分奖励</text>
+            <input 
+              class="form-input" 
+              type="number" 
+              value="{{editForm.points_reward}}" 
+              data-field="points_reward"
+              bindinput="handleEditInput"
+            />
+          </view>
+        </view>
+      </scroll-view>
+      
+      <view class="modal-actions">
+        <button class="btn-cancel" bindtap="closeEditModal">取消</button>
+        <button class="btn-confirm" bindtap="saveActivityEdit">保存修改</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showDeleteConfirm}}" class="modal-overlay">
+    <view class="confirm-dialog">
+      <view class="confirm-header">
+        <text class="confirm-title">确认删除</text>
+      </view>
+      <view class="confirm-content">
+        <text>确定要删除活动 "{{currentActivity.title}}" 吗？</text>
+        <text class="confirm-warning">删除后不可恢复，已报名的志愿者将收到通知。</text>
+      </view>
+      <view class="confirm-actions">
+        <button class="btn-cancel" bindtap="cancelDelete">取消</button>
+        <button class="btn-confirm delete" bindtap="confirmDelete">确认删除</button>
+      </view>
+    </view>
+  </view>
+</view>

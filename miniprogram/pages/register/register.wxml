@@ -1,0 +1,203 @@
+<view class="register-container">
+  <!-- 顶部导航 -->
+  <view class="register-header">
+    <view class="back-btn" bindtap="goBack">
+      <text class="back-icon">‹</text>
+      <text>返回</text>
+    </view>
+    <text class="register-title">志愿者注册</text>
+    <view class="header-right"></view>
+  </view>
+
+  <!-- 表单区域 -->
+  <scroll-view class="form-scroll" scroll-y>
+    <view class="form-container">
+      <!-- 微信验证状态 -->
+      <view class="wx-status" wx:if="{{!hasOpenid}}">
+        <view class="wx-loading">
+          <text>正在进行微信验证...</text>
+          <view class="loading-dots">
+            <text>.</text>
+            <text>.</text>
+            <text>.</text>
+          </view>
+        </view>
+        <button class="retry-btn" bindtap="retryWxLogin" wx:if="{{!wxLoginLoading}}">重新验证</button>
+      </view>
+
+      <view class="wx-success" wx:if="{{hasOpenid}}">
+        <text class="success-icon">✓</text>
+        <text>微信验证成功</text>
+      </view>
+
+      <!-- 表单字段 -->
+      <view class="form-group">
+        <text class="form-label">真实姓名</text>
+        <input 
+          class="form-input {{!validation.real_name ? 'error' : ''}}" 
+          placeholder="请输入真实姓名（2-10字）" 
+          value="{{formData.real_name}}" 
+          bindinput="onInputChange" 
+          data-field="real_name"
+        />
+        <text class="error-tip" wx:if="{{!validation.real_name && formData.real_name}}">姓名格式不正确</text>
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">身份证号</text>
+        <input 
+          class="form-input {{!validation.id_card ? 'error' : ''}}" 
+          placeholder="请输入18位身份证号码" 
+          value="{{formData.id_card}}" 
+          bindinput="onInputChange" 
+          data-field="id_card"
+        />
+        <text class="error-tip" wx:if="{{!validation.id_card && formData.id_card}}">身份证格式不正确</text>
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">手机号</text>
+        <input 
+          class="form-input {{!validation.phone ? 'error' : ''}}" 
+          placeholder="请输入手机号" 
+          type="number"
+          value="{{formData.phone}}" 
+          bindinput="onInputChange" 
+          data-field="phone"
+        />
+        <text class="error-tip" wx:if="{{!validation.phone && formData.phone}}">手机号格式不正确</text>
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">密码</text>
+        <view class="password-input">
+          <input 
+            class="form-input {{!validation.password ? 'error' : ''}}" 
+            placeholder="请输入密码（6-20位）" 
+            password="{{!showPassword}}"
+            value="{{formData.password}}" 
+            bindinput="onInputChange" 
+            data-field="password"
+          />
+          <view class="eye-icon" bindtap="togglePassword">
+            <text wx:if="{{showPassword}}">👁️</text>
+            <text wx:else>👁️‍🗨️</text>
+          </view>
+        </view>
+        <text class="error-tip" wx:if="{{!validation.password && formData.password}}">密码长度6-20位</text>
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">确认密码</text>
+        <view class="password-input">
+          <input 
+            class="form-input {{!validation.confirm_password ? 'error' : ''}}" 
+            placeholder="请再次输入密码" 
+            password="{{!showConfirmPassword}}"
+            value="{{formData.confirm_password}}" 
+            bindinput="onInputChange" 
+            data-field="confirm_password"
+          />
+          <view class="eye-icon" bindtap="toggleConfirmPassword">
+            <text wx:if="{{showConfirmPassword}}">👁️</text>
+            <text wx:else>👁️‍🗨️</text>
+          </view>
+        </view>
+        <text class="error-tip" wx:if="{{!validation.confirm_password && formData.confirm_password}}">两次密码不一致</text>
+      </view>
+
+      <!-- 紧急联系人（非老年版显示） -->
+      <block wx:if="{{!simpleMode}}">
+        <view class="form-group">
+          <text class="form-label">紧急联系人</text>
+          <input 
+            class="form-input {{!validation.emergency_contact ? 'error' : ''}}" 
+            placeholder="请输入紧急联系人姓名" 
+            value="{{formData.emergency_contact}}" 
+            bindinput="onInputChange" 
+            data-field="emergency_contact"
+          />
+          <text class="error-tip" wx:if="{{!validation.emergency_contact && formData.emergency_contact}}">姓名格式不正确</text>
+        </view>
+
+        <view class="form-group">
+          <text class="form-label">紧急联系人电话</text>
+          <input 
+            class="form-input {{!validation.emergency_phone ? 'error' : ''}}" 
+            placeholder="请输入紧急联系人电话" 
+            type="number"
+            value="{{formData.emergency_phone}}" 
+            bindinput="onInputChange" 
+            data-field="emergency_phone"
+          />
+          <text class="error-tip" wx:if="{{!validation.emergency_phone && formData.emergency_phone}}">电话格式不正确</text>
+        </view>
+      </block>
+
+      <!-- 协议选择 -->
+      <view class="protocol-section">
+        <view class="protocol-checkbox" bindtap="toggleProtocol">
+          <view class="checkbox-icon {{agreeProtocol ? 'checked' : ''}}">
+            {{agreeProtocol ? '✓' : ''}}
+          </view>
+          <text class="protocol-text">我已阅读并同意</text>
+          <text class="protocol-link" bindtap="showProtocolModal" catchtap="stopPropagation">《用户服务协议》</text>
+          <text class="protocol-text">和</text>
+          <text class="protocol-link" bindtap="viewPrivacyPolicy" catchtap="stopPropagation">《隐私政策》</text>
+        </view>
+      </view>
+
+      <!-- 提交按钮 -->
+      <button 
+        class="submit-btn {{(!hasOpenid || loading) ? 'disabled' : ''}}" 
+        bindtap="onSubmit"
+        disabled="{{!hasOpenid || loading}}"
+      >
+        {{loading ? '提交中...' : '提交注册'}}
+      </button>
+
+      <!-- 登录链接 -->
+      <view class="login-link">
+        <text>已有账号？</text>
+        <text class="login-text" bindtap="goToLogin">立即登录</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 用户协议弹窗 -->
+  <view class="modal-overlay" wx:if="{{showProtocolModal}}" catchtap="hideProtocolModal">
+    <view class="protocol-modal" catchtap="stopPropagation">
+      <view class="modal-header">
+        <text class="modal-title">用户协议与隐私政策</text>
+        <view class="modal-close" bindtap="hideProtocolModal">×</view>
+      </view>
+      <scroll-view class="modal-content" scroll-y>
+        <view class="protocol-content">
+          <view class="protocol-section">
+            <text class="protocol-text">欢迎使用嘉禾志愿服务平台！我们非常重视您的个人信息和隐私保护。请您仔细阅读以下协议：</text>
+          </view>
+          
+          <view class="protocol-item">
+            <text class="protocol-name">📄 《嘉禾志愿用户服务协议》</text>
+            <text class="protocol-desc">包含用户注册、账号管理、服务规范等内容</text>
+            <button class="protocol-btn" bindtap="viewUserProtocol">查看详情</button>
+          </view>
+          
+          <view class="protocol-item">
+            <text class="protocol-name">🔒 《嘉禾志愿隐私政策》</text>
+            <text class="protocol-desc">包含个人信息收集、使用、存储和保护规则</text>
+            <button class="protocol-btn" bindtap="viewPrivacyPolicy">查看详情</button>
+          </view>
+          
+          <view class="protocol-section">
+            <text class="protocol-highlight">点击下方“同意”即表示您已阅读并同意以上全部条款。</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="modal-footer">
+        <button class="btn-cancel" bindtap="hideProtocolModal">取消</button>
+        <button class="btn-agree" bindtap="agreeProtocol">同意</button>
+      </view>
+    </view>
+  </view>
+</view>

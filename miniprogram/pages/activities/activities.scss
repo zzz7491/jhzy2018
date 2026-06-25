@@ -1,0 +1,345 @@
+/* pages/activities/activities.wxss - 更新版 */
+.activities-page {
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+/* 轮播图 */
+.banner-swiper {
+  height: 300rpx;
+}
+
+.banner-image {
+  width: 100%;
+  height: 100%;
+}
+
+/* 状态筛选 */
+.status-filter {
+  display: flex;
+  background: white;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #eee;
+}
+
+.status-item {
+  flex: 1;
+  text-align: center;
+  padding: 15rpx 0;
+  font-size: 28rpx;
+  color: #666;
+  border-bottom: 4rpx solid transparent;
+}
+
+.status-item.active {
+  color: #4a90e2;
+  border-bottom-color: #4a90e2;
+  font-weight: bold;
+}
+
+/* 分类筛选 */
+.category-scroll {
+  white-space: nowrap;
+  background: white;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #eee;
+}
+
+.category-list {
+  display: inline-flex;
+}
+
+.category-item {
+  display: inline-block;
+  padding: 12rpx 30rpx;
+  margin-right: 20rpx;
+  background: #f8f8f8;
+  border-radius: 40rpx;
+  font-size: 26rpx;
+  color: #666;
+  border: 1rpx solid #eee;
+}
+
+.category-item.active {
+  background: #4a90e2;
+  color: white;
+  border-color: #4a90e2;
+}
+
+/* 活动列表 */
+.activities-list {
+  padding: 30rpx;
+}
+
+/* 活动卡片 */
+.activity-card {
+  background: white;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+}
+
+/* 【新增】：展开/收起控制按钮样式 */
+.expand-control {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30rpx;
+  background-color: white;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+  border: 1rpx solid #eee;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.05);
+}
+
+.expand-control:active {
+  background-color: #fafafa;
+  transform: scale(0.99);
+}
+
+.expand-btn-text {
+  font-size: 26rpx;
+  color: #4a90e2; /* 适配你的蓝色主题 */
+  font-weight: bold;
+}
+
+.expand-icon {
+  margin-left: 12rpx;
+  font-size: 20rpx;
+  color: #4a90e2;
+  transition: transform 0.3s ease;
+}
+
+.expand-icon.up {
+  transform: rotate(180deg);
+}
+
+/* 原有活动卡片其余样式保持不变... */
+.activity-image-wrapper {
+  position: relative;
+  height: 300rpx;
+}
+
+.activity-image {
+  width: 100%;
+  height: 100%;
+}
+
+.status-tag {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  color: white;
+  font-weight: bold;
+}
+
+.status-tag.available {
+  background: #67c23a;
+}
+
+.status-tag.ended {
+  background: #f56c6c;
+}
+
+.activity-info {
+  padding: 30rpx;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.activity-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  line-height: 1.4;
+  flex: 1;
+  margin-right: 20rpx;
+}
+
+.favorite-btn {
+  width: 50rpx;
+  height: 50rpx;
+  font-size: 36rpx;
+  line-height: 50rpx;
+  text-align: center;
+  color: #ddd;
+}
+
+.favorite-btn.active {
+  color: #f56c6c;
+}
+
+.activity-description {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 25rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-details {
+  background: #f8f9fa;
+  border-radius: 8rpx;
+  padding: 20rpx;
+  margin-bottom: 25rpx;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10rpx;
+  font-size: 26rpx;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  color: #888;
+  min-width: 120rpx;
+}
+
+.detail-value {
+  color: #333;
+  flex: 1;
+}
+
+.activity-meta {
+  margin-bottom: 25rpx;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.meta-icon {
+  margin-right: 15rpx;
+  font-size: 28rpx;
+  opacity: 0.7;
+}
+
+.meta-text {
+  flex: 1;
+}
+
+.remaining-slots {
+  color: #f56c6c;
+  margin-left: 10rpx;
+  font-weight: bold;
+}
+
+.activity-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.activity-points {
+  display: flex;
+  align-items: center;
+}
+
+.points-icon {
+  font-size: 32rpx;
+  margin-right: 10rpx;
+}
+
+.points-text {
+  font-size: 28rpx;
+  color: #e6a23c;
+  font-weight: bold;
+}
+
+.activity-button {
+  padding: 16rpx 40rpx;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: white;
+}
+
+.activity-button.available {
+  background: linear-gradient(135deg, #4a90e2, #63b8ff);
+}
+
+.activity-button.ended {
+  background: #ddd;
+  color: #999;
+}
+
+.activity-button.signed {
+  background: #67c23a;
+}
+
+.no-data {
+  text-align: center;
+  padding: 100rpx 30rpx;
+}
+
+.no-data-icon {
+  display: block;
+  font-size: 100rpx;
+  margin-bottom: 30rpx;
+  opacity: 0.3;
+}
+
+.no-data-text {
+  display: block;
+  font-size: 32rpx;
+  color: #999;
+  margin-bottom: 15rpx;
+}
+
+.no-data-subtext {
+  display: block;
+  font-size: 26rpx;
+  color: #bbb;
+}
+
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 40rpx 0;
+  font-size: 28rpx;
+  color: #999;
+}
+
+.my-activities-btn {
+  position: fixed;
+  right: 40rpx;
+  bottom: 120rpx;
+  background: white;
+  border-radius: 50rpx;
+  padding: 20rpx 30rpx;
+  box-shadow: 0 8rpx 30rpx rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  font-size: 26rpx;
+  color: #333;
+  z-index: 100;
+}
+
+.btn-icon {
+  margin-right: 10rpx;
+  font-size: 32rpx;
+}

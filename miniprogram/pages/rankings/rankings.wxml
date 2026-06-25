@@ -1,0 +1,68 @@
+<view class="container safe-top">
+  <view class="header">
+    <view class="header-title">
+      <text class="title-text">志愿者排行榜</text>
+      <text class="title-sub">榜样的力量，志愿的荣耀</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-container">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <scroll-view wx:else class="rankings-scroll" scroll-y="true" bindscrolltolower="loadMore">
+    <view class="rankings-list">
+      <view wx:if="{{rankings.length >= 3}}" class="top-three">
+        <view class="top-item top-2">
+          <view class="top-medal">🥈</view>
+          <image class="top-avatar" src="{{rankings[1].avatar}}" mode="aspectFill" />
+          <text class="top-name">{{rankings[1].real_name}}</text>
+          <text class="top-points">{{rankings[1].total_points}}积分</text>
+        </view>
+
+        <view class="top-item top-1">
+          <view class="top-medal">🥇</view>
+          <image class="top-avatar" src="{{rankings[0].avatar}}" mode="aspectFill" />
+          <text class="top-name">{{rankings[0].real_name}}</text>
+          <text class="top-points">{{rankings[0].total_points}}积分</text>
+        </view>
+
+        <view class="top-item top-3">
+          <view class="top-medal">🥉</view>
+          <image class="top-avatar" src="{{rankings[2].avatar}}" mode="aspectFill" />
+          <text class="top-name">{{rankings[2].real_name}}</text>
+          <text class="top-points">{{rankings[2].total_points}}积分</text>
+        </view>
+      </view>
+
+      <view class="other-rankings">
+        <block wx:for="{{rankings}}" wx:key="user_id" wx:if="{{index >= 3}}">
+          <view class="ranking-item">
+            <view class="rank-number">{{index + 1}}</view>
+            <image class="rank-avatar" src="{{item.avatar}}" mode="aspectFill" />
+            <view class="rank-info">
+              <text class="rank-name">{{item.real_name}}</text>
+              <text class="rank-id">{{item.volunteer_id}}</text>
+            </view>
+            <view class="rank-stats">
+              <text class="stats-value">{{item.total_points}}积分</text>
+              <text class="stats-label">总积分</text>
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view wx:if="{{hasMore && rankings.length > 0}}" class="load-more">
+      <text class="load-more-text">加载更多...</text>
+    </view>
+
+    <view wx:if="{{!loading && rankings.length === 0}}" class="empty-container">
+      <text class="empty-icon">🏆</text>
+      <text class="empty-text">暂无排行榜数据</text>
+      <text class="empty-subtext">快来参与志愿服务，登上排行榜吧</text>
+    </view>
+  </scroll-view>
+
+  <view class="safe-bottom"></view>
+</view>

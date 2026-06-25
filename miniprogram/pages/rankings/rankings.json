@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "志愿者排行榜",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "backgroundColor": "#f5f7fa"
+}

@@ -1,0 +1,137 @@
+<!--pages/privacy/privacy.wxml-->
+<view class="container">
+  <view class="header">
+    <text class="title">隐私政策</text>
+    <text class="subtitle">最近更新日期：2026年3月</text>
+  </view>
+  
+  <scroll-view class="content" scroll-y>
+    <view class="section">
+      <text class="section-title">引言</text>
+      <text class="section-text">
+        嘉禾志愿（以下简称“我们”）非常重视用户的隐私和个人信息保护。您在使用我们的产品与/或服务时，我们可能会收集和使用您的相关信息。我们希望通过《隐私政策》（以下简称“本政策”）向您说明，在您使用我们的产品与/或服务时，我们如何收集、使用、存储、分享和保护您的个人信息，以及我们为您提供的管理这些信息的方式。
+      </text>
+      <text class="section-text">
+        本政策与您所使用的嘉禾志愿小程序服务息息相关，希望您仔细阅读。您点击“同意”即视为您已阅读、理解并接受本政策的全部内容。
+      </text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">一、我们如何收集和使用您的个人信息</text>
+      <text class="section-text">在您使用嘉禾志愿小程序过程中，我们会按照如下方式收集您主动提供或因为使用服务而产生的信息，用以向您提供服务、优化我们的服务以及保障您的账户安全：</text>
+      
+      <text class="section-subtitle">1. 手机号码</text>
+      <text class="section-text"><text class="highlight">收集目的：</text>您的手机号码将用于以下用途：</text>
+      <text class="section-text">（1）完成用户注册和登录，建立您的志愿者身份；</text>
+      <text class="section-text">（2）接收志愿服务活动通知、报名确认、时长审核等重要信息；</text>
+      <text class="section-text">（3）在紧急情况下与您取得联系，保障您的安全和权益；</text>
+      <text class="section-text">（4）进行志愿者身份核验，确保志愿服务记录的真实性；</text>
+      <text class="section-text">（5）处理您提出的咨询、投诉或建议时进行身份验证。</text>
+      <text class="section-text"><text class="highlight">收集方式：</text>在您注册账号时，我们会通过以下方式收集您的手机号码：</text>
+      <text class="section-text">（1）您主动填写的手机号码；</text>
+      <text class="section-text">（2）通过微信授权的手机号码（需您单独授权）；</text>
+      <text class="section-text">（3）通过短信验证码进行核验，确保手机号码的真实有效。</text>
+      <text class="section-text"><text class="highlight">使用方式：</text>我们将通过短信、平台内通知等方式，使用您的手机号码与您联系。平台不会将您的手机号码用于与志愿服务无关的商业推广。</text>
+      
+      <text class="section-subtitle">2. 真实姓名与身份证号码</text>
+      <text class="section-text">当您注册嘉禾志愿账号时，我们需要收集您的真实姓名和身份证号码。这是用于志愿者身份实名认证，根据《志愿服务条例》要求必须收集的信息。实名认证有助于保障志愿服务活动的真实性，防止虚假注册和冒名顶替，确保志愿服务时长记录的准确性。</text>
+      
+      <text class="section-subtitle">3. 紧急联系人信息</text>
+      <text class="section-text">当您填写紧急联系人信息时，我们会收集紧急联系人的姓名和电话号码。这是为了在您参与志愿服务活动时，如遇突发状况能够及时联系您的家人，保障您的人身安全。该信息属于可选信息，您可以选择不提供。</text>
+      
+      <text class="section-subtitle">4. 微信登录信息</text>
+      <text class="section-text">当您使用微信登录时，我们会获取您的微信OpenID和微信头像、昵称。OpenID用于关联您的微信账号与嘉禾志愿账号，实现便捷登录；微信头像和昵称用于在平台内展示您的志愿者身份，便于活动组织方识别。</text>
+      
+      <text class="section-subtitle">5. 地理位置信息</text>
+      <text class="section-text">当您进行志愿服务活动签到签退时，我们会获取您的地理位置信息，用于验证您是否在活动地点范围内签到，确保志愿服务时长记录的真实性。此信息仅在您使用签到功能时临时获取，不会进行持续收集和存储。</text>
+      
+      <text class="section-subtitle">6. 服务记录</text>
+      <text class="section-text">当您报名参加志愿服务活动时，我们会记录您的活动报名信息、签到签退时间、服务时长，用于为您累计志愿服务时长和积分。这些记录是您参与志愿服务的凭证，也是您获得志愿服务证明的依据。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">二、我们如何使用Cookie和同类技术</text>
+      <text class="section-text">我们使用小程序自带的存储机制来维持您的登录状态，这相当于Cookie的功能。这些信息仅存储在您的本地设备中，用于保持您的登录状态和记住您的偏好设置。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">三、我们如何共享、转让、公开披露您的个人信息</text>
+      <text class="section-subtitle">1. 共享</text>
+      <text class="section-text">我们不会向任何第三方分享您的个人信息，但以下情况除外：</text>
+      <text class="section-text">（1）在获取您明确同意的情况下共享；</text>
+      <text class="section-text">（2）根据法律法规规定，或按政府主管部门的强制性要求共享；</text>
+      <text class="section-text">（3）与活动组织方共享：当您报名参加具体志愿服务活动时，您的姓名、联系方式可能会提供给活动组织方，以便活动组织方与您联系、确认参与信息和保障活动安全。</text>
+      <text class="section-text">（4）与技术服务提供商共享：我们会与提供云存储、短信发送等服务的技术服务商共享必要的个人信息，这些服务商受合同约束，不得将信息用于其他目的。</text>
+      
+      <text class="section-subtitle">2. 转让</text>
+      <text class="section-text">我们不会将您的个人信息转让给任何公司、组织和个人，但以下情况除外：</text>
+      <text class="section-text">（1）在获取您明确同意的情况下转让；</text>
+      <text class="section-text">（2）在涉及合并、收购或破产清算时，如涉及个人信息转让，我们会要求新的持有您个人信息的公司、组织继续受本政策的约束。</text>
+      
+      <text class="section-subtitle">3. 公开披露</text>
+      <text class="section-text">我们仅会在以下情况下，公开披露您的个人信息：</text>
+      <text class="section-text">（1）获得您明确同意后；</text>
+      <text class="section-text">（2）基于法律的披露：在法律、法律程序、诉讼或政府主管部门强制性要求的情况下，我们可能会公开披露您的个人信息。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">四、我们如何保护您的个人信息</text>
+      <text class="section-text">1. 我们已使用符合业界标准的安全防护措施保护您提供的个人信息，防止数据遭到未经授权访问、公开披露、使用、修改、损坏或丢失。具体措施包括：</text>
+      <text class="section-text">（1）传输加密：采用HTTPS加密传输协议，确保数据传输过程中的安全；</text>
+      <text class="section-text">（2）存储加密：敏感信息（如身份证号码）在数据库中采用加密方式存储；</text>
+      <text class="section-text">（3）访问控制：严格限制访问信息的人员范围，要求他们遵守保密义务，并进行审计；</text>
+      <text class="section-text">（4）安全审计：定期进行安全漏洞扫描和风险评估。</text>
+      <text class="section-text">2. 我们会采取一切合理可行的措施，保护您的个人信息。但请您理解，由于技术的限制以及可能存在的各种恶意手段，互联网环境并非绝对安全。</text>
+      <text class="section-text">3. 如发生个人信息安全事件，我们将按照法律法规的要求，及时向您告知：安全事件的基本情况和可能的影响、我们已采取或将要采取的处置措施、您可自主防范和降低风险的建议、对您的补救措施等。我们将及时将事件相关情况以邮件、信函、电话、推送通知等方式告知您。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">五、您的权利</text>
+      <text class="section-text">1. 访问您的个人信息：您可以在个人中心查看您的基本资料、志愿服务记录等信息。</text>
+      <text class="section-text">2. 更正您的个人信息：当您发现我们处理的关于您的个人信息有错误时，您可以在个人中心自行修改，或联系客服修改。</text>
+      <text class="section-text">3. 删除您的个人信息：在以下情形中，您可以向我们提出删除个人信息的请求：</text>
+      <text class="section-text">（1）我们处理个人信息的行为违反法律法规；</text>
+      <text class="section-text">（2）我们收集、使用您的个人信息，却未征得您的同意；</text>
+      <text class="section-text">（3）我们处理个人信息的行为违反了与您的约定；</text>
+      <text class="section-text">（4）您注销了账号。</text>
+      <text class="section-text">4. 撤回同意：您可以通过关闭相关功能或联系客服撤回您的同意。撤回同意后，我们可能无法继续为您提供相应的服务。</text>
+      <text class="section-text">5. 注销账号：您可以在个人中心申请注销账号。账号注销后，我们将依法删除或匿名化处理您的个人信息。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">六、我们如何处理儿童的个人信息</text>
+      <text class="section-text">我们的产品和服务主要面向成人。如果没有父母或监护人的同意，儿童不得创建自己的用户账号。对于经父母同意而收集儿童个人信息的情况，我们只会在受到法律允许、父母或监护人明确同意或者保护儿童所必要的情况下使用或披露此信息。</text>
+      <text class="section-text">若您是儿童的监护人，当您对您所监护的儿童的个人信息有疑问时，请通过本政策第九条的“如何联系我们”与我们联系。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">七、您的个人信息如何在全球范围转移</text>
+      <text class="section-text">我们在中华人民共和国境内收集和产生的个人信息，将存储在中华人民共和国境内的服务器上。如涉及向境外传输个人信息，我们会严格按照法律法规的要求执行，并取得您的单独同意。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">八、本政策如何更新</text>
+      <text class="section-text">我们的隐私政策可能变更。未经您明确同意，我们不会削减您按照本政策所应享有的权利。我们会在本页面上发布对本政策所做的任何变更。对于重大变更，我们还会提供更为显著的通知（包括但不限于弹窗提示、短信通知等方式）。</text>
+      <text class="section-text">本政策所指的重大变更包括但不限于：</text>
+      <text class="section-text">1. 我们的服务模式发生重大变化；</text>
+      <text class="section-text">2. 我们在所有权结构、组织架构等方面发生重大变化；</text>
+      <text class="section-text">3. 个人信息共享、转让或公开披露的主要对象发生变化；</text>
+      <text class="section-text">4. 您参与个人信息处理方面的权利及其行使方式发生重大变化；</text>
+      <text class="section-text">5. 我们负责处理个人信息安全的责任部门、联络方式及投诉渠道发生变化。</text>
+      <text class="section-text">本政策更新后，我们会以弹窗形式再次征得您的同意。</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">九、如何联系我们</text>
+      <text class="section-text">如果您对本隐私政策有任何疑问、意见或建议，或发现您的个人信息可能被泄露，可以通过以下方式联系我们：</text>
+      <text class="section-text">1. 在小程序中点击“联系客服”反馈</text>
+      <text class="section-text">2. 发送邮件至：jxzyz2022@163.com</text>
+      <text class="section-text">3. 工作时间：周一至周五 9:00-17:00</text>
+      <text class="section-text">我们将尽快审核所涉问题，并在验证您的用户身份后的十五个工作日内予以回复。</text>
+    </view>
+  </scroll-view>
+  
+  <view class="footer">
+    <button class="back-btn" bindtap="goBack">返回</button>
+  </view>
+</view>

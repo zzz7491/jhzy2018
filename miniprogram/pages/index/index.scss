@@ -1,0 +1,1410 @@
+/* pages/index/index.wxss - 重构版（集成随手公益 + 排行榜） */
+.container {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f5f7fa 0%, #ffffff 100%);
+  padding-bottom: 40rpx;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
+/* ========== 主轮播图区域 ========== */
+.swiper-container {
+  position: relative;
+  height: 400rpx;
+  margin-bottom: 20rpx;
+  border-radius: 0 0 30rpx 30rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
+}
+
+.home-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.swiper-item {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.swiper-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.swiper-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  padding: 40rpx 30rpx 30rpx;
+  color: white;
+}
+
+.swiper-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10rpx;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swiper-desc {
+  font-size: 28rpx;
+  opacity: 0.9;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========== 顶部栏 ========== */
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx 30rpx 20rpx;
+  position: relative;
+  z-index: 10;
+}
+
+.header-left .today-date {
+  font-size: 28rpx;
+  color: #666;
+  font-weight: 500;
+}
+
+/* 圆形模式切换按钮 */
+.mode-toggle-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mode-btn-inner {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f0f0f0, #e0e0e0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  margin-bottom: 10rpx;
+}
+
+.mode-btn-inner.senior-active {
+  background: linear-gradient(135deg, #FF6B35, #FF8E53);
+}
+
+.mode-icon {
+  font-size: 36rpx;
+}
+
+.mode-label {
+  font-size: 24rpx;
+  color: #666;
+}
+
+/* ========== 欢迎区域 ========== */
+.welcome-area {
+  padding: 0 30rpx;
+  margin: 10rpx 0 20rpx;
+}
+
+.greeting {
+  font-size: 42rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 10rpx;
+  line-height: 1.3;
+}
+
+.welcome-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* ========== 积分卡片 ========== */
+.points-card {
+  background: linear-gradient(135deg, #FF6B35, #FF8E53);
+  margin: 0 30rpx 20rpx;
+  border-radius: 25rpx;
+  padding: 25rpx 30rpx;
+  color: white;
+  box-shadow: 0 10rpx 30rpx rgba(255, 107, 53, 0.25);
+  transition: all 0.3s ease;
+}
+
+.points-card:active {
+  transform: scale(0.99);
+  box-shadow: 0 5rpx 20rpx rgba(255, 107, 53, 0.2);
+}
+
+.points-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.points-title {
+  font-size: 32rpx;
+  font-weight: bold;
+}
+
+.points-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+}
+
+.badge-text {
+  font-size: 24rpx;
+  opacity: 0.9;
+}
+
+.points-content {
+  margin-bottom: 20rpx;
+}
+
+.current-points {
+  text-align: center;
+  margin-bottom: 20rpx;
+}
+
+.points-label {
+  font-size: 28rpx;
+  opacity: 0.9;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.points-value {
+  font-size: 72rpx;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.points-details {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15rpx;
+  padding: 20rpx 30rpx;
+}
+
+.detail-item {
+  flex: 1;
+  text-align: center;
+}
+
+.detail-label {
+  font-size: 24rpx;
+  opacity: 0.8;
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.detail-value {
+  font-size: 30rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.detail-divider {
+  width: 1rpx;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 20rpx;
+}
+
+.points-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 15rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.2);
+}
+
+.footer-text {
+  font-size: 26rpx;
+  opacity: 0.9;
+  margin-right: 15rpx;
+}
+
+.footer-arrow {
+  font-size: 40rpx;
+  opacity: 0.9;
+}
+
+/* ========== 志愿者排行榜 ========== */
+.rankings-section {
+  margin: 20rpx 30rpx;
+}
+
+.rankings-container {
+  background: white;
+  border-radius: 25rpx;
+  padding: 30rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+}
+
+/* 加载状态 */
+.loading-container {
+  padding: 60rpx 0;
+  text-align: center;
+  background: white;
+  border-radius: 25rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* 前三名特殊样式 */
+.top-three {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  margin-bottom: 40rpx;
+  padding: 20rpx 0;
+  background: linear-gradient(to bottom, #fff9e6, #ffffff);
+  border-radius: 30rpx;
+}
+
+.top-item {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  padding: 20rpx 0;
+  transition: all 0.2s ease;
+}
+
+.top-item:active {
+  transform: scale(0.98);
+}
+
+/* 第一名样式 */
+.rank-1 {
+  margin-top: -20rpx;
+}
+
+.rank-1 .top-avatar-wrap {
+  transform: scale(1.1);
+}
+
+/* 皇冠图标 */
+.crown {
+  position: absolute;
+  top: -30rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 48rpx;
+  z-index: 2;
+  filter: drop-shadow(0 4rpx 8rpx rgba(255, 215, 0, 0.4));
+}
+
+.top-avatar-wrap {
+  position: relative;
+  width: 140rpx;
+  height: 140rpx;
+  margin: 0 auto 20rpx;
+}
+
+.top-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 6rpx solid;
+  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.15);
+  background-color: #f5f5f5;
+}
+
+/* 名次徽章 */
+.rank-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: white;
+  border: 4rpx solid white;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.2);
+}
+
+.rank-badge.rank-1 {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+}
+
+.rank-badge.rank-2 {
+  background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+}
+
+.rank-badge.rank-3 {
+  background: linear-gradient(135deg, #CD7F32, #A0522D);
+}
+
+/* 第一名头像边框 */
+.rank-1 .top-avatar {
+  border-color: #FFD700;
+}
+
+/* 第二名头像边框 */
+.rank-2 .top-avatar {
+  border-color: #C0C0C0;
+}
+
+/* 第三名头像边框 */
+.rank-3 .top-avatar {
+  border-color: #CD7F32;
+}
+
+.top-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 10rpx;
+}
+
+.top-points {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #FF6B35;
+  display: block;
+  margin-bottom: 4rpx;
+}
+
+.top-hours {
+  font-size: 24rpx;
+  color: #666;
+  display: block;
+}
+
+/* 排行榜列表 */
+.rankings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 25rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  transition: all 0.2s ease;
+  border: 1rpx solid #f0f0f0;
+}
+
+.ranking-item:active {
+  transform: scale(0.98);
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
+}
+
+/* 排名序号 */
+.rank-medal {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6c757d, #495057);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
+}
+
+.rank-number {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+}
+
+/* 头像 */
+.rank-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+  border: 2rpx solid white;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.15);
+  background-color: #f5f5f5;
+}
+
+/* 排名信息 */
+.rank-info {
+  flex: 1;
+  min-width: 0;
+  padding-right: 15rpx;
+}
+
+.rank-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 6rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 积分显示 */
+.rank-points {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #FF6B35, #FF8E53);
+  padding: 10rpx 20rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.3);
+}
+
+.points-value {
+  font-size: 26rpx;
+  font-weight: bold;
+  color: white;
+  display: block;
+  line-height: 1.2;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+}
+
+.points-unit {
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.9);
+  display: block;
+}
+
+/* 查看更多/收起按钮 */
+.rankings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20rpx 0 10rpx;
+  border-top: 1rpx solid #f0f0f0;
+  margin-top: 10rpx;
+}
+
+.toggle-text {
+  font-size: 28rpx;
+  color: #FF6B35;
+  margin-right: 10rpx;
+}
+
+.toggle-icon {
+  font-size: 28rpx;
+  color: #FF6B35;
+  transition: transform 0.3s ease;
+}
+
+/* ========== 随手公益区域 ========== */
+.casual-welfare-section {
+  margin: 20rpx 30rpx;
+}
+
+.section-title {
+  margin-bottom: 25rpx;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title-text {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333;
+  display: inline-block;
+  padding-right: 20rpx;
+  background: linear-gradient(to right, #4CAF50, #8BC34A);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.title-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -10rpx;
+  height: 4rpx;
+  background: linear-gradient(to right, #4CAF50, #8BC34A);
+  border-radius: 2rpx;
+}
+
+.view-all {
+  font-size: 26rpx;
+  color: #4CAF50;
+  padding: 8rpx 20rpx;
+  background: rgba(76, 175, 80, 0.1);
+  border-radius: 20rpx;
+}
+
+/* 随手公益统计 */
+.welfare-stats {
+  background: white;
+  border-radius: 25rpx;
+  padding: 25rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.welfare-stats:active {
+  transform: scale(0.99);
+  box-shadow: 0 3rpx 15rpx rgba(0, 0, 0, 0.1);
+}
+
+.welfare-stat-item {
+  flex: 1;
+  text-align: center;
+  padding: 10rpx 0;
+}
+
+.welfare-stat-icon {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 15rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.15);
+}
+
+.welfare-icon-text {
+  font-size: 36rpx;
+  color: white;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+}
+
+.welfare-stat-info {
+  text-align: center;
+}
+
+.welfare-stat-label {
+  font-size: 24rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 5rpx;
+}
+
+.welfare-stat-value {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+}
+
+/* 已审核的随手公益 */
+.casual-welfare-title {
+  margin: 25rpx 0 15rpx;
+  position: relative;
+}
+
+.casual-title-text {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: inline-block;
+  padding-right: 20rpx;
+  background: linear-gradient(to right, #2196F3, #03A9F4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.casual-title-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8rpx;
+  height: 3rpx;
+  background: linear-gradient(to right, #2196F3, #03A9F4);
+  border-radius: 2rpx;
+}
+
+.casual-welfare-list {
+  background: white;
+  border-radius: 25rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.casual-welfare-item {
+  display: flex;
+  align-items: center;
+  padding: 25rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+  transition: all 0.2s ease;
+}
+
+.casual-welfare-item:active {
+  background: #f9f9f9;
+}
+
+.casual-welfare-item:last-child {
+  border-bottom: none;
+}
+
+.casual-welfare-icon {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #4CAF50, #8BC34A);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 25rpx;
+  flex-shrink: 0;
+}
+
+.casual-item-icon {
+  font-size: 40rpx;
+  color: white;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+}
+
+.casual-welfare-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.casual-welfare-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 10rpx;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.casual-welfare-desc {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 15rpx;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.casual-welfare-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.casual-welfare-time {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.casual-welfare-points {
+  font-size: 26rpx;
+  font-weight: bold;
+  color: #FF9800;
+  background: rgba(255, 152, 0, 0.1);
+  padding: 6rpx 15rpx;
+  border-radius: 15rpx;
+}
+
+/* 随手公益空状态 */
+.casual-welfare-empty {
+  background: white;
+  border-radius: 25rpx;
+  padding: 60rpx 30rpx;
+  text-align: center;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+}
+
+.casual-empty-icon {
+  font-size: 80rpx;
+  display: block;
+  margin-bottom: 25rpx;
+}
+
+.casual-empty-text {
+  font-size: 32rpx;
+  color: #333;
+  display: block;
+  margin-bottom: 10rpx;
+  font-weight: bold;
+}
+
+.casual-empty-subtext {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 30rpx;
+}
+
+.casual-empty-btn {
+  background: linear-gradient(135deg, #4CAF50, #8BC34A);
+  color: white;
+  font-size: 28rpx;
+  font-weight: bold;
+  padding: 20rpx 40rpx;
+  border-radius: 25rpx;
+  border: none;
+  display: inline-block;
+}
+
+/* ========== 热点活动轮播 ========== */
+.hot-activities {
+  margin: 20rpx 30rpx;
+}
+
+.hot-swiper {
+  height: 400rpx;
+  margin-top: 20rpx;
+}
+
+.hot-activity-card {
+  background: white;
+  border-radius: 25rpx;
+  overflow: hidden;
+  height: 360rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.12);
+  margin-right: 20rpx;
+}
+
+.hot-card-image {
+  width: 100%;
+  height: 280rpx;
+}
+
+.hot-card-content {
+  padding: 20rpx;
+}
+
+.hot-card-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 15rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hot-card-info {
+  margin-bottom: 15rpx;
+}
+
+.hot-info-line {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.hot-info-icon {
+  font-size: 26rpx;
+  color: #666;
+  margin-right: 10rpx;
+  flex-shrink: 0;
+}
+
+.hot-info-text {
+  font-size: 24rpx;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.hot-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hot-card-points {
+  font-size: 26rpx;
+  font-weight: bold;
+  color: #FF6B35;
+}
+
+.hot-card-status {
+  font-size: 22rpx;
+  padding: 6rpx 15rpx;
+  border-radius: 15rpx;
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+}
+
+.hot-card-status.available {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+}
+
+.hot-card-status.full {
+  background: rgba(244, 67, 54, 0.1);
+  color: #F44336;
+}
+
+.hot-card-status.signed {
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196F3;
+}
+
+/* ========== 热门兑换物品 ========== */
+.hot-exchange-items {
+  margin: 20rpx 30rpx;
+}
+
+/* 空状态 */
+.empty-container {
+  padding: 80rpx 0;
+  text-align: center;
+  background: white;
+  border-radius: 25rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #333;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.empty-subtext {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+}
+
+.exchange-scroll {
+  white-space: nowrap;
+  width: 100%;
+}
+
+.exchange-list {
+  display: inline-flex;
+  gap: 25rpx;
+}
+
+.exchange-item {
+  width: 300rpx;
+  background: white;
+  border-radius: 25rpx;
+  padding: 25rpx;
+  box-shadow: 0 6rpx 25rpx rgba(0, 0, 0, 0.08);
+  display: inline-block;
+  vertical-align: top;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.exchange-item:active {
+  transform: scale(0.98);
+  box-shadow: 0 3rpx 15rpx rgba(0, 0, 0, 0.1);
+}
+
+/* 兑换物品图片 */
+.exchange-image {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 15rpx;
+  margin-bottom: 20rpx;
+  background-color: #f5f5f5;
+  object-fit: cover;
+}
+
+.exchange-name {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 15rpx;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  height: 80rpx;
+}
+
+.exchange-info {
+  margin-bottom: 20rpx;
+}
+
+.exchange-price {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #FF6B35;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.exchange-points {
+  font-size: 24rpx;
+  color: #666;
+  display: block;
+}
+
+.exchange-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.exchange-btn {
+  background: linear-gradient(135deg, #FF6B35, #FF8E53);
+  color: white;
+  font-size: 26rpx;
+  font-weight: bold;
+  padding: 12rpx 30rpx;
+  border-radius: 20rpx;
+  border: none;
+}
+
+/* ========== 志愿服务宣言 ========== */
+.volunteer-motto {
+  background: linear-gradient(135deg, #4CAF50, #8BC34A);
+  margin: 20rpx 30rpx;
+  border-radius: 25rpx;
+  padding: 40rpx;
+  text-align: center;
+  color: white;
+  box-shadow: 0 6rpx 25rpx rgba(76, 175, 80, 0.25);
+}
+
+.motto-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20rpx;
+}
+
+.motto-icon {
+  font-size: 48rpx;
+  margin-right: 20rpx;
+}
+
+.motto-text {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.motto-subtext {
+  font-size: 28rpx;
+  opacity: 0.9;
+}
+
+/* ========== 备案信息 ========== */
+.footer-info {
+  background: #f8f9fa;
+  margin: 20rpx 30rpx 20rpx;
+  border-radius: 20rpx;
+  padding: 25rpx 30rpx;
+  text-align: center;
+  border-top: 1rpx solid #e9ecef;
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.footer-text {
+  font-size: 24rpx;
+  color: #666;
+  line-height: 1.4;
+}
+
+.footer-text:first-child {
+  color: #333;
+  font-weight: 500;
+}
+
+/* ========== 老年版样式 ========== */
+.senior-mode .swiper-title {
+  font-size: 42rpx !important;
+}
+
+.senior-mode .swiper-desc {
+  font-size: 32rpx !important;
+}
+
+.senior-mode .greeting,
+.senior-mode .points-title,
+.senior-mode .title-text,
+.senior-mode .casual-title-text,
+.senior-mode .casual-welfare-title,
+.senior-mode .hot-card-title,
+.senior-mode .rank-name,
+.senior-mode .top-name,
+.senior-mode .exchange-name,
+.senior-mode .motto-text,
+.senior-mode .empty-text,
+.senior-mode .casual-empty-text {
+  font-size: 48rpx !important;
+}
+
+.senior-mode .welcome-text,
+.senior-mode .badge-text,
+.senior-mode .detail-label,
+.senior-mode .footer-text,
+.senior-mode .info-text,
+.senior-mode .hot-info-text,
+.senior-mode .rank-points-label,
+.senior-mode .card-points,
+.senior-mode .motto-subtext,
+.senior-mode .loading-text,
+.senior-mode .empty-subtext,
+.senior-mode .casual-empty-subtext,
+.senior-mode .welfare-stat-label,
+.senior-mode .casual-welfare-desc,
+.senior-mode .casual-welfare-time,
+.senior-mode .top-hours {
+  font-size: 32rpx !important;
+}
+
+.senior-mode .today-date,
+.senior-mode .mode-label,
+.senior-mode .points-label,
+.senior-mode .detail-value,
+.senior-mode .hot-card-points,
+.senior-mode .points-text,
+.senior-mode .points-value,
+.senior-mode .card-status,
+.senior-mode .hot-card-status,
+.senior-mode .casual-welfare-points,
+.senior-mode .welfare-stat-value,
+.senior-mode .rank-number,
+.senior-mode .top-points {
+  font-size: 28rpx !important;
+}
+
+.senior-mode .points-value {
+  font-size: 90rpx !important;
+}
+
+.senior-mode .mode-btn-inner {
+  width: 100rpx !important;
+  height: 100rpx !important;
+}
+
+.senior-mode .mode-icon {
+  font-size: 48rpx !important;
+}
+
+.senior-mode .welfare-stat-icon {
+  width: 100rpx !important;
+  height: 100rpx !important;
+}
+
+.senior-mode .welfare-icon-text {
+  font-size: 48rpx !important;
+}
+
+.senior-mode .casual-welfare-icon {
+  width: 100rpx !important;
+  height: 100rpx !important;
+}
+
+.senior-mode .casual-item-icon {
+  font-size: 50rpx !important;
+}
+
+.senior-mode .card-tag,
+.senior-mode .hot-card-status {
+  font-size: 26rpx !important;
+  padding: 10rpx 20rpx !important;
+}
+
+.senior-mode .info-icon,
+.senior-mode .hot-info-icon {
+  font-size: 36rpx !important;
+}
+
+.senior-mode .view-all {
+  font-size: 28rpx !important;
+  padding: 12rpx 25rpx !important;
+}
+
+.senior-mode .activity-card {
+  width: 460rpx !important;
+  padding: 35rpx !important;
+}
+
+.senior-mode .exchange-item {
+  width: 340rpx !important;
+  padding: 30rpx !important;
+}
+
+.senior-mode .exchange-image {
+  width: 220rpx !important;
+  height: 220rpx !important;
+}
+
+.senior-mode .hot-activity-card {
+  height: 360rpx !important;
+}
+
+.senior-mode .volunteer-motto {
+  padding: 50rpx 40rpx !important;
+}
+
+.senior-mode .motto-icon {
+  font-size: 60rpx !important;
+}
+
+.senior-mode .empty-icon,
+.senior-mode .casual-empty-icon {
+  font-size: 100rpx !important;
+}
+
+.senior-mode .swiper-container {
+  height: 460rpx !important;
+}
+
+.senior-mode .hot-swiper {
+  height: 400rpx !important;
+}
+
+.senior-mode .rank-medal {
+  width: 80rpx !important;
+  height: 80rpx !important;
+}
+
+.senior-mode .rank-number {
+  font-size: 36rpx !important;
+}
+
+.senior-mode .rank-avatar {
+  width: 100rpx !important;
+  height: 100rpx !important;
+}
+
+.senior-mode .rankings-container {
+  padding: 35rpx !important;
+}
+
+.senior-mode .ranking-item {
+  padding: 25rpx 30rpx !important;
+}
+
+.senior-mode .points-value {
+  font-size: 32rpx !important;
+}
+
+.senior-mode .rank-points {
+  padding: 15rpx 25rpx !important;
+}
+
+.senior-mode .top-avatar-wrap {
+  width: 160rpx !important;
+  height: 160rpx !important;
+}
+
+.senior-mode .top-avatar {
+  border-width: 8rpx !important;
+}
+
+.senior-mode .rank-badge {
+  width: 60rpx !important;
+  height: 60rpx !important;
+  font-size: 32rpx !important;
+}
+
+.senior-mode .crown {
+  font-size: 60rpx !important;
+  top: -40rpx !important;
+}
+
+.senior-mode .toggle-text,
+.senior-mode .toggle-icon {
+  font-size: 32rpx !important;
+}
+
+.senior-mode .casual-empty-btn {
+  padding: 25rpx 50rpx !important;
+  font-size: 32rpx !important;
+}
+
+/* 协议弹窗 */
+.protocol-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.protocol-modal-content {
+  width: 80%;
+  max-width: 600rpx;
+  background-color: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.protocol-modal-header {
+  padding: 30rpx;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.protocol-modal-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.protocol-modal-body {
+  padding: 30rpx;
+  text-align: center;
+}
+
+.protocol-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.5;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.protocol-links {
+  display: flex;
+  justify-content: center;
+  gap: 30rpx;
+}
+
+.protocol-link {
+  font-size: 28rpx;
+  color: #07c160;
+  text-decoration: underline;
+}
+
+.protocol-modal-footer {
+  display: flex;
+  border-top: 1px solid #eee;
+}
+
+.protocol-btn {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 0;
+  font-size: 32rpx;
+  margin: 0;
+  background-color: #fff;
+}
+
+.protocol-btn.reject {
+  color: #666;
+  border-right: 1px solid #eee;
+}
+
+.protocol-btn.agree {
+  background-color: #07c160;
+  color: #fff;
+}
+
+/* 动态滚动横幅 */
+.marquee-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 16rpx 30rpx;
+  margin: 0 30rpx 20rpx 30rpx;
+  border-radius: 60rpx;
+  box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.3);
+}
+
+.marquee-swiper {
+  height: 56rpx;
+}
+
+.marquee-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.marquee-icon {
+  font-size: 32rpx;
+}
+
+.marquee-text {
+  font-size: 26rpx;
+  color: white;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 大字版适配 */
+.senior-mode .marquee-container {
+  padding: 20rpx 30rpx;
+}
+
+.senior-mode .marquee-swiper {
+  height: 72rpx;
+}
+
+.senior-mode .marquee-text {
+  font-size: 32rpx;
+}

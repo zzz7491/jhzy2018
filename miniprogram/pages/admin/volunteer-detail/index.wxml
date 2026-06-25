@@ -1,0 +1,144 @@
+<view class="container">
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading}}">
+    <view class="spinner"></view>
+    <text>加载中...</text>
+  </view>
+
+  <!-- 错误提示 -->
+  <view class="error" wx:elif="{{error}}">
+    <text class="icon">⚠️</text>
+    <text>{{error}}</text>
+    <button class="retry-btn" bindtap="loadData">重试</button>
+  </view>
+
+  <!-- 内容区域 -->
+  <view class="content" wx:else>
+    <!-- 头部信息 -->
+    <view class="header">
+      <view class="avatar">
+        <image src="{{volunteer.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+      </view>
+      <view class="info">
+        <text class="name">{{volunteer.real_name || '未填写'}}</text>
+        <text class="volunteer-id">志愿者编号：{{volunteer.volunteer_id || '未生成'}}</text>
+        <view class="status-badge {{getStatusClass(volunteer.status)}}">
+          {{getStatusText(volunteer.status)}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 基本信息卡片 -->
+    <view class="card">
+      <view class="card-title">基本信息</view>
+      <view class="card-content">
+        <view class="info-item">
+          <text class="label">性别</text>
+          <text class="value">{{volunteer.gender_display || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">年龄</text>
+          <text class="value">{{volunteer.age_display}}岁</text>
+        </view>
+        <view class="info-item">
+          <text class="label">手机号</text>
+          <text class="value">{{volunteer.phone || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">身份证号</text>
+          <text class="value">{{volunteer.id_card || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">出生日期</text>
+          <text class="value">{{volunteer.birthday || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">居住地址</text>
+          <text class="value">{{volunteer.address || '未填写'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 紧急联系人卡片 -->
+    <view class="card">
+      <view class="card-title">紧急联系人</view>
+      <view class="card-content">
+        <view class="info-item">
+          <text class="label">联系人</text>
+          <text class="value">{{volunteer.emergency_contact || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">联系电话</text>
+          <text class="value">{{volunteer.emergency_phone || '未填写'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">是否有保险</text>
+          <text class="value">{{volunteer.insurance_display || '否'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 志愿服务统计卡片 -->
+    <view class="card">
+      <view class="card-title">服务统计</view>
+      <view class="stats-grid">
+        <view class="stat-item">
+          <text class="number">{{volunteer.total_points || 0}}</text>
+          <text class="label">总积分</text>
+        </view>
+        <view class="stat-item">
+          <text class="number">{{volunteer.total_hours || 0}}</text>
+          <text class="label">总时长(小时)</text>
+        </view>
+        <view class="stat-item">
+          <text class="number">{{volunteer.current_points || 0}}</text>
+          <text class="label">当前积分</text>
+        </view>
+        <view class="stat-item">
+          <text class="number">{{volunteer.consecutive_days || 0}}</text>
+          <text class="label">连续服务(天)</text>
+        </view>
+        <view class="stat-item">
+          <text class="number">{{volunteer.monthly_activity_count || 0}}</text>
+          <text class="label">本月活动</text>
+        </view>
+        <view class="stat-item">
+          <text class="number">{{volunteer.total_service_hours || 0}}</text>
+          <text class="label">服务总时长</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 账号信息卡片 -->
+    <view class="card">
+      <view class="card-title">账号信息</view>
+      <view class="card-content">
+        <view class="info-item">
+          <text class="label">注册时间</text>
+          <text class="value">{{formatTime(volunteer.create_time)}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">最后登录</text>
+          <text class="value">{{formatTime(volunteer.last_login_time) || '从未登录'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">最后登录IP</text>
+          <text class="value">{{volunteer.last_login_ip || '未知'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="label">是否培训</text>
+          <text class="value">{{volunteer.trained_display}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-buttons">
+      <button class="btn reset-pwd" bindtap="resetPassword">重置密码</button>
+      <button class="btn {{volunteer.status == 1 ? 'disable' : 'enable'}}" 
+              bindtap="toggleStatus">
+        {{volunteer.status == 1 ? '禁用账号' : '启用账号'}}
+      </button>
+    </view>
+  </view>
+</view>

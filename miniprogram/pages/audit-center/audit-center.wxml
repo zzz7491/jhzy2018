@@ -1,0 +1,224 @@
+<!-- D:\开发\小程序\jhzy-2\miniprogram\pages\audit-center\audit-center.wxml -->
+<view class="audit-container">
+  <!-- 顶部栏 -->
+  <view class="header">
+    <view class="user-info">
+      <text class="welcome">你好，{{adminInfo ? adminInfo.real_name : '管理员'}}</text>
+      <text class="role">管理员</text>
+    </view>
+    <view class="logout-btn" bindtap="logout">
+      <text>退出</text>
+    </view>
+  </view>
+
+  <!-- 统计摘要 -->
+  <view class="summary-section">
+    <view class="summary-item" bindtap="switchTab" data-type="all">
+      <text class="summary-count">{{summary.total_pending}}</text>
+      <text class="summary-label">全部待审</text>
+    </view>
+    <view class="summary-item" bindtap="switchTab" data-type="user_verify">
+      <text class="summary-count">{{summary.user_verify}}</text>
+      <text class="summary-label">实名认证</text>
+    </view>
+    <view class="summary-item" bindtap="switchTab" data-type="activity_register">
+      <text class="summary-count">{{summary.activity_register}}</text>
+      <text class="summary-label">活动报名</text>
+    </view>
+    <view class="summary-item" bindtap="switchTab" data-type="exchange_order">
+      <text class="summary-count">{{summary.exchange_order}}</text>
+      <text class="summary-label">积分兑换</text>
+    </view>
+  </view>
+
+  <!-- 标签页 -->
+  <view class="tab-section">
+    <view 
+      class="tab-item {{activeTab === 'all' ? 'active' : ''}}"
+      data-type="all"
+      bindtap="switchTab"
+    >
+      全部
+    </view>
+    <view 
+      class="tab-item {{activeTab === 'user_verify' ? 'active' : ''}}"
+      data-type="user_verify"
+      bindtap="switchTab"
+    >
+      实名认证
+    </view>
+    <view 
+      class="tab-item {{activeTab === 'activity_register' ? 'active' : ''}}"
+      data-type="activity_register"
+      bindtap="switchTab"
+    >
+      活动报名
+    </view>
+    <view 
+      class="tab-item {{activeTab === 'exchange_order' ? 'active' : ''}}"
+      data-type="exchange_order"
+      bindtap="switchTab"
+    >
+      积分兑换
+    </view>
+  </view>
+
+  <!-- 加载状态 -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 审核列表 -->
+  <scroll-view 
+    wx:else 
+    class="audit-list" 
+    scroll-y 
+    enable-back-to-top
+    refresher-enabled
+    bindrefresherrefresh="onPullDownRefresh"
+    style="height: calc(100vh - 380rpx)"
+  >
+    <view wx:if="{{auditItems.length === 0}}" class="empty-state">
+      <text class="icon">✓</text>
+      <text class="text">暂无待审核项目</text>
+      <text class="subtext">已处理完所有待审项目</text>
+    </view>
+
+    <view 
+      wx:for="{{auditItems}}" 
+      wx:key="item_id" 
+      class="audit-card"
+    >
+      <!-- 卡片头部 -->
+      <view class="card-header">
+        <view class="type-badge {{item.audit_type}}">
+          {{item.type_name}}
+        </view>
+        <text class="time">{{item.apply_time}}</text>
+      </view>
+
+      <!-- 卡片内容 -->
+      <view class="card-content" data-item="{{item}}" bindtap="viewDetail">
+        <view wx:if="{{item.audit_type === 'user_verify'}}" class="content-detail">
+          <view class="detail-row">
+            <text class="label">👤 用户：</text>
+            <text class="value">{{item.real_name}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">📱 手机：</text>
+            <text class="value">{{item.phone}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">🆔 身份证：</text>
+            <text class="value">{{item.id_card || '点击查看详情'}}</text>
+          </view>
+        </view>
+        
+        <view wx:if="{{item.audit_type === 'activity_register'}}" class="content-detail">
+          <view class="detail-row">
+            <text class="label">🎯 活动：</text>
+            <text class="value">{{item.activity_title}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">👤 用户：</text>
+            <text class="value">{{item.user_name}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">📱 手机：</text>
+            <text class="value">{{item.phone}}</text>
+          </view>
+        </view>
+        
+        <view wx:if="{{item.audit_type === 'exchange_order'}}" class="content-detail">
+          <view class="detail-row">
+            <text class="label">🛒 商品：</text>
+            <text class="value">{{item.product_name}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">👤 用户：</text>
+            <text class="value">{{item.user_name}}</text>
+          </view>
+          <view class="detail-row">
+            <text class="label">⭐ 积分：</text>
+            <text class="value">{{item.points_used}} 分</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 操作按钮 -->
+      <view class="action-buttons">
+        <button 
+          class="btn-reject" 
+          data-item="{{item}}"
+          bindtap="showAuditDialog"
+        >
+          拒绝
+        </button>
+        <button 
+          class="btn-approve" 
+          data-item="{{item}}"
+          bindtap="showAuditDialog"
+        >
+          通过
+        </button>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 审核弹窗 -->
+  <view wx:if="{{showAuditModal}}" class="audit-modal">
+    <view class="modal-mask" bindtap="hideAuditDialog"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">审核操作</text>
+        <text class="close-btn" bindtap="hideAuditDialog">×</text>
+      </view>
+      
+      <view class="modal-body">
+        <view class="item-info">
+          <text class="item-type">{{currentItem.type_name}}</text>
+          <text class="item-time">{{currentItem.apply_time}}</text>
+        </view>
+        
+        <view class="result-selector">
+          <view class="result-title">审核结果：</view>
+          <view class="result-options">
+            <view 
+              class="result-option {{auditResult === 'approved' ? 'active' : ''}}"
+              data-result="approved"
+              bindtap="selectResult"
+            >
+              <text class="option-icon">✓</text>
+              <text class="option-text">通过</text>
+            </view>
+            <view 
+              class="result-option {{auditResult === 'rejected' ? 'active' : ''}}"
+              data-result="rejected"
+              bindtap="selectResult"
+            >
+              <text class="option-icon">✗</text>
+              <text class="option-text">拒绝</text>
+            </view>
+          </view>
+        </view>
+        
+        <view class="comment-section">
+          <text class="comment-label">审核意见（可选）：</text>
+          <textarea 
+            class="comment-input" 
+            placeholder="请输入审核意见..."
+            value="{{auditComment}}"
+            bindinput="onCommentInput"
+            maxlength="200"
+          />
+          <text class="comment-tips">最多200字</text>
+        </view>
+      </view>
+      
+      <view class="modal-footer">
+        <button class="btn-cancel" bindtap="hideAuditDialog">取消</button>
+        <button class="btn-submit" bindtap="submitAudit">确认提交</button>
+      </view>
+    </view>
+  </view>
+</view>

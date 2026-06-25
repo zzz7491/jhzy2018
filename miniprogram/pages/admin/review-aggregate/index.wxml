@@ -1,0 +1,110 @@
+<!-- pages/admin/review-aggregate/index.wxml -->
+<view class="review-page">
+  <!-- 统计卡片 -->
+  <view class="stats-cards">
+    <view class="stats-card">
+      <view class="stats-label">待审核</view>
+      <view class="stats-value">{{pending_reviews || 0}}</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-label">已通过</view>
+      <view class="stats-value">{{approved_count || 0}}</view>
+    </view>
+    <view class="stats-card">
+      <view class="stats-label">已拒绝</view>
+      <view class="stats-value">{{rejected_count || 0}}</view>
+    </view>
+  </view>
+
+  <!-- 操作栏 -->
+  <view class="action-bar">
+    <view class="select-all" bindtap="toggleSelectAll">
+      <checkbox checked="{{selectAll}}" />
+      <text>全选</text>
+    </view>
+    <view class="action-buttons">
+      <button class="btn-approve" size="mini" bindtap="batchApprove" disabled="{{selectedIds.length === 0}}">
+        批量通过({{selectedIds.length}})
+      </button>
+      <button class="btn-reject" size="mini" bindtap="batchReject" disabled="{{selectedIds.length === 0}}">
+        批量拒绝({{selectedIds.length}})
+      </button>
+      <button class="btn-refresh" size="mini" bindtap="refreshData">
+        <text class="icon-refresh">↻</text> 刷新
+      </button>
+    </view>
+  </view>
+
+  <!-- 活动列表 -->
+  <view class="activity-list">
+    <view wx:if="{{activities.length === 0 && !loading}}" class="empty-state">
+      <image src="/images/empty.png" mode="aspectFit" />
+      <text>暂无待审核的报名</text>
+      <button size="mini" bindtap="refreshData">刷新列表</button>
+    </view>
+
+    <block wx:for="{{activities}}" wx:key="id">
+      <view class="activity-card {{index === selectedIds.indexOf(item.id) ? 'selected' : ''}}">
+        <view class="activity-header">
+          <checkbox checked="{{selectedIds.indexOf(item.id) > -1}}" bindtap="toggleSelect" data-id="{{item.id}}" />
+          <text class="activity-title">{{item.activity_title}}</text>
+          <text class="activity-status pending">待审核</text>
+        </view>
+        
+        <view class="activity-content">
+          <view class="info-row">
+            <text class="label">志愿者：</text>
+            <text class="value">{{item.volunteer_name}} ({{item.volunteer_phone}})</text>
+            <text class="link" bindtap="viewVolunteerInfo" data-id="{{item.volunteer_id}}">查看</text>
+          </view>
+          
+          <view class="info-row">
+            <text class="label">报名时间：</text>
+            <text class="value">{{item.signup_time}}</text>
+          </view>
+          
+          <view class="info-row">
+            <text class="label">活动时间：</text>
+            <text class="value">{{item.start_time}} 至 {{item.end_time}}</text>
+          </view>
+          
+          <view class="info-row">
+            <text class="label">活动地点：</text>
+            <text class="value">{{item.location}}</text>
+          </view>
+          
+          <view wx:if="{{item.remark}}" class="info-row">
+            <text class="label">备注：</text>
+            <text class="value remark">{{item.remark}}</text>
+          </view>
+        </view>
+        
+        <view class="activity-actions">
+          <button class="btn-view" size="mini" bindtap="viewActivityDetail" data-id="{{item.activity_id}}">
+            查看活动详情
+          </button>
+          <button class="btn-approve-single" size="mini" bindtap="approveSingle" 
+                  data-id="{{item.id}}" data-title="{{item.activity_title}}">
+            通过审核
+          </button>
+          <button class="btn-reject-single" size="mini" bindtap="rejectSingle"
+                  data-id="{{item.id}}" data-title="{{item.activity_title}}">
+            拒绝报名
+          </button>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 加载状态 -->
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 浮动操作按钮 -->
+  <view class="fab-container">
+    <button class="fab" open-type="share">
+      <text class="icon">📤</text>
+    </button>
+  </view>
+</view>

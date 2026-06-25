@@ -1,0 +1,487 @@
+/* sign/index.wxss - 包含圆形按钮设计的完整样式 */
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  padding: 30rpx;
+  box-sizing: border-box;
+}
+
+.safe-top {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 活动信息卡片 */
+.box {
+  background: white;
+  border-radius: 24rpx;
+  padding: 40rpx 32rpx;
+  margin-bottom: 40rpx;
+  box-shadow: 0 8rpx 30rpx rgba(0, 0, 0, 0.06);
+  border: 1rpx solid rgba(0, 0, 0, 0.05);
+}
+
+.title {
+  font-size: 38rpx;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin-bottom: 40rpx;
+  display: block;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* 活动信息行 */
+.info-row {
+  display: flex;
+  margin-bottom: 24rpx;
+  font-size: 30rpx;
+  line-height: 1.5;
+  align-items: flex-start;
+}
+
+.info-row .label {
+  color: #666;
+  width: 180rpx;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.info-row .value {
+  color: #333;
+  flex: 1;
+  font-weight: 500;
+}
+
+/* 状态步骤指示器 */
+.status-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 50rpx 0 30rpx;
+  position: relative;
+  padding: 0 40rpx;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  width: 200rpx;
+}
+
+.status-dot {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  margin-bottom: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  color: #999;
+  font-weight: bold;
+  border: 4rpx solid #fff;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
+}
+
+.status-item.active .status-dot {
+  background-color: #07c160;
+  color: white;
+  box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.3);
+}
+
+.status-item text {
+  font-size: 30rpx;
+  color: #999;
+  font-weight: 500;
+}
+
+.status-item.active text {
+  color: #07c160;
+  font-weight: bold;
+}
+
+.status-connector {
+  position: absolute;
+  top: 40rpx;
+  left: 140rpx;
+  right: 140rpx;
+  height: 6rpx;
+  background-color: #f0f0f0;
+  z-index: 1;
+}
+
+/* 倒计时样式 */
+.countdown-box {
+  margin-top: 40rpx;
+  padding: 28rpx;
+  background: linear-gradient(135deg, #fff7e6 0%, #ffefcc 100%);
+  border-radius: 16rpx;
+  border-left: 8rpx solid #fa8c16;
+  box-shadow: 0 4rpx 16rpx rgba(250, 140, 22, 0.1);
+}
+
+.countdown-text {
+  color: #fa8c16;
+  font-size: 32rpx;
+  font-weight: bold;
+  text-align: center;
+  display: block;
+}
+
+/* 圆形按钮区域 */
+.button-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 40rpx 0;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.button-description {
+  text-align: center;
+  margin-bottom: 60rpx;
+}
+
+.desc-title {
+  font-size: 38rpx;
+  font-weight: bold;
+  color: #1a1a1a;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.desc-text {
+  font-size: 30rpx;
+  color: #666;
+  display: block;
+  line-height: 1.5;
+}
+
+/* 圆形按钮样式 */
+.circle-button {
+  width: 300rpx !important;
+  height: 300rpx !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 20rpx 50rpx rgba(0, 0, 0, 0.15) !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.circle-button::after {
+  border: none !important;
+}
+
+.circle-button:active {
+  transform: scale(0.95) !important;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.2) !important;
+}
+
+.circle-button:disabled {
+  opacity: 0.6 !important;
+  transform: none !important;
+}
+
+/* 签到按钮样式 */
+.signin-btn {
+  background: linear-gradient(135deg, #07c160 0%, #05a854 100%);
+}
+
+.signin-btn:active {
+  background: linear-gradient(135deg, #05a854 0%, #04904a 100%);
+}
+
+/* 签退按钮样式 */
+.signout-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #fa5252 100%);
+}
+
+.signout-btn:active {
+  background: linear-gradient(135deg, #fa5252 0%, #f03e3e 100%);
+}
+
+/* 按钮内部内容 */
+.button-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+.button-icon {
+  font-size: 80rpx;
+  margin-bottom: 30rpx;
+}
+
+.button-text {
+  font-size: 44rpx;
+  font-weight: bold;
+  color: white;
+  letter-spacing: 4rpx;
+}
+
+/* 加载动画 */
+.loading-icon {
+  margin-bottom: 30rpx;
+}
+
+.spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 8rpx solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.warning-text {
+  margin-top: 50rpx;
+  font-size: 28rpx;
+  color: #ff6b6b;
+  text-align: center;
+}
+
+/* 完成状态 */
+.completed-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 0;
+}
+
+.completed-icon {
+  font-size: 120rpx;
+  margin-bottom: 40rpx;
+  animation: bounce 1s ease;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20rpx); }
+}
+
+.completed-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin-bottom: 30rpx;
+}
+
+.completed-points {
+  font-size: 64rpx;
+  font-weight: bold;
+  color: #fa8c16;
+  margin-bottom: 20rpx;
+}
+
+.completed-desc {
+  font-size: 30rpx;
+  color: #666;
+}
+
+/* 位置提示区域 */
+.location-tips {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e6f0ff 100%);
+  border-radius: 20rpx;
+  padding: 40rpx 32rpx;
+  margin: 40rpx 0;
+  border-left: 8rpx solid #1890ff;
+  box-shadow: 0 4rpx 20rpx rgba(24, 144, 255, 0.1);
+}
+
+.tips-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #1890ff;
+  margin-bottom: 30rpx;
+  display: block;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.tip-dot {
+  color: #1890ff;
+  font-size: 30rpx;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.tip-text {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* 辅助按钮区域 */
+.helper-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 30rpx;
+  margin: 60rpx 0 40rpx;
+  flex-wrap: wrap;
+}
+
+.helper-btn {
+  height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  background: white;
+  color: #07c160;
+  border: 2rpx solid #07c160;
+  padding: 0 40rpx;
+  font-weight: 500;
+}
+
+.helper-btn::after {
+  border: none;
+}
+
+.helper-btn:active {
+  background-color: rgba(7, 193, 96, 0.1);
+}
+
+/* 响应式调整 */
+@media (max-width: 375px) {
+  .container {
+    padding: 20rpx;
+  }
+  
+  .box {
+    padding: 32rpx 24rpx;
+  }
+  
+  .circle-button {
+    width: 280rpx !important;
+    height: 280rpx !important;
+  }
+  
+  .button-text {
+    font-size: 40rpx;
+  }
+  
+  .helper-buttons {
+    gap: 20rpx;
+  }
+  
+  .helper-btn {
+    padding: 0 30rpx;
+  }
+}
+
+/* 适配安全区域 */
+.safe-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 新增：醒目签到区域样式 */
+.quick-sign-area {
+  margin: 20rpx 30rpx;
+}
+
+.quick-sign-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 32rpx;
+  padding: 30rpx;
+  box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.3);
+}
+
+.quick-sign-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24rpx;
+}
+
+.quick-sign-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+}
+
+.quick-sign-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: white;
+}
+
+.quick-sign-btn {
+  width: 100%;
+  height: 96rpx;
+  border-radius: 48rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: #667eea;
+  border: none;
+  margin: 16rpx 0;
+}
+
+.quick-sign-btn.signin {
+  background: #ff6b35;
+  color: white;
+  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.4);
+}
+
+.quick-sign-btn.signout {
+  background: #07c160;
+  color: white;
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.4);
+}
+
+.quick-sign-btn.loading {
+  opacity: 0.7;
+}
+
+.quick-sign-warning {
+  display: block;
+  text-align: center;
+  font-size: 24rpx;
+  color: #ffe0b2;
+  margin-top: 12rpx;
+}
+
+.quick-sign-tip {
+  display: block;
+  text-align: center;
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.8);
+  margin-top: 8rpx;
+}

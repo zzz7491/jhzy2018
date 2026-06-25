@@ -1,0 +1,152 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding: 20rpx;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 500rpx;
+  color: #999;
+}
+
+.content {
+  height: calc(100vh - 40rpx);
+}
+
+.cert-card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 40rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.1);
+}
+
+.cert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 2rpx solid #f0f0f0;
+}
+
+.cert-name {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  flex: 1;
+}
+
+.cert-type {
+  font-size: 24rpx;
+  color: #07c160;
+  background: #e6f7e6;
+  padding: 8rpx 24rpx;
+  border-radius: 40rpx;
+}
+
+.cert-number {
+  background: #f8f8f8;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  margin-bottom: 30rpx;
+}
+
+.cert-number .label {
+  font-size: 26rpx;
+  color: #999;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.cert-number .value {
+  font-size: 32rpx;
+  color: #333;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.cert-info {
+  margin-bottom: 30rpx;
+}
+
+.info-item {
+  display: flex;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-item .label {
+  width: 140rpx;
+  font-size: 28rpx;
+  color: #999;
+}
+
+.info-item .value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.activity-info {
+  background: #f0f9ff;
+  padding: 24rpx;
+  border-radius: 16rpx;
+}
+
+.activity-label {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.activity-name {
+  font-size: 30rpx;
+  color: #07c160;
+  font-weight: 500;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 30rpx;
+}
+
+.action-btn {
+  flex: 1;
+  height: 88rpx;
+  background: #07c160;
+  color: #fff;
+  border-radius: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  font-size: 30rpx;
+}
+
+.action-btn:active {
+  opacity: 0.9;
+}
+
+.btn-icon {
+  font-size: 36rpx;
+}
+
+.source-info {
+  text-align: center;
+  padding: 30rpx 0;
+}
+
+.source-text {
+  font-size: 24rpx;
+  color: #ccc;
+}

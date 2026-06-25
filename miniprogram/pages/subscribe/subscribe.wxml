@@ -1,0 +1,27 @@
+<view class="container">
+  <view class="header">
+    <text class="title">消息订阅设置</text>
+    <text class="desc">开启后，我们将通过微信通知您相关信息</text>
+  </view>
+
+  <view class="list">
+    <block wx:for="{{templates}}" wx:key="key">
+      <view class="item">
+        <view class="item-info">
+          <text class="item-name">{{item.name}}</text>
+        </view>
+        <switch 
+          checked="{{subscribed[item.key]}}" 
+          data-key="{{item.key}}" 
+          data-id="{{item.id}}"
+          bindchange="onSwitchChange"
+          color="#07c160"
+        />
+      </view>
+    </block>
+  </view>
+
+  <view class="footer">
+    <text class="footer-text">温馨提示：订阅后您将收到微信的服务通知</text>
+  </view>
+</view>

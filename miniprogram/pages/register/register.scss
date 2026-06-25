@@ -1,0 +1,336 @@
+/* 注册页面样式 */
+.register-container {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* 顶部导航 */
+.register-header {
+  height: 120rpx;
+  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32rpx;
+  color: #fff;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  font-size: 30rpx;
+}
+
+.back-icon {
+  font-size: 50rpx;
+  margin-right: 10rpx;
+  line-height: 1;
+}
+
+.register-title {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.header-right {
+  width: 80rpx;
+}
+
+/* 表单区域 */
+.form-scroll {
+  height: calc(100vh - 120rpx);
+}
+
+.form-container {
+  padding: 40rpx 32rpx 100rpx;
+}
+
+/* 微信验证状态 */
+.wx-status {
+  background-color: #e8f4ff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wx-loading {
+  display: flex;
+  align-items: center;
+  font-size: 28rpx;
+  color: #1890ff;
+}
+
+.loading-dots text {
+  animation: blink 1.4s infinite;
+  font-size: 40rpx;
+  line-height: 1;
+}
+
+.loading-dots text:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots text:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+.retry-btn {
+  background-color: #1890ff;
+  color: white;
+  font-size: 26rpx;
+  padding: 10rpx 20rpx;
+  border-radius: 20rpx;
+  line-height: 1;
+}
+
+.wx-success {
+  background-color: #f6ffed;
+  border: 2rpx solid #b7eb8f;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 40rpx;
+  display: flex;
+  align-items: center;
+  font-size: 28rpx;
+  color: #52c41a;
+}
+
+.success-icon {
+  background-color: #52c41a;
+  color: white;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+  font-size: 24rpx;
+}
+
+/* 表单组 */
+.form-group {
+  margin-bottom: 40rpx;
+}
+
+.form-label {
+  display: block;
+  font-size: 30rpx;
+  color: #333;
+  margin-bottom: 16rpx;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  height: 88rpx;
+  background-color: white;
+  border: 2rpx solid #e8e8e8;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.form-input.error {
+  border-color: #ff4d4f;
+}
+
+.form-input:focus {
+  border-color: #FF6B35;
+}
+
+.password-input {
+  position: relative;
+}
+
+.eye-icon {
+  position: absolute;
+  right: 24rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 36rpx;
+  z-index: 2;
+}
+
+.error-tip {
+  display: block;
+  font-size: 24rpx;
+  color: #ff4d4f;
+  margin-top: 10rpx;
+}
+
+/* 协议部分样式 */
+.protocol-section {
+  margin: 40rpx 0;
+  padding: 30rpx 0;
+  border-top: 2rpx solid #eee;
+  border-bottom: 2rpx solid #eee;
+}
+
+.protocol-checkbox {
+  display: flex;
+  align-items: center;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.checkbox-icon {
+  width: 40rpx;
+  height: 40rpx;
+  border: 2rpx solid #ddd;
+  border-radius: 8rpx;
+  margin-right: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 28rpx;
+  flex-shrink: 0;
+}
+
+.checkbox-icon.checked {
+  background-color: #FF6B35;
+  border-color: #FF6B35;
+}
+
+.protocol-link {
+  color: #FF6B35;
+  margin-left: 5rpx;
+}
+
+/* 提交按钮 */
+.submit-btn {
+  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  color: white;
+  height: 96rpx;
+  border-radius: 48rpx;
+  font-size: 34rpx;
+  font-weight: bold;
+  margin-top: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submit-btn.disabled {
+  opacity: 0.6;
+}
+
+/* 登录链接 */
+.login-link {
+  text-align: center;
+  margin-top: 40rpx;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.login-text {
+  color: #FF6B35;
+  margin-left: 10rpx;
+}
+
+/* 协议弹窗样式 - 修改为完全可滚动 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.protocol-modal {
+  width: 90%;
+  height: 85%;
+  background-color: #fff;
+  border-radius: 20rpx;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 30rpx;
+  border-bottom: 2rpx solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.modal-close {
+  font-size: 50rpx;
+  color: #999;
+  line-height: 1;
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  flex: 1;
+  padding: 0;
+  min-height: 200rpx;
+  height: 100%;
+}
+
+.protocol-full-content {
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #333;
+  white-space: pre-line;
+  padding: 40rpx;
+  display: block;
+}
+
+.modal-footer {
+  display: flex;
+  border-top: 2rpx solid #eee;
+  flex-shrink: 0;
+}
+
+.modal-footer button {
+  flex: 1;
+  height: 110rpx;
+  line-height: 110rpx;
+  font-size: 32rpx;
+  border-radius: 0;
+  border: none;
+}
+
+.btn-cancel {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.btn-agree {
+  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  color: white;
+}
+
+/* 适配老年版 */
+.simple-mode .form-group:nth-last-child(3),
+.simple-mode .form-group:nth-last-child(2) {
+  display: none;
+}

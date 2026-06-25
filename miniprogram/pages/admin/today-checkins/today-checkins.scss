@@ -1,0 +1,192 @@
+.container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding: 20rpx;
+}
+
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.total {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.date {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.8);
+}
+
+.empty {
+  text-align: center;
+  padding: 100rpx 0;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  display: block;
+  margin-bottom: 20rpx;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+}
+
+.avatar-text {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.info {
+  flex: 1;
+}
+
+.name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+}
+
+.volunteer-id {
+  font-size: 22rpx;
+  color: #999;
+  display: block;
+  margin-top: 4rpx;
+}
+
+.time {
+  font-size: 24rpx;
+  color: #667eea;
+  font-weight: 500;
+}
+
+.card-body {
+  border-top: 1rpx solid #f0f0f0;
+  padding-top: 16rpx;
+}
+
+.activity {
+  display: flex;
+  align-items: center;
+}
+
+.activity-icon {
+  font-size: 28rpx;
+  margin-right: 12rpx;
+}
+
+.activity-name {
+  font-size: 28rpx;
+  color: #666;
+  flex: 1;
+}
+
+.loading {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+}
+
+.status-badge {
+  font-size: 22rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+  font-weight: 500;
+}
+.status-badge.active {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+.status-badge.done {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+.time-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+.time-label {
+  font-size: 22rpx;
+  color: #999;
+  margin-bottom: 4rpx;
+}
+.time-value {
+  font-size: 26rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 16rpx;
+  border-top: 1rpx solid #f0f0f0;
+  padding-top: 16rpx;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stat-label {
+  font-size: 22rpx;
+  color: #999;
+  margin-bottom: 4rpx;
+}
+.stat-value {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: bold;
+}
+.stat-value.points {
+  color: #ff9500;
+}

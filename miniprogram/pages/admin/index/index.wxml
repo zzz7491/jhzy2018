@@ -1,0 +1,73 @@
+<!-- pages/admin/index/index.wxml -->
+<view class="container">
+  <!-- 头部信息 -->
+  <view class="header">
+    <view class="user-info">
+      <image src="/images/avatar.png" class="avatar"></image>
+      <view class="user-detail">
+        <text class="username">欢迎您，{{userInfo.realname || userInfo.username}}</text>
+        <text class="role">{{roleText}}</text>
+      </view>
+    </view>
+    <button class="logout-btn" size="mini" bindtap="onLogout">退出登录</button>
+  </view>
+
+  <!-- 统计卡片 -->
+  <view class="stats-grid">
+    <view class="stat-card" bindtap="goToCertificates">
+      <text class="stat-number">{{stats.total_certificates || 0}}</text>
+      <text class="stat-label">总证书数</text>
+    </view>
+    <view class="stat-card" bindtap="goToCertificates">
+      <text class="stat-number">{{stats.monthly_certificates || 0}}</text>
+      <text class="stat-label">本月新增</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-number">{{stats.total_admins || 0}}</text>
+      <text class="stat-label">管理员数</text>
+    </view>
+  </view>
+
+  <!-- 功能菜单 -->
+  <view class="menu-section">
+    <text class="section-title">证书管理</text>
+    <view class="menu-grid">
+      <view class="menu-item" bindtap="goToCertificates">
+        <image src="/images/icon-certificate.png" class="menu-icon"></image>
+        <text class="menu-text">证书列表</text>
+      </view>
+      <view class="menu-item" bindtap="goToCertificateVerify">
+        <image src="/images/icon-verify.png" class="menu-icon"></image>
+        <text class="menu-text">证书验证</text>
+      </view>
+      <view class="menu-item" bindtap="goToGenerate">
+        <image src="/images/icon-add.png" class="menu-icon"></image>
+        <text class="menu-text">生成证书</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 最近证书 -->
+  <view class="recent-section">
+    <view class="section-header">
+      <text class="section-title">最近证书</text>
+      <text class="view-all" bindtap="goToCertificates">查看全部</text>
+    </view>
+    
+    <scroll-view scroll-y class="certificate-list">
+      <block wx:for="{{recentCertificates}}" wx:key="id">
+        <view class="certificate-item">
+          <view class="certificate-info">
+            <text class="cert-name">{{item.volunteer_name}}</text>
+            <text class="cert-number">{{item.certificate_number}}</text>
+          </view>
+          <text class="cert-time">{{formatTime(item.created_at)}}</text>
+        </view>
+      </block>
+      
+      <view wx:if="{{recentCertificates.length === 0}}" class="empty-tip">
+        <text>暂无证书数据</text>
+      </view>
+    </scroll-view>
+  </view>
+</view>

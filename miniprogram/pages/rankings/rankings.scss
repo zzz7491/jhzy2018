@@ -1,0 +1,237 @@
+/* pages/rankings/rankings.wxss */
+.container {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f5f7fa 0%, #ffffff 100%);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
+/* 顶部标题 */
+.header {
+  padding: 40rpx 30rpx 30rpx;
+  background: linear-gradient(135deg, #FF6B35, #FF8E53);
+  color: white;
+  border-radius: 0 0 30rpx 30rpx;
+}
+
+.header-title {
+  text-align: center;
+}
+
+.title-text {
+  font-size: 42rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.title-sub {
+  font-size: 26rpx;
+  opacity: 0.9;
+}
+
+/* 加载状态 */
+.loading-container {
+  padding: 100rpx 0;
+  text-align: center;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* 排行榜滚动区域 */
+.rankings-scroll {
+  height: calc(100vh - 200rpx); /* 调整了高度计算，适应去掉tab后的空间 */
+}
+
+/* 前三名展示 - 领奖台模式 */
+.top-three {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end; /* 关键：底部对齐 */
+  padding: 60rpx 30rpx 40rpx;
+  gap: 20rpx;
+}
+
+.top-item {
+  text-align: center;
+  border-radius: 25rpx;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  padding-bottom: 30rpx;
+}
+
+/* 第一名：最高最宽 */
+.top-1 {
+  width: 240rpx;
+  height: 380rpx; /* 显式高度差 */
+  order: 2;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: white;
+  z-index: 2;
+  box-shadow: 0 15rpx 40rpx rgba(255, 165, 0, 0.4);
+}
+
+/* 第二名：左边，中等高度 */
+.top-2 {
+  width: 200rpx;
+  height: 320rpx; /* 显式高度差 */
+  order: 1;
+  background: linear-gradient(135deg, #C0C0C0, #999999);
+  color: white;
+  z-index: 1;
+}
+
+/* 第三名：右边，最矮高度 */
+.top-3 {
+  width: 200rpx;
+  height: 280rpx; /* 显式高度差 */
+  order: 3;
+  background: linear-gradient(135deg, #CD7F32, #A65E2E);
+  color: white;
+  z-index: 1;
+}
+
+.top-medal {
+  font-size: 56rpx;
+  margin-top: -30rpx; /* 让勋章稍微飘出卡片 */
+  display: block;
+}
+
+.top-avatar {
+  border-radius: 50%;
+  border: 6rpx solid white;
+  margin: 10rpx auto 20rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.2);
+}
+
+.top-1 .top-avatar {
+  width: 140rpx;
+  height: 140rpx;
+}
+
+.top-2 .top-avatar, .top-3 .top-avatar {
+  width: 110rpx;
+  height: 110rpx;
+}
+
+.top-name {
+  font-size: 28rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10rpx;
+  padding: 0 10rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-points {
+  font-size: 26rpx;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4rpx 15rpx;
+  border-radius: 20rpx;
+  display: inline-block;
+}
+
+/* 其他排名 */
+.other-rankings {
+  padding: 20rpx 30rpx 40rpx;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  padding: 30rpx;
+  background: white;
+  border-radius: 20rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+}
+
+.rank-number {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #888;
+  width: 60rpx;
+  text-align: center;
+}
+
+.rank-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  margin: 0 25rpx;
+  border: 3rpx solid #f0f0f0;
+}
+
+.rank-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 5rpx;
+}
+
+.rank-id {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.rank-stats {
+  text-align: right;
+}
+
+.stats-value {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #FF6B35;
+  display: block;
+}
+
+.stats-label {
+  font-size: 22rpx;
+  color: #999;
+}
+
+/* 加载更多 */
+.load-more {
+  padding: 40rpx 0;
+  text-align: center;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 空状态 */
+.empty-container {
+  padding: 100rpx 30rpx;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 100rpx;
+  display: block;
+  margin-bottom: 30rpx;
+}
+
+.empty-text {
+  font-size: 34rpx;
+  color: #333;
+}

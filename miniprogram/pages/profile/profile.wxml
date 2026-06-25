@@ -1,0 +1,72 @@
+<!-- pages/profile/profile.wxml -->
+<view class="profile-page">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="loading-container">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+  
+  <!-- 用户信息 -->
+  <view wx:else class="user-section">
+    <view class="user-header">
+      <view class="user-avatar">
+        <image src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+      </view>
+      <view class="user-info">
+        <view class="user-name">{{userInfo.real_name || userInfo.username || '未设置昵称'}}</view>
+        <view class="user-status">
+          <view class="verification-badge {{userInfo.is_verified ? 'verified' : 'unverified'}}">
+            {{userInfo.is_verified ? '✓ 已实名认证' : '⚠ 未实名认证'}}
+          </view>
+        </view>
+      </view>
+      <view class="refresh-btn" bindtap="onRefresh">🔄</view>
+    </view>
+    
+    <!-- 统计数据 -->
+    <view class="stats-section">
+      <view class="stats-grid">
+        <view class="stat-item">
+          <view class="stat-value">{{stats.hoursCount}}</view>
+          <view class="stat-label">服务时长</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value">{{stats.activitiesCount}}</view>
+          <view class="stat-label">参与活动</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value">{{stats.examsCount}}</view>
+          <view class="stat-label">通过考试</view>
+        </view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 菜单列表 -->
+  <view class="menu-section">
+    <view class="menu-title">我的功能</view>
+    <view class="menu-list">
+      <view 
+        wx:for="{{menuItems}}" 
+        wx:key="id" 
+        class="menu-item" 
+        bindtap="onMenuItemClick" 
+        data-index="{{index}}"
+      >
+        <view class="menu-item-left">
+          <view class="menu-icon">{{item.icon}}</view>
+          <view class="menu-content">
+            <view class="menu-title">{{item.title}}</view>
+            <view class="menu-desc">{{item.desc}}</view>
+          </view>
+        </view>
+        <view class="menu-arrow">›</view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 退出登录 -->
+  <view class="logout-section">
+    <button class="logout-btn" bindtap="onLogout">退出登录</button>
+  </view>
+</view>

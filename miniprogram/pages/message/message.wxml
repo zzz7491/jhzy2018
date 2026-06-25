@@ -1,0 +1,18 @@
+<view class="container">
+  <view class="message-list">
+    <block wx:for="{{notifications}}" wx:key="id">
+      <view class="message-item {{item.is_read ? 'read' : 'unread'}}" 
+            bindtap="markAsRead" 
+            data-id="{{item.id}}"
+            data-index="{{index}}">
+        <view class="message-title">{{item.title}}</view>
+        <view class="message-content">{{item.content}}</view>
+        <view class="message-time">{{item.created_at}}</view>
+      </view>
+    </block>
+  </view>
+  
+  <view class="loading" wx:if="{{loading}}">加载中...</view>
+  <view class="no-more" wx:if="{{!hasMore && notifications.length > 0}}">没有更多了</view>
+  <view class="empty" wx:if="{{!loading && notifications.length === 0}}">暂无消息</view>
+</view>
