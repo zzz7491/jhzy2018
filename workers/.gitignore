@@ -1,0 +1,17 @@
+# ===== Workers runtime / temp state — never version-controlled =====
+.wrangler/
+.tmp/
+*.log
+*.err
+
+# ===== Local secrets / environment =====
+.env
+.env.*
+
+# ===== Local databases (miniflare D1 sqlite, etc.) =====
+*.sqlite
+*.sqlite3
+*.db
+
+# ===== Temp backups of config =====
+wrangler.jsonc.bak-*

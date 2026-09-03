@@ -1,0 +1,41 @@
+{
+  "name": "jhzy-v2-workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "嘉禾志愿 2.0 Cloudflare Workers + D1 backend skeleton (S2-4)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy:preview": "wrangler deploy --env preview",
+    "deploy:production": "wrangler deploy --env production",
+    "migrate:local": "wrangler d1 migrations apply jhzy-v2-local --local",
+    "migrate:local:reset": "wrangler d1 migrations apply jhzy-v2-local --local --reset",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-sqlite scripts/validate_local_d1.mjs",
+    "test:api": "node tests/api_integration.mjs",
+    "test:session": "node tests/session_integration.mjs",
+    "test:auth": "node tests/auth_integration.mjs",
+    "test:firstlogin": "node tests/firstlogin_integration.mjs",
+    "test:session-security": "node tests/session_security_integration.mjs",
+    "fixture:setup": "node tests/fixture.mjs setup",
+    "fixture:session": "node tests/fixture.mjs session",
+    "fixture:auth": "node tests/fixture.mjs auth",
+    "fixture:firstlogin": "node tests/fixture.mjs firstlogin",
+    "fixture:sec": "node tests/fixture.mjs sec",
+    "fixture:authz": "node tests/fixture.mjs authz",
+    "fixture:signup": "node tests/fixture.mjs signup",
+    "fixture:attendance": "node tests/fixture.mjs attendance",
+    "fixture:teardown": "node tests/fixture.mjs teardown",
+    "test:authz": "node tests/authorization_integration.mjs",
+    "test:signup": "node tests/activity_signup_integration.mjs",
+    "test:attendance": "node tests/attendance_integration.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.6.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260828.1",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.127.1"
+  }
+}

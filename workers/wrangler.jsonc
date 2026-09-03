@@ -1,0 +1,60 @@
+/**
+ * 嘉禾志愿 2.0 —— Cloudflare Workers + D1 配置（S2-4）
+ *
+ * 环境纪律（用户授权边界）：
+ * - 本阶段【仅允许 local】。preview / production 仅建立配置结构占位，不填真实资源 ID / Secrets / 连接信息。
+ * - 三个环境【禁止共享数据库】；production database_id 不得写入 local 配置。
+ * - D1 Binding 名称统一为 DB（与代码 c.env.DB 一致）。
+ *
+ * local 使用 wrangler 自带的本地 D1（miniflare sqlite），不连接 Cloudflare Production。
+ */
+
+{
+  "name": "jhzy-v2-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ===== 默认环境 = local（本阶段唯一可执行环境）=====
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jhzy-v2-local",
+      "database_id": "local-placeholder-do-not-use-in-production",
+      "migrations_dir": "migrations",
+      "preview_database_id": "local-preview-placeholder"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "local",
+    "IDENTITY_HMAC_KEY_PREVIOUS": "test-previous-hmac-key-2026"
+  },
+
+  // ===== preview 环境：结构占位，禁止填真实 ID / Secrets =====
+  "env": {
+    "preview": {
+      "vars": { "ENVIRONMENT": "preview" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "jhzy-v2-preview",
+          "database_id": "PREVIEW_DATABASE_ID_PLACEHOLDER",
+          "migrations_dir": "migrations"
+        }
+      ]
+    },
+    // ===== production 环境：结构占位，禁止填真实 ID / Secrets =====
+    "production": {
+      "vars": { "ENVIRONMENT": "production" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "jhzy-v2-prod",
+          "database_id": "PRODUCTION_DATABASE_ID_PLACEHOLDER",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
+}
