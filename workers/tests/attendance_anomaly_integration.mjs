@@ -75,8 +75,9 @@ const q = (obj) => Object.entries(obj).filter(([, v]) => v !== undefined && v !=
 process.stderr.write('A. baseline\n');
 {
   const mig = withDb((db) => db.prepare('SELECT name FROM d1_migrations ORDER BY id').all().map((r) => r.name));
-  check('A1 migrations = 4', mig.length === 4, `got ${mig.length}`);
-  check('A2 no 0005 migration', !mig.some((n) => n.includes('0005')), mig.join(','));
+  // S2-6k1 V1 新增 0005_attendance_time_policy；此处基线随之更新为 5（0005 必须存在、0006 不得存在）。
+  check('A1 migrations = 5', mig.length === 5, `got ${mig.length}`);
+  check('A2 0005 存在且 0006 不存在', mig.some((n) => n.includes('0005')) && !mig.some((n) => n.includes('0006')), mig.join(','));
   const roles = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM roles').get().n);
   const perms = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n);
   const rps = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n);

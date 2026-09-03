@@ -41,6 +41,8 @@ export interface AttendanceSessionRow {
   review_status: number;
   created_at: number;
   updated_at: number | null;
+  /** 业务自然日（Asia/Shanghai YYYY-MM-DD），来源 = checkin_at；新增于 0005，可为 NULL。 */
+  business_service_date: string | null;
 }
 
 /**
@@ -88,7 +90,8 @@ export class AttendanceSessionRepository extends BaseRepository {
 
     return this.first<AttendanceSessionRow>(
       `SELECT id, signup_id, activity_id, user_id, team_id, service_date, slot,
-              checkin_at, checkout_at, status, review_status, created_at, updated_at
+              checkin_at, checkout_at, status, review_status, created_at, updated_at,
+              business_service_date
          FROM attendance_sessions
         WHERE signup_id = ? AND user_id = ? AND team_id = ?
           AND status = ? AND checkout_at IS NULL`,
@@ -109,6 +112,7 @@ export class AttendanceSessionRepository extends BaseRepository {
     teamId: number,
     serviceDate: number,
     slot: string,
+    businessServiceDate: string,
     now: number,
   ): Promise<number> {
     this.ensureTableRead('attendance_sessions');
@@ -117,9 +121,9 @@ export class AttendanceSessionRepository extends BaseRepository {
       const res = await this.run(
         `INSERT INTO attendance_sessions
            (signup_id, activity_id, user_id, team_id, service_date, slot,
-            status, checkin_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [signupId, activityId, userId, teamId, serviceDate, slot, ATTENDANCE_STATUS.CHECKED_IN, now, now, now],
+            business_service_date, status, checkin_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [signupId, activityId, userId, teamId, serviceDate, slot, businessServiceDate, ATTENDANCE_STATUS.CHECKED_IN, now, now, now],
       );
       const id = Number(res.meta?.last_row_id ?? 0);
       if (id <= 0) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
@@ -307,7 +311,8 @@ export class AttendanceSessionRepository extends BaseRepository {
     this.ensureTableRead('attendance_sessions');
     return this.first<AttendanceSessionRow>(
       `SELECT id, signup_id, activity_id, user_id, team_id, service_date, slot,
-              checkin_at, checkout_at, status, review_status, created_at, updated_at
+              checkin_at, checkout_at, status, review_status, created_at, updated_at,
+              business_service_date
          FROM attendance_sessions
         WHERE id = ? AND team_id = ?`,
       [sessionId, teamId],

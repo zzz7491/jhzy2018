@@ -24,6 +24,7 @@ import { ActivityRepository } from '../repository/activities';
 import { ActivitySignupRepository, SIGNUP_STATUS } from '../repository/activity-signups';
 import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
 import { AttendanceSessionOwnershipPolicy } from '../policies/ownership';
+import { toBusinessDate } from '../utils/time';
 import {
   authRequired,
   conflict,
@@ -113,10 +114,21 @@ export class ActivityAttendanceService {
     if (existing != null) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
 
     // 5) INSERT。真正的并发防护 = uq_active_attendance（per-user 单一活跃会话）。
-    //    service_date = UTC 当天（天粒度锚定本次参加实例），slot 留空（最小聚焦，R2 决策）。
+    //    service_date = UTC 当天（天粒度锚定本次参加实例，FROZEN 语义保留）；
+    //    business_service_date = 业务自然日（Asia/Shanghai，来源 checkin_at = now）。
     const now = Math.floor(Date.now() / 1000);
     const serviceDate = Math.floor(now / 86400);
-    const sessionId = await attendance.insertCheckIn(signup.id, activity.id, userId, teamId, serviceDate, '', now);
+    const businessServiceDate = toBusinessDate(now);
+    const sessionId = await attendance.insertCheckIn(
+      signup.id,
+      activity.id,
+      userId,
+      teamId,
+      serviceDate,
+      '',
+      businessServiceDate,
+      now,
+    );
 
     // 6) 写最小证据行（append-only）。
     const nonce = `${sessionId}:checkin:${now}`;

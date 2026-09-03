@@ -40,6 +40,8 @@ export interface ActivityRow {
   quota: number;
   signed_count: number;
   status: number;
+  /** 活动级单次最大服务时长（分钟）；NULL = 该活动未冻结时长规则（未来 overlong detector 必须 SKIP）。S2-6k1 新增。 */
+  max_session_minutes: number | null;
 }
 
 export class ActivityRepository extends BaseRepository {
@@ -51,7 +53,7 @@ export class ActivityRepository extends BaseRepository {
     const teamId = this.ctx.tenant.teamId;
     const items = await this.all<ActivityRow>(
       `SELECT id, public_id, team_id, title, summary, start_time, end_time,
-              signup_deadline, quota, signed_count, status
+              signup_deadline, quota, signed_count, status, max_session_minutes
          FROM activities
         WHERE team_id = ? AND deleted_at IS NULL
         ORDER BY start_time DESC
@@ -83,7 +85,7 @@ export class ActivityRepository extends BaseRepository {
 
     const row = await this.first<ActivityRow>(
       `SELECT id, public_id, team_id, title, summary, start_time, end_time,
-              signup_deadline, quota, signed_count, status
+              signup_deadline, quota, signed_count, status, max_session_minutes
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
       [publicId, this.ctx.tenant.teamId],
