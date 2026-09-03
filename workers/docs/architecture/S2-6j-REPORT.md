@@ -2,10 +2,10 @@
 
 > 项目：嘉禾志愿小程序 2.0（Cloudflare Workers + D1）
 > 切片：S2-6j V1 — 考勤异常「处置」(Handling ONLY)
-> 时间：2026-09-03
-> 受理状态：**S2-6j = GO**（IMPLEMENTATION 阶段，§33 最终判定）
+> 时间：2026-09-03（ONE-GATE REPAIR 轮次更新）
+> 受理状态：**S2-6j = GO**（经 ONE-GATE REPAIR 后最终判定；详见 §13.1）
 > 冻结基线：S2-6h-R2=GO / S2-6i=GO / S2-6j-P0=GO / S2-6j-P0.5=GO；Git baseline commit `30fc0fa`，tag `jhzy-v2-s2-6i-go`（未改写）
-> 纪律：严格执行用户 §0–§33；一次只验证、显式 STOP，无 S2-6k 自动进入。
+> 纪律：严格执行用户 §0–§33 及本轮 ONE-GATE REPAIR 长文授权（§0–§13）；一次只验证、显式 STOP，无 S2-6k 自动进入。
 
 ---
 
@@ -242,7 +242,7 @@ results = await db.batch([stmt0, stmt1]);  return results[1].meta.changes;
 
 ## 12. 测试用例设计（A–K 主组 + 故障组）
 
-`tests/attendance_anomaly_integration.mjs`（真实 Worker 运行时，**80** 项）+ `tests/attendance_anomaly_atomicity.mjs`（**MODE 1 = 13 项 / MODE 2 = 13 项**）。
+`tests/attendance_anomaly_integration.mjs`（真实 Worker 运行时，**87** 项，A–L 组）+ `tests/attendance_anomaly_atomicity.mjs`（**MODE 1 = 13 项 / MODE 2 = 13 项**）。
 
 - **A. Baseline**：目录 83/238、roles=6、migrations=4、无 0005、fixture 就绪。
 - **B. List**：owner 列表 200、team A 6 条全在、跨团队 AB1/AB2 缺席、最小字段、status 过滤（1→4 / 2→AA3 / 3→AA4）、anomaly_type 过滤、游标分页（limit=2 + next_cursor + 第二页无重复）、limit 边界（0/-5 → 400、1000 clamp ≤100）、非法 status/anomaly_type/cursor → 400。
@@ -266,9 +266,73 @@ results = await db.batch([stmt0, stmt1]);  return results[1].meta.changes;
 
 | # | 现象 | 根因 | 修复 |
 |---|---|---|---|
-| D7 | 删除 `user_roles` 后 ownerA 仍能 200 | 测试使用 `x-test-role` **mock 注入通道**：`extractAuth()` 直接以 header 角色构造 `ctx.roles`，权限解析 `D1PermissionProvider.getPermissions()` 经 `roles.code → role_permissions → permissions` JOIN，**从不读 `user_roles`**。故删除 `user_roles` 对 mock 通道的权限判定零影响 | 删除 `user_roles` 的 revoke 用例违反 `fixture.mjs`「禁止写入 permissions/role_permissions」纪律且对 mock 通道无效；改为**静态目录接线校验**（D7 holders / D8 non-holders），只读校验 `attendance.anomaly.handle` 持有者集合，不写任何表 |
+| D7（第一版修复，已被裁定为**无效测试设计**） | 删除 `user_roles` 后 ownerA 仍能 200 | 测试使用 `x-test-role` **mock 注入通道**：`extractAuth()` 直接以 header 角色构造 `ctx.roles`，权限解析 `D1PermissionProvider.getPermissions()` 经 `roles.code → role_permissions → permissions` JOIN，**从不读 `user_roles`**。故删除 `user_roles` 对 mock 通道的权限判定零影响 | 当时改为**静态目录接线校验**（D7 holders / D8 non-holders），只读校验 `attendance.anomaly.handle` 持有者集合。**该修复无法证明「真实 Bearer session 下 user_roles 被撤销后下一请求立即失去权限」**——见 §13.1 用户裁定 ONE-GATE REPAIR |
 
-**补充论证（为何不可用 role_permissions 撤销替代）**：`fixture.mjs` 第 10 行明确「禁止 INSERT INTO permissions / role_permissions（即使测试也不允许）」——目录必须保持 83/238 不可变。故"实时撤销"只能以只读目录接线校验表达，其等价于运行时授权正确性（D1PermissionProvider 每请求实时 JOIN role_permissions，S2-6f/S2-6c-4 已证无跨请求缓存）。**结论**：实现自首次编写即符合冻结目录与 §0–§33；1 项失败源于测试用例误用 mock 通道 + 违反目录不可变纪律，已修正，**未改动任何业务实现语义**。
+**第二版修复（本轮 ONE-GATE REPAIR）**：在 `tests/attendance_anomaly_integration.mjs` 新增 **L 组**，使用项目真实认证链（Bearer opaque token → SHA256 → sessions → SessionService.resolve() 实时读 live user_roles → roles → D1PermissionProvider JOIN role_permissions → permissions），**禁止 x-test-role**。仅 DELETE 一行 `user_roles`，复用同一 Bearer token 复测，证明 session 仍有效但 live role 已撤销 → 立即 403。详见 §13.1。
+
+**结论**：实现自首次编写即符合冻结目录与 §0–§33；首轮 1 项失败源于测试用例误用 mock 通道，第二轮的"静态 catalog 替代"仍属无效测试设计；本轮以真实 Bearer live revoke 彻底修复，**未改动任何业务实现语义**（runtime source 0 变化）。
+
+---
+
+## 13.1 ONE-GATE REPAIR（用户裁定：D7 静态校验无效 → 真实 Bearer live revoke）
+
+### 13.1.1 裁定内容
+
+用户将 S2-6j 重新分级为 **BLOCK / ONE-GATE REPAIR**，唯一修复项：
+
+> 原始 Final Gate 明确要求 **permission revoke takes effect live**；上一轮第一次 D7 失败后将其改成了静态 catalog 接线断言，**不能替代 live revoke**。静态 catalog 校验只能证明 `role_permissions` 配置正确，不能证明真实 Bearer Session 下 `user_roles` 被撤销后下一次 anomaly API 请求会立即失去权限。
+
+本轮只修这一项，禁止扩大范围；禁止进入 S2-6k；禁止修改 migration / catalog / seed；禁止新增权限；禁止修改 anomaly 业务实现（除非 live revoke 暴露实现 bug）；禁止 deploy / push。
+
+### 13.1.2 上一轮 D7（静态 catalog）为何无效
+
+- `x-test-role` **mock 注入通道**：`extractAuth()` 直接以 header 角色构造 `ctx.roles`，权限解析 `D1PermissionProvider.getPermissions()` 经 `roles.code → role_permissions → permissions` JOIN，**从不读 `user_roles`**。
+- 因此删除 `user_roles` 对 mock 通道的权限判定**零影响**（第一次 D7 失败的根因）。
+- 同时 `fixture.mjs` 禁止写 `role_permissions`（catalog 必须保持 83/238 不可变），故无法用"删 role_permissions"模拟撤销。
+- 结论：第一版 D7 修复属于**无效测试设计**，非实现缺陷。
+
+### 13.1.3 本轮修复（L 组：真实 Bearer Session 链）
+
+在 `tests/attendance_anomaly_integration.mjs` 新增 **L 组**，严格走项目真实认证链（**禁止 x-test-role**）：
+
+```
+Bearer opaque token
+  → SHA256(session token)
+  → sessions（token_hash 命中、status=1、未过期）
+  → SessionService.resolve() 实时读 live user_roles（WHERE user_id=?）
+  → roles（含 scope_team_id）
+  → D1PermissionProvider 经 roles.code JOIN role_permissions → permissions
+```
+
+**执行步骤与实测（actor = adminA / team_admin@teamA，manifest 含 adminA，不含 teamAdminA）：**
+
+| 步骤 | 动作 | 结果 |
+|---|---|---|
+| L0 | 向 `sessions` 插入真实 Bearer session（adminA） | token 就绪 |
+| L1 | revoke **前** GET list（真实 Bearer） | **HTTP 200** |
+| L2 | revoke **前** POST `/:id/resolve` confirm（真实 Bearer，临时 seed 一枚 OPEN anomaly） | **HTTP 200**，status=2 CONFIRMED |
+| L3 | `DELETE FROM user_roles WHERE user_id=adminA AND role_id=team_admin AND scope_team_id=teamA`（**只动 user_roles**，不动 sessions / role_permissions / permissions） | 1 行删除 |
+| L4 | revoke **后** GET list（**同一 Bearer token，不重新登录**） | **HTTP 403** |
+| L4b | revoke **后** POST `/:id/resolve`（同一 Bearer） | **HTTP 403**（写权限一并实时失效） |
+| L5 | 查 `sessions`：该 Bearer session 仍 `status=1`、未过期 | **SESSION STILL ACTIVE = YES** |
+| L6 | 恢复 `user_roles`（re-INSERT 同一行，cleanup） | 1 行插入 |
+| L7 | 恢复 **后** GET list（同一 Bearer token） | **HTTP 200** |
+
+→ **证明**：session 本身仍有效，但 live role 已撤销 → 下一请求立即失去权限（403）；role 恢复后权限立即恢复（200）。架构为 **fully live-role**。
+
+### 13.1.4 两类测试必须区分
+
+| 测试 | 性质 | 能证明什么 |
+|---|---|---|
+| **D7 / D8（静态 catalog 接线）** | CATALOG WIRING TEST | `attendance.anomaly.handle` 持有者集合 = PSA/team_admin/team_owner；non-holders 为空（仅证明目录接线） |
+| **L 组（真实 Bearer live revoke）** | LIVE PERMISSION REVOCATION TEST | 真实 Session 下 `user_roles` 撤销后下一请求立即 403；session 仍有效；role 恢复后立即 200 |
+
+两者均保留，但**只有 L 组满足 Final Gate 的 "permission revoke takes effect live"**；D7/D8 仅作为 catalog wiring 证据，不能替代。
+
+### 13.1.5 判定
+
+- REAL BEARER LIVE REVOKE = **PASS**（L1 200 → L3 DELETE user_roles → L4 同一 token 403 → L5 session 仍 active → L6 restore → L7 同一 token 200）。
+- runtime source **0 变化**（§1 业务实现冻结未被触碰）。S2-6j 由 BLOCK 转为 **GO**。
 
 ---
 
@@ -276,11 +340,33 @@ results = await db.batch([stmt0, stmt1]);  return results[1].meta.changes;
 
 编排器：`tests/run_s2_6j.mjs`（PORT 8795，隔离 state `.tmp/s2-6j-state`）。
 
+> **ONE-GATE REPAIR 轮次说明**：本轮仅改测试文件（runtime source 0 变化），按用户 §9 收窄回归范围——**未重跑完整 Frozen 340**（仍为有效先前证据，见 §15 / §14.4）。本轮实跑：S2-6j MAIN **87/87**（含新增 L 组真实 Bearer live revoke）+ 原子性 **13/13 + 13/13** + 窄回归 S2-6c-1 / S2-6c-2 / S2-6f（见 §14.5）。
+
 ```
-[P6] S2-6j MAIN        PASS=80 FAIL=0 TOTAL=80 EXIT=0
-[P7] S2-6j ATOMICITY-1 PASS=13 FAIL=0 TOTAL=13 EXIT=0
-[P8] S2-6j ATOMICITY-2 PASS=13 FAIL=0 TOTAL=13 EXIT=0
+[REPAIR] S2-6j MAIN        PASS=87 FAIL=0 TOTAL=87 EXIT=0   (A–K 组 78 + L 组 9 项 live revoke)
+[REPAIR] S2-6j ATOMICITY-1 PASS=13 FAIL=0 TOTAL=13 EXIT=0
+[REPAIR] S2-6j ATOMICITY-2 PASS=13 FAIL=0 TOTAL=13 EXIT=0
 ```
+
+### 14.4 PREVIOUS FULL REGRESSION EVIDENCE（NOT RE-RUN THIS REPAIR）
+
+以下为前次完整实跑证据，本轮**未重跑**（用户 §9 明文禁止第三次无意义跑 340）；runtime 0 变化，继续有效：
+
+```
+Frozen HTTP 340/340  ·  S2-6i 80/80 + 15/15 + 10/10  ·  S2-6j atomic 13/13 + 13/13
+catalog 6/83/238  ·  0004 SHA 一致  ·  integrity/teardown 全 PASS
+```
+
+### 14.5 THIS REPAIR AUTH REGRESSION（本轮实际跑过）
+
+| 套件 | 测试文件 | PASS | FAIL | TOTAL | EXIT | 期望 | 判定 |
+|---|---|---|---|---|---|---|---|
+| S2-6j-MAIN | `attendance_anomaly_integration.mjs` | 87 | 0 | 87 | 0 | 87 | ✅ |
+| S2-6c-1 | `session_integration.mjs` | 19 | 0 | 19 | 0 | 19 | ✅ |
+| S2-6c-2 | `auth_integration.mjs` | 34 | 0 | 34 | 0 | 34 | ✅ |
+| S2-6f | `authorization_integration.mjs` | 42 | 0 | 42 | 0 | 42 | ✅ |
+
+→ 真实 session/auth 链路（含本项目 Bearer 认证链）无回归。
 
 ### 14.1 REVIEW / DISMISS 明细（E/F 组）
 ```
@@ -403,7 +489,7 @@ MODE 2: 500 INTERNAL_ERROR / status 仍 1（未写入越界 9）/ 【真实回�
 | `src/app.ts` | 修改 | 挂载 `v2.route('/attendance-anomalies', attendanceAnomalies)`（S2-6j V1 增量） |
 | `src/utils/errors.ts` | 修改 | 新增冲突原因 `ATTENDANCE_ANOMALY_ALREADY_HANDLED`（§1 重复处置） |
 | `tests/fixture.mjs` | 修改 | 新增 `anomaly` dispatch + `attendanceAnomalySetup()`（9 用户/2 团队/2 活动/3 会话/8 异常；断言 perm=83/rp=238） |
-| `tests/attendance_anomaly_integration.mjs` | 新增 | A–K 组 **80 断言** |
+| `tests/attendance_anomaly_integration.mjs` | 新增 | A–L 组 **87 断言**（含 L 组真实 Bearer live revoke） |
 | `tests/attendance_anomaly_atomicity.mjs` | 新增 | MODE 1（13）+ MODE 2（13）故障注入 |
 | `tests/run_s2_6j.mjs` | 新增 | FINAL REGRESSION 编排：P0 原生迁移建隔离 state → P1 普通 worker → P2 8 套件 340 → P3 S2-6i 主组 → P6 S2-6j 主组 → P4/7 S2-6i+S2-6j atomic MODE1 → P5/8 MODE2 → P9 integrity/teardown |
 | `migrations/0004_attendance_multi_participation.sql` | 冻结 | SHA 不变，未修改；migrations=4，无 0005 |
@@ -430,11 +516,12 @@ S2-6j V1 经 IMPLEMENTATION 阶段，全部通过冻结基线与 §0–§33 全�
 
 **任何 FAIL → BLOCK；全部 PASS → GO，STOP（不自动进入 S2-6k）。**
 
-### S2-6j 主集成组（80 项，全部 PASS）
+### S2-6j 主集成组（87 项，全部 PASS）
 - A 组 5/5：A1 migrations=4, A2 无 0005, A3 roles=6, A4 permissions=83, A5 role_permissions=238
 - B 组 18/18：list 200 / teamA 6 全在 / 跨团队缺席 / 最小字段 / status 过滤(1→4,2→AA3,3→AA4) / type 过滤 / 游标分页 / limit 边界(0/-5→400, 1000 clamp) / 非法 status/type/cursor→400
 - C 组 6/6：detail owner/team_admin 200、跨团队 404、不存在 404、session 视图、无敏感字段
-- D 组 8/8：unauth→401、volunteer→403、auditor→403、operator→403、PSA→403 TEAM_SCOPE_REQUIRED、owner 200、**D7 holders=PSA/team_admin/team_owner**、**D8 non-holders 空**
+- D 组 8/8：unauth→401、volunteer→403、auditor→403、operator→403、PSA→403 TEAM_SCOPE_REQUIRED、owner 200、**D7 holders=PSA/team_admin/team_owner（CATALOG WIRING ONLY）**、**D8 non-holders 空（CATALOG WIRING ONLY）**
+- **D7-L 组（REAL BEARER LIVE REVOKE，满足 Final Gate "permission revoke takes effect live"）9/9 PASS**：L1 revoke 前真实 Bearer list=200、L2 revoke 前真实 Bearer resolve=200(status=2)、L3 仅 DELETE user_roles、L4 同一 token revoke 后 list=**403**、L4b 同一 token revoke 后 resolve=**403**、L5 session 仍 active(status=1)、L6 restore user_roles、L7 同一 token 恢复后 list=**200**
 - E 组 12/12：confirm 全路径 + 兄弟 session 未动 + service_records 未动 + 恰 1 事件
 - F 组 9/9：dismiss 全路径 + session 未动 + 再增 1 事件
 - G 组 6/6：409 矩阵（已 confirm/dismiss/再 confirm/dismissed→confirm）+ 无额外事件 + AA3 仍 2
@@ -475,7 +562,7 @@ catalog 保留：roles=6  permissions=83  role_permissions=238
 ### 汇总
 | Gate | Result |
 |---|---|
-| S2-6j 主组 | **80/80 PASS** |
+| S2-6j 主组 | **87/87 PASS** |
 | S2-6j 原子组 MODE 1 | **13/13 PASS** |
 | S2-6j 原子组 MODE 2 | **13/13 PASS** |
 | S2-6i 复验 MAIN | **80/80 PASS** |
@@ -514,70 +601,100 @@ catalog 保留：roles=6  permissions=83  role_permissions=238
 
 ---
 
-## 26. 版本控制收口（§30，待用户显式确认后执行）
+## 26. 版本控制收口（ONE-GATE REPAIR 轮次）
 
-> 以下为拟执行的 git 操作，**仅在用户确认后执行**；当前状态为工作区已就绪、未提交。
+> 状态：S2-6j V1 实现已于前轮提交 `aa0afea`（`feat(jhzy-v2): add attendance anomaly handling`，**未 push**，baseline `30fc0fa` / tag `jhzy-v2-s2-6i-go` 未动）。
 
-- 作用域：`git add workers`（仅 `workers/` 目录；**不** `git add .` / `git add -A`）。
-- 提交消息：`feat(jhzy-v2): add attendance anomaly handling`（S2-6j V1）。
+本轮 ONE-GATE REPAIR 的 git 纪律（用户 §11）：
+
+- **不 amend** `aa0afea`。
+- 最终 Gate PASS 后，允许新增**一个独立本地 commit**（仅测试修复）：`test(jhzy-v2): verify live anomaly permission revocation`。
+- 作用域：`git add workers`（仅 `workers/` 下本轮确实修改的文件；**不** `git add .` / `git add -A`）。
 - 不 push、不新增 tag、不 deploy。
-- Baseline commit `30fc0fa` / tag `jhzy-v2-s2-6i-go` **保持不动**（未 reset / rebase / amend / 移动）。
+- Baseline `30fc0fa` / tag `jhzy-v2-s2-6i-go` **保持不动**（未 reset / rebase / amend / 移动）。
 
-> 工作区现状（已 `git status` 复核）：
-> - 修改：`src/app.ts`、`src/utils/errors.ts`、`tests/fixture.mjs`
-> - 新增：`src/repository/attendance-anomalies.ts`、`src/routes/attendance-anomalies.ts`、`src/services/attendance-anomaly-service.ts`、`tests/attendance_anomaly_integration.mjs`、`tests/attendance_anomaly_atomicity.mjs`、`tests/run_s2_6j.mjs`、`docs/architecture/S2-6j-REPORT.md`
-> - 注意：`miniprogram/`（小程序端）的若干 `*.ts`/`*.wxml` 改动与 `../.gitignore` 改动属其它并行任务，**不在本切片 `git add workers` 作用域**。
+> 本轮改动文件（git 作用域）：
+> - 修改：`tests/attendance_anomaly_integration.mjs`（新增 L 组真实 Bearer live revoke）、`docs/architecture/S2-6j-REPORT.md`（§13.1 记录 D7 无效测试设计 + 真实 live revoke 证据）
+> - 注：`workers/.tmp/run_repair.mjs` 为临时窄回归编排器（位于 `.tmp/`，不纳入提交）。
+> - 注意：`miniprogram/`（小程序端）的若干改动与 `../.gitignore` 改动属其它并行任务，**不在本切片 `git add workers` 作用域**。
 
 ---
 
-## 27. FINAL OUTPUT（§33 格式）
+## 27. FINAL OUTPUT（§13 ONE-GATE REPAIR 格式）
 
 ```
 FILES MODIFIED:
-  src/app.ts
-  src/utils/errors.ts
-  tests/fixture.mjs
-FILES ADDED:
-  src/repository/attendance-anomalies.ts
-  src/routes/attendance-anomalies.ts
-  src/services/attendance-anomaly-service.ts
-  tests/attendance_anomaly_integration.mjs
-  tests/attendance_anomaly_atomicity.mjs
-  tests/run_s2_6j.mjs
-  docs/architecture/S2-6j-REPORT.md
-API:
-  GET  /api/v2/attendance-anomalies
-  GET  /api/v2/attendance-anomalies/:anomalyId
-  POST /api/v2/attendance-anomalies/:anomalyId/resolve
-STATUS SEMANTICS:
-  1=OPEN 2=CONFIRMED 3=DISMISSED ; legal transitions 1->2, 1->3 only ; repeat -> 409
-PERMISSION:
-  attendance.anomaly.handle (TEAM/HIGH) held by platform_super_admin/team_admin/team_owner
-  PSA -> 403 TEAM_SCOPE_REQUIRED (no platform bypass)
-SCOPE:
-  Handling ONLY (excludes auto-detect / manual-create / risk-engine / location / device / time-window / shift / settlement / points / certs / review-automation / implicit-force)
-ATOMICITY:
-  db.batch([INSERT attendance_events, UPDATE attendance_anomalies]) shared PRE-state P=(id AND team_id AND status=1)
-  fault injection MODE1(INSERT fails) + MODE2(UPDATE fails) both prove real rollback
-TIMESTAMP:
-  Math.floor(Date.now()/1000) ; millisecond guard < 1e11
-TESTS:
-  attendance_anomaly_integration.mjs = 80/80 PASS (A-K groups)
-  attendance_anomaly_atomicity.mjs  = 13/13 + 13/13 PASS (MODE1 + MODE2)
-  frozen regression                 = 340/340 PASS
-  S2-6i re-run                      = 80/80 + 15/15 + 10/10 PASS (no regression)
-STATIC:
-  tsc 0 errors ; catalog 83 ; seed 6/83/238 ; migrations 4 ; no 0005 ; 0004 SHA unchanged ; FK 0 ; integrity ok
-TEARDOWN:
-  business tables = 0 ; catalog retained 6/83/238 ; port 8787 (Signivra) untouched
-GIT:
-  staged scope = workers only ; commit = feat(jhzy-v2): add attendance anomaly handling ; no push ; baseline 30fc0fa / tag jhzy-v2-s2-6i-go untouched
-OPEN ITEMS:
-  AUTO DETECTION, LOCATION MODEL, DEVICE IDENTITY, MULTI_ACCOUNT, TIME WINDOW, SHIFT MODEL,
-  CROSS_DAY TIMEZONE, OVERLONG THRESHOLD, RISK ENGINE, ANOMALY TEAM INDEX OPT,
-  PLATFORM TEAM-SCOPE GAP, ATTENDANCE CORRECTION/SETTLEMENT
+  tests/attendance_anomaly_integration.mjs   (新增 L 组：真实 Bearer live revoke；A–K 组 78 + L 组 9 = 87 断言)
+  docs/architecture/S2-6j-REPORT.md          (§13.1 记录 D7 无效测试设计 + 真实 live revoke 证据)
 
-FINAL: S2-6j = GO
+LIVE REVOKE AUTH PATH (禁止 x-test-role，走项目真实认证链):
+  Bearer opaque token
+    → SHA256(session token)
+    → sessions (token_hash 命中, status=1, 未过期)
+    → SessionService.resolve() 实时读 live user_roles (WHERE user_id=?)
+    → roles (含 scope_team_id)
+    → D1PermissionProvider 经 roles.code JOIN role_permissions → permissions
+
+BEFORE REVOKE HTTP:
+  200 (GET list + POST resolve，同一真实 Bearer)
+
+USER_ROLES MUTATION:
+  DELETE FROM user_roles WHERE user_id=adminA AND role_id=team_admin AND scope_team_id=teamA
+  （仅删此一行；不动 sessions / role_permissions / permissions；目录 83/238 不变）
+
+SAME SESSION TOKEN USED:
+  YES（revoke 前后、恢复后均复用同一 Bearer token，不重新登录）
+
+AFTER REVOKE HTTP:
+  403（GET list 与 POST resolve 均为 403；session 仍有效但 live role 已撤）
+
+SESSION STILL ACTIVE:
+  YES（sessions 行 status=1、未过期；被拒仅因 user_roles 撤销，非 session 失效）
+
+ROLE RESTORE RESULT:
+  re-INSERT 同一 user_roles 行 → 恢复成功（YES）
+
+AFTER RESTORE HTTP:
+  200（同一 Bearer token 恢复后 list 立即 200，证明架构 fully live-role）
+
+STATIC CATALOG TEST (D7/D8, CATALOG WIRING ONLY，不替代 live revoke):
+  PASS — holders=platform_super_admin,team_admin,team_owner ; non-holders 为空
+  （明确：仅证明目录接线，不能证明 live revoke）
+
+S2-6j MAIN:
+  PASS / TOTAL = 87 (A–L 组；其中 L 组 9 项 = 真实 Bearer live revoke 全 PASS)
+
+THIS REPAIR AUTH REGRESSION (本轮实际跑过，用户 §9 收窄范围):
+  S2-6j MAIN        87/87  EXIT=0
+  S2-6c-1          19/19  EXIT=0
+  S2-6c-2          34/34  EXIT=0
+  S2-6f            42/42  EXIT=0
+  （其余冻结套件未重跑；runtime 0 变化）
+
+PREVIOUS FULL REGRESSION EVIDENCE (前次完整实跑，NOT RE-RUN THIS REPAIR):
+  Frozen HTTP 340/340
+  S2-6i 80/80 + 15/15 + 10/10
+  S2-6j atomic 13/13 + 13/13
+  均标记为：NOT RE-RUN THIS REPAIR（继续有效）
+
+TSC:
+  0 errors (tsc --noEmit)
+
+CATALOG:
+  6 / 83 / 238 (roles / permissions / role_permissions 不变)
+
+RUNTIME SOURCE CHANGED:
+  NO（src/ 业务实现 0 改动；仅 tests/ 测试 + 本报告）
+
+REPORT:
+  docs/architecture/S2-6j-REPORT.md 已更新（§13.1：D7 无效测试设计 + 真实 Bearer live revoke = PASS）
+
+COMMIT:
+  （Gate PASS 后）新增独立本地 commit: test(jhzy-v2): verify live anomaly permission revocation
+  不 amend aa0afea；不 push；baseline 30fc0fa / tag jhzy-v2-s2-6i-go 不动
+
+FINAL:
+  S2-6j = GO   （ONE-GATE REPAIR 完成：真实 Bearer live revoke 通过，runtime 无其它问题）
 ```
 
 → **STOP。不自动进入 S2-6k。等待用户显式授权。**

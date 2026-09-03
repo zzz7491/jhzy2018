@@ -13,6 +13,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+
+const sha256Hex = (s) => createHash('sha256').update(s).digest('hex');
+const newToken = () => 's_' + randomBytes(32).toString('base64url');
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:8795';
 const D1_DIR = process.env.JHZY_D1_DIR
@@ -327,6 +331,106 @@ process.stderr.write('K. leakage\n');
   const det = await req('GET', `/api/v2/attendance-anomalies/${A.AA1}`, undefined, auth('team_admin', U.adminA, T.teamA));
   const detStr = JSON.stringify(det.body);
   check('K3 detail response no sensitive keys', !/device_fp_hash|ip_hash|factor_scores|risk_score|latitude|longitude|accuracy|network_type|"raw"/.test(detStr), detStr.slice(0, 200));
+}
+
+// ===================== L. REAL-SESSION LIVE REVOKE =====================
+// 修复上一轮 D7 的【无效测试设计】：上一轮用 x-test-role 的静态 catalog 断言替代了
+// 「真实 Bearer session 下 user_roles 被撤销后下一请求立即失去权限」的实测。
+// x-test-role mock 注入通道下权限解析走 roles.code → role_permissions，从不读 user_roles，
+// 故删除 user_roles 对其无效果（已被证明是测试缺陷，非实现缺陷）。
+//
+// 本轮 L 组走【项目真实认证链】（禁止 x-test-role）：
+//   Bearer opaque token → SHA256 → sessions → SessionService.resolve() 实时读 live user_roles
+//   → roles → D1PermissionProvider JOIN role_permissions → permissions
+// 仅删除 user_roles 一行（不动 sessions / role_permissions / permissions），
+// 证明：session 本身仍有效（status=1），但 live role 已撤销 → 下一请求立即 403。
+process.stderr.write('L. real-session live permission revocation (Bearer → sessions → live user_roles → permissions)\n');
+{
+  const SESS_PUB = '01TESTANOMLRVK000001';
+  const TOKEN_L = newToken();
+  let sessionInserted = false;
+  let roleRestored = false;
+  try {
+    // L0: 创建真实 Bearer Session（与 activity_signup_integration 同链路，不重新发明登录）。
+    //      注意：anomaly fixture 的 manifest.users 含 adminA（= team_admin@teamA），不含 teamAdminA，故用 U.adminA。
+    withDb((db) => {
+      db.exec('PRAGMA foreign_keys = ON;');
+      db.prepare(`DELETE FROM sessions WHERE public_id = ?`).run(SESS_PUB);
+      db.prepare(
+        `INSERT INTO sessions (public_id, user_id, token_hash, user_agent, expires_at, status)
+         VALUES (?, ?, ?, 's2-6j-live-revoke', ?, 1)`,
+      ).run(SESS_PUB, U.adminA, sha256Hex(TOKEN_L), Math.floor(Date.now() / 1000) + 30 * 24 * 3600);
+    });
+    sessionInserted = true;
+
+    const bearer = (teamId) => ({ authorization: `Bearer ${TOKEN_L}`, 'x-team-id': String(teamId) });
+
+    // L1: revoke 前 —— 真实 Bearer session（adminA / team_admin@teamA）列表现状 = 200
+    const before = await req('GET', '/api/v2/attendance-anomalies', undefined, bearer(T.teamA));
+    check('L1 before revoke (real Bearer) list = 200', before.res.status === 200 && before.body?.success === true, `status=${before.res.status}`);
+
+    // L2: revoke 前 —— 同一真实 session 亦可处置（满足 §5：覆盖 resolve 路径）。
+    //      注意：AA1..AA6 均已被 E/F/J/K 组消费（已 confirm/dismiss），此处由测试直接 seed 一枚全新的 OPEN anomaly
+    //      （与 fixture 一致的直接写入方式，非运行时创建 API），用它验证真实 Bearer session 能走通 resolve。
+    const liveAnomId = withDb((db) =>
+      Number(
+        db
+          .prepare(
+            `INSERT INTO attendance_anomalies (session_id, team_id, anomaly_type, detail, handled_by, handled_at, resolution, status, created_at)
+             VALUES (?, ?, 'out_of_range', '{"note":"live-revoke-resolve-gate"}', NULL, NULL, NULL, 1, ?)`,
+          )
+          .run(S.A_S1, T.teamA, Math.floor(Date.now() / 1000)).lastInsertRowid,
+      ),
+    );
+    const resolveBefore = await req('POST', `/api/v2/attendance-anomalies/${liveAnomId}/resolve`, { decision: 'confirm', resolution: 'live-revoke-test' }, bearer(T.teamA));
+    check('L2 before revoke (real Bearer) resolve = 200', resolveBefore.res.status === 200, `status=${resolveBefore.res.status}`);
+    check('L2b resolve set status=2 CONFIRMED', resolveBefore.body?.data?.anomaly?.status === 2, `status=${resolveBefore.body?.data?.anomaly?.status}`);
+
+    // L3: 仅删除 user_roles（不动 sessions / role_permissions / permissions；目录 83/238 不变）
+    withDb((db) => {
+      db.prepare('DELETE FROM user_roles WHERE user_id=? AND role_id=(SELECT id FROM roles WHERE code=?) AND scope_team_id=?')
+        .run(U.adminA, 'team_admin', T.teamA);
+    });
+
+    // L4: 同一 Bearer token（不重新登录）立即再请求 —— 必须 403（session 仍有效但 live role 已撤）
+    const after = await req('GET', '/api/v2/attendance-anomalies', undefined, bearer(T.teamA));
+    check('L4 after user_roles revoke (SAME bearer) list = 403', after.res.status === 403, `status=${after.res.status}`);
+
+    // L4b: mutation 同样被拒（证明不只是 read 被撤，写权限一并实时失效）
+    const resolveAfter = await req('POST', `/api/v2/attendance-anomalies/${A.AA6}/resolve`, { decision: 'dismiss', resolution: 'x' }, bearer(T.teamA));
+    check('L4b after revoke (SAME bearer) resolve = 403', resolveAfter.res.status === 403, `status=${resolveAfter.res.status}`);
+
+    // L5: session 本身仍有效（status=1 且未过期）—— 证明被拒是因 live role 撤销，而非 session 失效
+    const sessActive = withDb((db) => db.prepare('SELECT status, expires_at FROM sessions WHERE public_id = ?').get(SESS_PUB));
+    check('L5 session still active (status=1) after role revoke', sessActive?.status === 1, JSON.stringify(sessActive));
+
+    // L6: 恢复 user_roles（cleanup，保证后续 fixture teardown / 其它套件不受影响）
+    withDb((db) => {
+      const exists = db
+        .prepare('SELECT 1 AS x FROM user_roles WHERE user_id=? AND role_id=(SELECT id FROM roles WHERE code=?) AND scope_team_id=?')
+        .get(U.adminA, 'team_admin', T.teamA);
+      if (!exists) db.prepare('INSERT INTO user_roles (user_id, role_id, scope_team_id) VALUES (?, (SELECT id FROM roles WHERE code=?), ?)').run(U.adminA, 'team_admin', T.teamA);
+    });
+    roleRestored = true;
+
+    // L7: 同一 Bearer token 恢复后 —— 权限立即恢复 200（证明架构为 fully live-role）
+    const restored = await req('GET', '/api/v2/attendance-anomalies', undefined, bearer(T.teamA));
+    check('L7 after role restore (SAME bearer) list = 200', restored.res.status === 200, `status=${restored.res.status}`);
+  } finally {
+    // L8: 清理本测试自建 session（即便遗漏，harness teardown 也会级联清除）
+    if (sessionInserted) {
+      withDb((db) => { try { db.prepare('DELETE FROM sessions WHERE public_id = ?').run(SESS_PUB); } catch {} });
+    }
+    // 兜底：异常路径也确保 user_roles 复原（目录不可变 83/238）
+    if (!roleRestored) {
+      withDb((db) => {
+        const exists = db
+          .prepare('SELECT 1 AS x FROM user_roles WHERE user_id=? AND role_id=(SELECT id FROM roles WHERE code=?) AND scope_team_id=?')
+          .get(U.adminA, 'team_admin', T.teamA);
+        if (!exists) db.prepare('INSERT INTO user_roles (user_id, role_id, scope_team_id) VALUES (?, (SELECT id FROM roles WHERE code=?), ?)').run(U.adminA, 'team_admin', T.teamA);
+      });
+    }
+  }
 }
 
 process.stderr.write(`\nTOTAL: ${pass} passed, ${fail} fail\n`);
