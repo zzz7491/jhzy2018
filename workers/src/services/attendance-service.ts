@@ -25,6 +25,7 @@ import { ActivitySignupRepository, SIGNUP_STATUS } from '../repository/activity-
 import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
 import { AttendanceSessionOwnershipPolicy } from '../policies/ownership';
 import { toBusinessDate } from '../utils/time';
+import type { AttendanceLocation } from '../utils/location';
 import {
   authRequired,
   conflict,
@@ -98,7 +99,7 @@ export class ActivityAttendanceService {
  *    uq_active_attendance（per-user 单一活跃会话）冲突（race）→ 409。
  * 6) 写最小 checkin 事件证据行（append-only）
  */
-  async checkInOwn(activityPublicId: string): Promise<AttendanceView> {
+  async checkInOwn(activityPublicId: string, location: AttendanceLocation | null = null): Promise<AttendanceView> {
     const { userId, teamId } = this.requireActor();
     const { activities, signups, attendance } = this.repos();
 
@@ -131,8 +132,22 @@ export class ActivityAttendanceService {
     );
 
     // 6) 写最小证据行（append-only）。
+    //    S2-6k2：仅当提供了 check-in location（GCJ-02）时，将 latitude/longitude/accuracy 落库；
+    //    location=null（GPS 不可用 / 旧客户端）时三列均 NULL。distance 恒为 NULL（不在本切片计算）。
     const nonce = `${sessionId}:checkin:${now}`;
-    await attendance.insertEvent(sessionId, activity.id, userId, teamId, 'checkin', now, userId, nonce);
+    await attendance.insertEvent(
+      sessionId,
+      activity.id,
+      userId,
+      teamId,
+      'checkin',
+      now,
+      userId,
+      nonce,
+      location ? location.latitude : null,
+      location ? location.longitude : null,
+      location ? location.accuracy ?? null : null,
+    );
 
     return {
       session_id: sessionId,

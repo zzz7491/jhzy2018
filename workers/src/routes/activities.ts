@@ -26,8 +26,9 @@ import { ActivitySignupService } from '../services/activity-signup-service';
 import { ActivityAttendanceService } from '../services/attendance-service';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
-import { authRequired } from '../utils/errors';
+import { authRequired, invalidParam, AppError, ErrorCode } from '../utils/errors';
 import { requireUlidParam, parsePagination } from '../utils/validation';
+import { parseAttendanceLocation, type AttendanceLocation } from '../utils/location';
 
 const activities = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -109,8 +110,26 @@ activities.post(
     if (!auth.authenticated) throw authRequired();
 
     const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+
+    // S2-6k2（Location Capture Foundation）：解析可选的 location 请求体字段。
+    // - missing / null / 空 body → GPS 不可用 → location = null（不阻断签到，向后兼容旧客户端）。
+    // - 提供 object 但字段非法/不完整 → parseAttendanceLocation 抛 INVALID_PARAM（400）。
+    // 坐标系契约 = GCJ-02；服务端仅做 numeric validity 校验，不做坐标系转换。
+    let location: AttendanceLocation | null = null;
+    try {
+      const body = await c.req.json().catch(() => null);
+      const rawLoc =
+        body && typeof body === 'object' && !Array.isArray(body)
+          ? (body as Record<string, unknown>).location
+          : undefined;
+      location = rawLoc !== undefined ? parseAttendanceLocation(rawLoc) : null;
+    } catch (e) {
+      if (e instanceof AppError && e.code === ErrorCode.INVALID_PARAM) throw e;
+      throw invalidParam('location', 'invalid request body');
+    }
+
     const service = new ActivityAttendanceService({ db: c.env.DB, auth, tenant: c.get('tenant') });
-    const view = await service.checkInOwn(activityPublicId);
+    const view = await service.checkInOwn(activityPublicId, location);
 
     return ok(c, { attendance: view }, 201);
   },

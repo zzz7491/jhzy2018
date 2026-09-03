@@ -158,7 +158,14 @@ export class AttendanceSessionRepository extends BaseRepository {
    * 写最小考勤事件证据行（append-only）。
    * - event_type = 'checkin' | 'checkout'
    * - nonce UNIQUE 幂等（格式：${sessionId}:${eventType}:${now}）
-   * - 风险/设备/位置字段本切片留空（OPEN BUSINESS RULE，后续 anomaly/risk 切片填充）
+   * - S2-6k2：latitude/longitude/accuracy 可选落库（GCJ-02 契约；仅 check-in 路径传入，
+   *   check-out 保持 NULL）。distance 列【始终】不写入（= NULL）：本切片不计算距离，
+   *   也不读取 activity 地理配置；distance 计算属 Detector Core 后续切片。
+   * - 风险/设备/位置之外的字段仍留空（OPEN BUSINESS RULE）。
+   *
+   * @param lat  GCJ-02 纬度（number | null）
+   * @param lng  GCJ-02 经度（number | null）
+   * @param accuracy 客户端精度半径（米，number | null；未提供为 null）
    */
   async insertEvent(
     sessionId: number,
@@ -169,14 +176,18 @@ export class AttendanceSessionRepository extends BaseRepository {
     now: number,
     operatorId: number,
     nonce: string,
+    lat: number | null = null,
+    lng: number | null = null,
+    accuracy: number | null = null,
   ): Promise<number> {
     this.ensureTableRead('attendance_events');
 
     const res = await this.run(
       `INSERT INTO attendance_events
-         (session_id, activity_id, user_id, team_id, event_type, nonce, operator_id, occurred_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, activityId, userId, teamId, eventType, nonce, operatorId, now, now],
+         (session_id, activity_id, user_id, team_id, event_type, nonce, operator_id, occurred_at, created_at,
+          latitude, longitude, accuracy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sessionId, activityId, userId, teamId, eventType, nonce, operatorId, now, now, lat, lng, accuracy],
     );
     return Number(res.meta?.last_row_id ?? 0);
   }
