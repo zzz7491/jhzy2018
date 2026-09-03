@@ -268,15 +268,16 @@ function teardown() {
   // S2-6h：考勤会话与证据行同样必须回 0（本切片写入的两张表）。
   const sess = cnt('SELECT COUNT(*) AS n FROM attendance_sessions');
   const ev = cnt('SELECT COUNT(*) AS n FROM attendance_events');
+  const anom = cnt('SELECT COUNT(*) AS n FROM attendance_anomalies');
   const bad = Object.entries({ users: u, user_identities: ui,
     sessions: s, user_roles: ur, team_members: tm, teams: t, security_events: se,
-    activities: ac, activity_signups: as, attendance_sessions: sess, attendance_events: ev })
+    activities: ac, activity_signups: as, attendance_sessions: sess, attendance_events: ev, attendance_anomalies: anom })
     .filter(([, v]) => v !== 0);
   if (bad.length > 0) {
     throw new Error(`teardown check failed: ${bad.map(([k, v]) => `${k}=${v}`).join(' ')}`);
   }
   console.log(
-    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events = 0, permission catalog seeded (83/238)`,
+    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events/attendance_anomalies = 0, permission catalog seeded (83/238)`,
   );
   db.close();
 }
@@ -713,9 +714,10 @@ else if (cmd === 'authz') authzSetup();
 else if (cmd === 'signup') signupSetup();
 else if (cmd === 'attendance') attendanceSetup();
 else if (cmd === 'attendance-management') attendanceManagementSetup();
+else if (cmd === 'anomaly') attendanceAnomalySetup();
 else if (cmd === 'teardown') teardown();
 else {
-  console.error('usage: node tests/fixture.mjs setup|session|auth|firstlogin|sec|authz|signup|attendance|attendance-management|teardown');
+  console.error('usage: node tests/fixture.mjs setup|session|auth|firstlogin|sec|authz|signup|attendance|attendance-management|anomaly|teardown');
   process.exit(2);
 }
 
@@ -883,4 +885,141 @@ function attendanceManagementSetup() {
 function writeManifest(obj) {
   const p = process.env.JHZY_MANIFEST ?? join(process.cwd(), '.tmp', 's2-6i-sessions.json');
   writeFileSync(p, JSON.stringify(obj, null, 2));
+}
+
+/**
+ * anomaly 模式（S2-6j V1）：Attendance Anomaly Handling 垂直切片最小 fixture。
+ *
+ * 只包含本切片必需的数据（用户 §十六 / §3）：
+ * - Team A：ownerA(team_owner) / adminA(team_admin) / auditorA(team_auditor) / volA(volunteer)
+ * - Team B：ownerB(team_owner) / volB(volunteer)
+ * - Platform：plat(platform_operator) / platSuper(platform_super_admin, scope null)
+ * - activities：actMgmtA(teamA) / actMgmtB(teamB)
+ * - signups：volA→actMgmtA / ownerA→actMgmtA / volB→actMgmtB
+ * - attendance_sessions：A_S1/A_S2(teamA) / B_S1(teamB)（status=2 避免占用单一活跃槽）
+ * - attendance_anomalies：AA1..AA6(teamA，含 status 1/2/3 与多 type，created_at 递增供分页) /
+ *   AB1/AB2(teamB，跨团队对照)
+ *
+ * 约束：不写 permissions / role_permissions / migrations。anomaly id 写入 manifest 供测试读取。
+ * 写入 user_roles，与 S2-5 J 组（要求 user_roles=0）互斥，【不得】与 S2-5 回归同时运行。
+ */
+function attendanceAnomalySetup() {
+  const db = new DatabaseSync(findDbPath());
+  db.exec('PRAGMA foreign_keys = ON;');
+  clean(db);
+
+  const insUser = db.prepare(`INSERT INTO users (public_id, nickname, status) VALUES (?, ?, 1)`);
+  insUser.run(IDS.volA, 'TEST-VolA');
+  insUser.run(IDS.volB, 'TEST-VolB');
+  insUser.run(IDS.ownerA, 'TEST-OwnerA');
+  insUser.run(IDS.auditorA, 'TEST-AuditorA');
+  insUser.run(IDS.teamAdminA, 'TEST-TeamAdminA');
+  insUser.run(IDS.adminA, 'TEST-AdminA');
+  insUser.run(IDS.ownerB, 'TEST-OwnerB');
+  insUser.run(IDS.plat, 'TEST-Platform');
+  insUser.run(IDS.platSuper, 'TEST-SuperAdmin');
+
+  const uid = (pid) => db.prepare('SELECT id FROM users WHERE public_id = ?').get(pid)?.id;
+  const volAId = uid(IDS.volA);
+  const volBId = uid(IDS.volB);
+  const ownerAId = uid(IDS.ownerA);
+  const auditorAId = uid(IDS.auditorA);
+  const teamAdminAId = uid(IDS.teamAdminA);
+  const adminAId = uid(IDS.adminA);
+  const ownerBId = uid(IDS.ownerB);
+  const platId = uid(IDS.plat);
+  const platSuperId = uid(IDS.platSuper);
+  const rid = (code) => db.prepare('SELECT id FROM roles WHERE code = ?').get(code)?.id;
+
+  const insTeam = db.prepare(`INSERT INTO teams (public_id, name, owner_user_id, status) VALUES (?, ?, ?, 1)`);
+  insTeam.run(IDS.teamA, 'TEST Team A', ownerAId);
+  insTeam.run(IDS.teamB, 'TEST Team B', ownerBId);
+  const teamAId = db.prepare('SELECT id FROM teams WHERE public_id = ?').get(IDS.teamA)?.id;
+  const teamBId = db.prepare('SELECT id FROM teams WHERE public_id = ?').get(IDS.teamB)?.id;
+
+  const insUR = db.prepare(`INSERT INTO user_roles (user_id, role_id, scope_team_id) VALUES (?, ?, ?)`);
+  insUR.run(volAId, rid('volunteer'), teamAId);
+  insUR.run(volBId, rid('volunteer'), teamBId);
+  insUR.run(ownerAId, rid('team_owner'), teamAId);
+  insUR.run(auditorAId, rid('team_auditor'), teamAId);
+  insUR.run(teamAdminAId, rid('team_admin'), teamAId);
+  insUR.run(adminAId, rid('team_admin'), teamAId); // team_admin@A（纯管理角色，持 handle）
+  insUR.run(ownerBId, rid('team_owner'), teamBId);
+  insUR.run(platId, rid('platform_operator'), null);
+  insUR.run(platSuperId, rid('platform_super_admin'), null);
+
+  const insAct = db.prepare(
+    `INSERT INTO activities (public_id, team_id, title, start_time, end_time, quota, status, allow_cancel, need_audit, created_by)
+     VALUES (?, ?, ?, ?, ?, 30, ?, 1, 0, ?)`,
+  );
+  insAct.run(IDS.actMgmtA, teamAId, 'TEST Mgmt A', T0 + 86400, T0 + 90000, 1, ownerAId);
+  insAct.run(IDS.actMgmtB, teamBId, 'TEST Mgmt B', T0 + 86400, T0 + 90000, 1, ownerBId);
+  const actAId = db.prepare('SELECT id FROM activities WHERE public_id = ?').get(IDS.actMgmtA)?.id;
+  const actBId = db.prepare('SELECT id FROM activities WHERE public_id = ?').get(IDS.actMgmtB)?.id;
+
+  const insSignup = db.prepare(
+    `INSERT INTO activity_signups (activity_id, user_id, review_status, status, created_at) VALUES (?, ?, 1, 1, ?)`,
+  );
+  insSignup.run(actAId, volAId, T0);
+  insSignup.run(actAId, ownerAId, T0);
+  insSignup.run(actBId, volBId, T0);
+  const volASignupId = db.prepare('SELECT id FROM activity_signups WHERE activity_id=? AND user_id=?').get(actAId, volAId)?.id;
+  const ownerASignupId = db.prepare('SELECT id FROM activity_signups WHERE activity_id=? AND user_id=?').get(actAId, ownerAId)?.id;
+  const volBSignupId = db.prepare('SELECT id FROM activity_signups WHERE activity_id=? AND user_id=?').get(actBId, volBId)?.id;
+  if (!Number.isInteger(volASignupId)) throw new Error('volASignupId missing');
+  if (!Number.isInteger(ownerASignupId)) throw new Error('ownerASignupId missing');
+  if (!Number.isInteger(volBSignupId)) throw new Error('volBSignupId missing');
+
+  const insSess = db.prepare(
+    `INSERT INTO attendance_sessions (signup_id, activity_id, user_id, team_id, status, review_status, checkin_at, checkout_at, service_date, slot, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)`,
+  );
+  const insertSess = (signupId, userId, teamId, activityId, status, reviewStatus, checkinAt, checkoutAt) =>
+    Number(
+      insSess.run(signupId, activityId, userId, teamId, status, reviewStatus, checkinAt, checkoutAt, T0, T0, T0).lastInsertRowid,
+    );
+  const A_S1 = insertSess(volASignupId, volAId, teamAId, actAId, 2, 0, T0, T0 + 100); // AA1..AA4 宿主
+  const A_S2 = insertSess(ownerASignupId, ownerAId, teamAId, actAId, 2, 0, T0, T0 + 100); // AA5/AA6 宿主
+  const B_S1 = insertSess(volBSignupId, volBId, teamBId, actBId, 2, 0, T0, T0 + 100); // AB1/AB2 宿主
+
+  // attendance_anomalies（team_id 与 session 一致；status 1=OPEN / 2=CONFIRMED / 3=DISMISSED）
+  const insAnom = db.prepare(
+    `INSERT INTO attendance_anomalies (session_id, team_id, anomaly_type, detail, handled_by, handled_at, resolution, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const insertAnom = (label, sessionId, teamId, type, detail, status, handledBy, handledAt, resolution, createdAt) => {
+    try {
+      return Number(
+        insAnom.run(sessionId, teamId, type, detail, handledBy, handledAt, resolution, status, createdAt).lastInsertRowid,
+      );
+    } catch (e) {
+      throw new Error(`insertAnom ${label} failed: ${e.message}`);
+    }
+  };
+  const AA1 = insertAnom('AA1', A_S1, teamAId, 'out_of_range', '{"note":"AA1 out_of_range"}', 1, null, null, null, T0 + 1);
+  const AA2 = insertAnom('AA2', A_S1, teamAId, 'device_switch', '{"note":"AA2 device_switch"}', 1, null, null, null, T0 + 2);
+  const AA3 = insertAnom('AA3', A_S1, teamAId, 'multi_account', '{"note":"AA3"}', 2, ownerAId, T0 + 50, 'confirmed-legacy', T0 + 3);
+  const AA4 = insertAnom('AA4', A_S1, teamAId, 'replay', '{"note":"AA4"}', 3, ownerAId, T0 + 60, 'dismissed-legacy', T0 + 4);
+  const AA5 = insertAnom('AA5', A_S2, teamAId, 'cross_day', '{"note":"AA5 cross_day"}', 1, null, null, null, T0 + 5);
+  const AA6 = insertAnom('AA6', A_S2, teamAId, 'overlong', '{"note":"AA6 overlong"}', 1, null, null, null, T0 + 6);
+  const AB1 = insertAnom('AB1', B_S1, teamBId, 'out_of_range', '{"note":"AB1 cross-team"}', 1, null, null, null, T0 + 1);
+  const AB2 = insertAnom('AB2', B_S1, teamBId, 'reverse_time', '{"note":"AB2 cross-team"}', 1, null, null, null, T0 + 2);
+
+  const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
+  const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
+  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+
+  const manifest = {
+    users: { volA: volAId, volB: volBId, ownerA: ownerAId, adminA: adminAId, auditorA: auditorAId, ownerB: ownerBId, plat: platId, platSuper: platSuperId },
+    teams: { teamA: teamAId, teamB: teamBId },
+    activities: { actMgmtA: actAId, actMgmtB: actBId },
+    sessions: { A_S1, A_S2, B_S1 },
+    anomalies: { AA1, AA2, AA3, AA4, AA5, AA6, AB1, AB2 },
+  };
+  writeManifest(manifest);
+
+  console.log(
+    `[fixture] anomaly setup OK: users=9 teams=2 activities=2 sessions=3 anomalies=8 (permissions=${p}, role_permissions=${rp}); manifest -> ${process.env.JHZY_MANIFEST ?? '.tmp/s2-6i-sessions.json'}`,
+  );
+  db.close();
 }

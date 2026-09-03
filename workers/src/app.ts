@@ -25,6 +25,7 @@ import users from './routes/users';
 import teams from './routes/teams';
 import activities from './routes/activities';
 import attendanceSessions from './routes/attendance-sessions';
+import attendanceAnomalies from './routes/attendance-anomalies';
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
 import { ok } from './utils/response';
@@ -55,6 +56,7 @@ export function createApp() {
   v2.route('/teams', teams);
   v2.route('/activities', activities);
   v2.route('/attendance-sessions', attendanceSessions); // S2-6i：Review + Force Checkout（sessionId 资源键）
+  v2.route('/attendance-anomalies', attendanceAnomalies); // S2-6j V1：Anomaly Handling（anomalyId 资源键，handling ONLY）
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁
   app.route('/api/v2', v2);

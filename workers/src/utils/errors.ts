@@ -46,6 +46,9 @@ export const ConflictReason = {
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
   ATTENDANCE_ALREADY_REVIEWED: 'attendance_already_reviewed',
   ATTENDANCE_NOT_ACTIVE: 'attendance_not_active',
+  // S2-6j（新增，纯增量）：异常处置状态冲突——已 CONFIRMED(2) / 已 DISMISSED(3) 不再接受重复处置。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
+  ATTENDANCE_ANOMALY_ALREADY_HANDLED: 'attendance_anomaly_already_handled',
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];
