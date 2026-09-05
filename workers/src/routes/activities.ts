@@ -27,7 +27,7 @@ import { ActivityAttendanceService } from '../services/attendance-service';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { authRequired, invalidParam, AppError, ErrorCode } from '../utils/errors';
-import { requireUlidParam, parsePagination } from '../utils/validation';
+import { requireUlidParam, parsePagination, isUlid } from '../utils/validation';
 import { parseAttendanceLocation, type AttendanceLocation } from '../utils/location';
 
 const activities = new Hono<{ Bindings: Env; Variables: AppVars }>();
@@ -111,25 +111,31 @@ activities.post(
 
     const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
 
-    // S2-6k2（Location Capture Foundation）：解析可选的 location 请求体字段。
-    // - missing / null / 空 body → GPS 不可用 → location = null（不阻断签到，向后兼容旧客户端）。
-    // - 提供 object 但字段非法/不完整 → parseAttendanceLocation 抛 INVALID_PARAM（400）。
-    // 坐标系契约 = GCJ-02；服务端仅做 numeric validity 校验，不做坐标系转换。
+    // P16：解析请求体。participation_public_id 必填（Crockford ULID 26 字符）；
+    // location 可选（GPS 不可用时为 null）。两者均在 auth + permission 之后校验，
+    // 故未认证 / 无权限请求不会因 malformed body 先得 400（P15 REV1 顺序冻结）。
+    let participationPublicId: string;
     let location: AttendanceLocation | null = null;
     try {
       const body = await c.req.json().catch(() => null);
-      const rawLoc =
-        body && typeof body === 'object' && !Array.isArray(body)
-          ? (body as Record<string, unknown>).location
-          : undefined;
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw invalidParam('participation_public_id', 'required');
+      }
+      const pp = (body as Record<string, unknown>).participation_public_id;
+      if (typeof pp !== 'string' || !isUlid(pp)) {
+        throw invalidParam('participation_public_id', 'required 26-char Crockford ULID');
+      }
+      participationPublicId = pp;
+
+      const rawLoc = (body as Record<string, unknown>).location;
       location = rawLoc !== undefined ? parseAttendanceLocation(rawLoc) : null;
     } catch (e) {
       if (e instanceof AppError && e.code === ErrorCode.INVALID_PARAM) throw e;
-      throw invalidParam('location', 'invalid request body');
+      throw invalidParam('request', 'invalid request body');
     }
 
     const service = new ActivityAttendanceService({ db: c.env.DB, auth, tenant: c.get('tenant') });
-    const view = await service.checkInOwn(activityPublicId, location);
+    const view = await service.checkInOwn(activityPublicId, participationPublicId, location);
 
     return ok(c, { attendance: view }, 201);
   },

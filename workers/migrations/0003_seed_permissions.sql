@@ -16,13 +16,13 @@
 --   role_permissions.role_id      <- (SELECT id FROM roles WHERE code=role)
 --   role_permissions.permission_id<- (SELECT id FROM permissions WHERE code=perm)
 --
--- EXPECTED_PERMISSIONS = 83
--- EXPECTED_ROLE_PERMISSION_ROWS = 238
+-- EXPECTED_PERMISSIONS = 87
+-- EXPECTED_ROLE_PERMISSION_ROWS = 247
 -- =============================================================================
 
 PRAGMA defer_foreign_keys = ON;
 
--- permissions：83 条冻结权限（来自 JSON，按 code ASC）
+-- permissions：来自 JSON，按 code ASC
 INSERT INTO permissions (code, name, perm_group, risk_level) VALUES
   ('account.certification.review', '志愿者实名认证审核', 'account', 3),
   ('account.identity.bind', '绑定微信/手机号等身份凭证', 'account', 2),
@@ -76,6 +76,10 @@ INSERT INTO permissions (code, name, perm_group, risk_level) VALUES
   ('notification.notification.send', '发送团队通知', 'notification', 2),
   ('notification.notification.view', '查看通知（本人）', 'notification', 1),
   ('notification.template.manage', '通知模板管理', 'notification', 2),
+  ('participation.assignment.cancel', '取消本人的参与分配', 'participation', 1),
+  ('participation.assignment.create', '本人报名参与分配（报名+场次+可选时段）', 'participation', 1),
+  ('participation.assignment.manage', '团队代分配/管理成员的参与分配', 'participation', 2),
+  ('participation.assignment.update', '修改本人参与分配的岗位（不重建行）', 'participation', 1),
   ('points.growth.manage', '成长规则管理', 'points', 3),
   ('points.ledger.adjust', '手工调整积分', 'points', 3),
   ('points.ledger.view', '查看积分流水（本人/团队）', 'points', 2),
@@ -108,7 +112,7 @@ INSERT INTO permissions (code, name, perm_group, risk_level) VALUES
   ('welfare.report.review', '审核公益上报', 'welfare', 3),
   ('welfare.report.submit', '提交随手公益/公益内容（本人）', 'welfare', 1);
 
--- role_permissions：六角色显式绑定（禁止 *；super_admin 显式关联全部 83 条）
+-- role_permissions：六角色显式绑定（禁止 *；super_admin 显式关联全部权限）
 -- role: platform_operator (26 bindings)
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_operator'), (SELECT id FROM permissions WHERE code = 'activity.category.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_operator'), (SELECT id FROM permissions WHERE code = 'ai.assist.use'));
@@ -137,7 +141,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_operator'), (SELECT id FROM permissions WHERE code = 'system.idpool.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_operator'), (SELECT id FROM permissions WHERE code = 'team.team.create'));
 
--- role: platform_super_admin (83 bindings)
+-- role: platform_super_admin (87 bindings)
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'account.certification.review'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'account.identity.bind'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'account.identity.unbind'));
@@ -190,6 +194,10 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'notification.notification.send'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'notification.notification.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'notification.template.manage'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'participation.assignment.cancel'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'participation.assignment.create'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'participation.assignment.manage'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'participation.assignment.update'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'points.growth.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'points.ledger.adjust'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'points.ledger.view'));
@@ -222,7 +230,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'welfare.report.review'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'platform_super_admin'), (SELECT id FROM permissions WHERE code = 'welfare.report.submit'));
 
--- role: team_admin (43 bindings)
+-- role: team_admin (44 bindings)
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'account.certification.review'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'account.profile.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'activity.activity.cancel'));
@@ -252,6 +260,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'honor.honor.award'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'honor.honor.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'notification.notification.send'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'participation.assignment.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'points.ledger.adjust'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'points.ledger.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_admin'), (SELECT id FROM permissions WHERE code = 'points.level.view'));
@@ -288,7 +297,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_auditor'), (SELECT id FROM permissions WHERE code = 'signup.signup.review'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_auditor'), (SELECT id FROM permissions WHERE code = 'welfare.report.review'));
 
--- role: team_owner (48 bindings)
+-- role: team_owner (49 bindings)
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'account.certification.review'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'account.profile.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'activity.activity.cancel'));
@@ -320,6 +329,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'honor.honor.award'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'honor.honor.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'notification.notification.send'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'participation.assignment.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'points.ledger.adjust'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'points.ledger.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'points.level.view'));
@@ -338,7 +348,7 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'training.course.manage'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'team_owner'), (SELECT id FROM permissions WHERE code = 'welfare.report.review'));
 
--- role: volunteer (19 bindings)
+-- role: volunteer (22 bindings)
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'account.identity.bind'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'account.identity.unbind'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'account.profile.update'));
@@ -352,6 +362,9 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM ro
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'file.file.upload'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'file.file.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'notification.notification.view'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'participation.assignment.cancel'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'participation.assignment.create'));
+INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'participation.assignment.update'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'points.level.view'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'signup.signup.cancel'));
 INSERT INTO role_permissions (role_id, permission_id) VALUES ((SELECT id FROM roles WHERE code = 'volunteer'), (SELECT id FROM permissions WHERE code = 'signup.signup.create'));

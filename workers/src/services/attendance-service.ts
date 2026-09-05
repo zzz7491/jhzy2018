@@ -23,6 +23,7 @@ import type { TenantContext } from '../types/tenant';
 import { ActivityRepository } from '../repository/activities';
 import { ActivitySignupRepository, SIGNUP_STATUS } from '../repository/activity-signups';
 import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
+import { ParticipationRepository, PARTICIPATION_STATUS } from '../repository/participation';
 import { AttendanceSessionOwnershipPolicy } from '../policies/ownership';
 import { toBusinessDate } from '../utils/time';
 import type { AttendanceLocation } from '../utils/location';
@@ -31,6 +32,7 @@ import {
   conflict,
   notFound,
   teamScopeRequired,
+  internalError,
   ConflictReason,
 } from '../utils/errors';
 
@@ -46,6 +48,8 @@ export interface AttendanceView {
   signup_id: number;
   activity_id: number;
   user_id: number;
+  participation_id: number | null;
+  participation_public_id: string | null;
   status: number;
   checkin_at: number | null;
   checkout_at: number | null;
@@ -82,41 +86,105 @@ export class ActivityAttendanceService {
       activities: new ActivityRepository({ db: this.db, ctx }),
       signups: new ActivitySignupRepository({ db: this.db, ctx }),
       attendance: new AttendanceSessionRepository({ db: this.db, ctx }),
+      participation: new ParticipationRepository({ db: this.db, ctx }),
     };
   }
 
   /**
    * 本人签到（POST /api/v2/activities/:activityId/attendance/checkin）。
    *
-   * 顺序（§十九：任何一步失败都必须零写入）：
-   * 1) 身份 + 团队上下文
-   * 2) 活动存在 + 属于当前租户（跨团队 / 不存在 → 同一 404，不泄露存在性）
-   * 3) 本人有效报名（status=1，经 activities 派生租户隔离）→ 无 → 409 NOT_SIGNED_UP
-   *    （OPEN：是否要求活动处于"进行中"等特定状态，本切片不强校验 —— 见报告 §17）
- * 4) 重复签到预检（同报名的【活跃】会话命中）→ 409 ALREADY_CHECKED_IN。
- *    已签退（status=2）的会话不命中 —— 允许再次签到（R2 修复 1:1 误绑）。
- * 5) INSERT 会话（status=1，写入 service_date/slot 锚定本次参加实例）；
- *    uq_active_attendance（per-user 单一活跃会话）冲突（race）→ 409。
- * 6) 写最小 checkin 事件证据行（append-only）
- */
-  async checkInOwn(activityPublicId: string, location: AttendanceLocation | null = null): Promise<AttendanceView> {
+   * 可观察校验顺序（P15 REV1 冻结；任何一步失败都必须零写入）：
+   * 1) 身份 + 团队上下文                      → 401 / 403（requireActor）
+   * 2) 权限（路由层 requirePermission）         → 401 / 403 / 500
+   * 3) 请求体 participation_public_id 必填 + ULID（路由层；auth/permission 之后）
+   * 4) Participation 租户隔离解析              → 404（不存在 / 跨团队同一响应）
+   * 5) SELF 归属（signup_user_id === auth.userId）→ 404（与不存在同构，不泄露存在性）
+   * 6) Signup 资格（REGISTERED + APPROVED）+ 路由活动一致性
+   * 7) Activity 可用性（findSignupTargetByPublicId 已收口 team + deleted_at）
+   * 8) Occurrence 可用性（status IN (1,2)）
+   * 9) Slot / OccurrencePosition / Position / PSP 父级一致性
+   * 10) 参与级活跃会话预检（findActiveByParticipation）
+   * 11) 用户级活跃会话预检（findOwnActiveSessionAny）
+   * 12) INSERT（写入 participation_id）
+   * 13) UNIQUE 失败重分类（复查参与级 / 用户级活跃 → 409）
+   */
+  async checkInOwn(
+    activityPublicId: string,
+    participationPublicId: string,
+    location: AttendanceLocation | null = null,
+  ): Promise<AttendanceView> {
     const { userId, teamId } = this.requireActor();
-    const { activities, signups, attendance } = this.repos();
+    const { activities, signups, attendance, participation } = this.repos();
 
     // 2) 活动 + 租户范围（Repository 内已强制 team_id = tenant.teamId AND deleted_at IS NULL）。
     const activity = await activities.findSignupTargetByPublicId(activityPublicId);
 
-    // 3) 本人有效报名（status=1）。无报名或非有效 → 409（不泄露是否存在他人报名）。
+    // 4) Participation 解析（经 signup→activity→team 派生隔离）。
+    const p = await participation.findByPublicIdWithSignup(participationPublicId, teamId);
+    if (p == null) throw notFound('Participation'); // 不存在 / 跨团队：统一 404
+
+    // 5) SELF 归属：participation 必须属于当前用户本人。
+    if (p.signup_user_id !== userId) throw notFound('Participation'); // 与不存在同构
+
+    // 6) Signup 资格：本人有效报名（REGISTERED + APPROVED），且必须指向本路由活动。
+    //    findOwnActiveSignup 已按 activity.id 过滤，故其返回即"本活动本人有效报名"；
+    //    再断言 participation.signup_id === signup.id，确保 participation 确实挂靠在该 signup 上
+    //    （否则 participation 指向他处，属不一致 → 404）。
     const signup = await signups.findOwnActiveSignup(activity.id, userId);
     if (signup == null) throw conflict(ConflictReason.ATTENDANCE_NOT_SIGNED_UP);
+    if (p.signup_id !== signup.id) throw notFound('Participation'); // 挂靠 signup 不一致
 
-    // 4) 重复签到预检：仅当同报名存在【活跃】会话时阻止（签退后可再次签到）。
-    const existing = await attendance.findOwnActiveSession(signup.id, userId);
-    if (existing != null) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
+    // participation 已取消（status=2 / cancelled_at 非空）→ 409（与 not_signed_up 区分）。
+    if (p.status !== PARTICIPATION_STATUS.ASSIGNED || p.cancelled_at != null) {
+      throw conflict(ConflictReason.ATTENDANCE_PARTICIPATION_NOT_ACTIVE);
+    }
 
-    // 5) INSERT。真正的并发防护 = uq_active_attendance（per-user 单一活跃会话）。
-    //    service_date = UTC 当天（天粒度锚定本次参加实例，FROZEN 语义保留）；
-    //    business_service_date = 业务自然日（Asia/Shanghai，来源 checkin_at = now）。
+    // 8) Occurrence 可用性：status IN (1 scheduled, 2 in_progress)。
+    const occ = await participation.resolveOccurrenceById(p.occurrence_id, teamId);
+    if (occ == null || occ.status < 1 || occ.status > 2) {
+      throw conflict(ConflictReason.PARENT_MISMATCH);
+    }
+    // occurrence 必须属于本活动（一致性防御）。
+    if (occ.activity_id !== activity.id) throw conflict(ConflictReason.PARENT_MISMATCH);
+
+    // 9) Slot / OccurrencePosition / Position / PSP 父级一致性（消费 Participation 的引用，
+    //    不得仅信 participation 行而跳过跨父级检查）。
+    if (p.slot_id != null) {
+      const slot = await participation.resolveSlotById(p.slot_id, teamId);
+      if (slot == null || slot.deleted_at != null || slot.occurrence_id !== p.occurrence_id) {
+        throw conflict(ConflictReason.PARENT_MISMATCH);
+      }
+    }
+    if (p.occurrence_position_id != null) {
+      // opCompatibleWithOccurrence 已覆盖：op 活跃 + 同 occurrence + underlying activity_position
+      // 同 activity 且活跃 + 团队隔离（P16 步骤 9 全部子校验）。
+      const opOk = await participation.opCompatibleWithOccurrence(
+        p.occurrence_position_id,
+        p.occurrence_id,
+        teamId,
+      );
+      if (!opOk) throw conflict(ConflictReason.PARENT_MISMATCH);
+    }
+    if (p.slot_id != null && p.occurrence_position_id != null) {
+      // slot + op 同时给定：必须存在活跃 participation_slot_positions 配置。
+      const pspOk = await participation.pspExists(p.slot_id, p.occurrence_position_id);
+      if (!pspOk) throw conflict(ConflictReason.PARENT_MISMATCH);
+    }
+
+    // 10) 参与级活跃会话预检（uq_active_participation 快路径）。
+    const activeByP = await attendance.findActiveByParticipation(p.id, userId, teamId);
+    if (activeByP != null) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
+
+    // 11) 用户级活跃会话预检（uq_active_attendance 快路径，跨活动/跨参与唯一闸门）。
+    const activeByU = await attendance.findOwnActiveSessionAny(userId, teamId);
+    if (activeByU != null) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
+
+    // 12) INSERT。service_date = UTC 当天；business_service_date = Asia/Shanghai 业务自然日；
+    //     slot 永远写 ''（P15 冻结：slot TEXT 为 legacy 快照，不写 slot.name）。
+    //     参与级/用户级唯一性由 uq_active_participation / uq_active_attendance 兜底：
+    //     insertCheckIn 内部已捕获 UNIQUE 冲突并收敛为 409 ATTENDANCE_ALREADY_CHECKED_IN
+    //     （不依赖 SQLite 错误字符串区分索引名；两个约束共用同一 token）。
+    //     快路径预检（步骤 10/11）已覆盖绝大多数重复；此处仅作并发兜底（race）。
     const now = Math.floor(Date.now() / 1000);
     const serviceDate = Math.floor(now / 86400);
     const businessServiceDate = toBusinessDate(now);
@@ -129,11 +197,10 @@ export class ActivityAttendanceService {
       '',
       businessServiceDate,
       now,
+      p.id,
     );
 
-    // 6) 写最小证据行（append-only）。
-    //    S2-6k2：仅当提供了 check-in location（GCJ-02）时，将 latitude/longitude/accuracy 落库；
-    //    location=null（GPS 不可用 / 旧客户端）时三列均 NULL。distance 恒为 NULL（不在本切片计算）。
+    // 写最小证据行（append-only）；nonce 仅为审计标记，非 session 唯一性机制。
     const nonce = `${sessionId}:checkin:${now}`;
     await attendance.insertEvent(
       sessionId,
@@ -154,6 +221,8 @@ export class ActivityAttendanceService {
       signup_id: signup.id,
       activity_id: activity.id,
       user_id: userId,
+      participation_id: p.id,
+      participation_public_id: p.public_id,
       status: ATTENDANCE_STATUS.CHECKED_IN,
       checkin_at: now,
       checkout_at: null,
@@ -210,6 +279,8 @@ export class ActivityAttendanceService {
       signup_id: signup.id,
       activity_id: activity.id,
       user_id: userId,
+      participation_id: session.participation_id,
+      participation_public_id: null,
       status: ATTENDANCE_STATUS.CHECKED_OUT,
       checkin_at: session.checkin_at,
       checkout_at: now,

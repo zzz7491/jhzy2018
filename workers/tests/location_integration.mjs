@@ -72,11 +72,13 @@ withDb((db) => {
 });
 
 // ===== HTTP helpers =====
+// P17：新 check-in 契约要求 body 携带合法 participation_public_id；location 仍可选（S2-6k2 保留）。
+const PARTICIPATION = '01TESTPART1AAAAAAAAAAAAAAA'; // volA → actAtt1（fixture attendance 模式播种）
 async function checkInBody(body) {
-  const headers = { authorization: `Bearer ${TOKEN}`, 'x-team-id': String(teamA) };
-  if (body !== undefined) headers['content-type'] = 'application/json';
+  const headers = { authorization: `Bearer ${TOKEN}`, 'x-team-id': String(teamA), 'content-type': 'application/json' };
+  const payload = { participation_public_id: PARTICIPATION, ...(body ?? {}) };
   const res = await fetch(`${BASE}/api/v2/activities/${encodeURIComponent(IDS.actAtt1)}/attendance/checkin`, {
-    method: 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body),
+    method: 'POST', headers, body: JSON.stringify(payload),
   });
   let json = null; try { json = await res.json(); } catch {}
   return { status: res.status, json };
@@ -109,7 +111,7 @@ async function main() {
 
   // ========================= LOC-REQ 请求解析（§19）=========================
   process.stderr.write('LOC-REQ 请求解析\n');
-  await okCheckIn('REQ1 无 body', undefined);
+  await okCheckIn('REQ1 仅 participation_public_id（无 location → GPS 不可用）', undefined);
   await okCheckIn('REQ2 空 body {}', {});
   await okCheckIn('REQ3 location 缺失', { foo: 1 });
   await okCheckIn('REQ4 location=null', { location: null });

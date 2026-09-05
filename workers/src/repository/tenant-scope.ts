@@ -31,11 +31,18 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   message_templates: 'PLATFORM_GLOBAL',
   legacy_id_maps: 'PLATFORM_GLOBAL',
 
-  // ===== TEAM_SCOPED (30) =====
+  // ===== TEAM_SCOPED (36) =====
   team_members: 'TEAM_SCOPED',
   team_invites: 'TEAM_SCOPED',
   activities: 'TEAM_SCOPED',
   activity_signups: 'TEAM_SCOPED',
+  // S2-NEW-ARCH-P11：参与/排班相关表（team 经 activities 派生，见 DERIVED_TEAM_TABLES）
+  activity_occurrences: 'TEAM_SCOPED',
+  activity_positions: 'TEAM_SCOPED',
+  activity_participation_slots: 'TEAM_SCOPED',
+  occurrence_positions: 'TEAM_SCOPED',
+  participation_slot_positions: 'TEAM_SCOPED',
+  activity_participations: 'TEAM_SCOPED',
   attendance_sessions: 'TEAM_SCOPED',
   attendance_events: 'TEAM_SCOPED',
   attendance_anomalies: 'TEAM_SCOPED',
@@ -89,8 +96,18 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
  * TEAM_SCOPED 但【不直接持有 team_id 列】的表（scope 由父表派生）。
  * activity_signups：team 由 activity_id → activities.team_id 派生，
  * repository 层查询必须 JOIN activities 以获得 team 隔离，不能简单 WHERE team_id=?。
+ * activity_participations（S2-NEW-ARCH-P11）：team 由 signup_id → activity_signups → activities.team_id 派生，
+ * 无 team_id / activity_id / user_id 冗余列，查询必须 JOIN activity_signups + activities 派生隔离。
  */
-export const DERIVED_TEAM_TABLES = new Set<string>(['activity_signups']);
+export const DERIVED_TEAM_TABLES = new Set<string>([
+  'activity_signups',
+  'activity_participations',
+  'activity_occurrences',
+  'activity_participation_slots',
+  'occurrence_positions',
+  'participation_slot_positions',
+  'activity_positions',
+]);
 
 /** 读取审计日志所需的授权角色（AUDIT_ONLY 不得被普通团队上下文错误暴露）。 */
 const AUDIT_READER_ROLES = new Set(['platform_super_admin', 'platform_operator', 'team_auditor']);

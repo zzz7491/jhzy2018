@@ -7,7 +7,7 @@
  *   2) tests/fixture.mjs attendance-management 已写入 16 行 attendance_sessions + manifest。
  *
  * 通过【真实 Worker 运行时】验证授权闭环：
- *   Permission(D1 83/238) → Tenant Scope → Repository team_id WHERE → Atomic batch(UPDATE+event) → Audit
+ *   Permission(D1 87/247) → Tenant Scope → Repository team_id WHERE → Atomic batch(UPDATE+event) → Audit
  *
  * 冻结纪律（用户 §0–§23）：
  * - 跨团队 sessionId → 404（不泄露存在性，无元数据泄漏）；无权限 → 403 FORBIDDEN；
@@ -96,11 +96,11 @@ const reasonOk = '管理审核：符合要求';
 // =====================================================================
 // A. Baseline
 // =====================================================================
-process.stderr.write('A. Baseline（目录 83/238 + roles=6 + fixture 就绪）\n');
+process.stderr.write('A. Baseline（目录 87/247 + roles=6 + fixture 就绪）\n');
 {
   const probe = await req('GET', '/probe');
-  check('A1 permissions=83', probe.body?.data?.permissions === 83, `got ${probe.body?.data?.permissions}`);
-  check('A2 role_permissions=238', probe.body?.data?.role_permissions === 238, `got ${probe.body?.data?.role_permissions}`);
+  check('A1 permissions=87', probe.body?.data?.permissions === 87, `got ${probe.body?.data?.permissions}`);
+  check('A2 role_permissions=247', probe.body?.data?.role_permissions === 247, `got ${probe.body?.data?.role_permissions}`);
   check('A3 roles=6', probe.body?.data?.roles === 6, `got ${probe.body?.data?.roles}`);
 
   const cat = withDb((db) =>
@@ -174,7 +174,7 @@ process.stderr.write('B. Review 审核\n');
   check('B18 platform_super_admin 无 team → 403 TEAM_SCOPE_REQUIRED', rps.res.status === 403 && rps.body?.error?.code === 'TEAM_SCOPE_REQUIRED', `got ${rps.res.status}/${rps.body?.error?.code}`);
 
   // B19 platform_operator（catalog 未授予 attendance.record.* 权限，且无 team 上下文）→ 403 FORBIDDEN
-  // 说明：冻结 catalog（role_permissions=238）中 platform_operator 不持有 review/force，
+  // 说明：冻结 catalog（role_permissions=247）中 platform_operator 不持有 review/force，
   // 故 requirePermission 直接 forbidden()（无授权），这是正确的目录驱动行为，而非 TEAM_SCOPE_REQUIRED。
   const rpo = await review(S.R5, { decision: 'approve', reason: reasonOk }, auth('platform_operator', U.plat));
   check('B19 platform_operator 无 review 权限 → 403 FORBIDDEN', rpo.res.status === 403 && rpo.body?.error?.code === 'FORBIDDEN', `got ${rpo.res.status}/${rpo.body?.error?.code}`);

@@ -49,6 +49,21 @@ export const ConflictReason = {
   // S2-6j（新增，纯增量）：异常处置状态冲突——已 CONFIRMED(2) / 已 DISMISSED(3) 不再接受重复处置。
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
   ATTENDANCE_ANOMALY_ALREADY_HANDLED: 'attendance_anomaly_already_handled',
+  // S2-NEW-ARCH-P11（新增，纯增量）：参与/排班分配状态冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 内部 participation id。
+  // 冻结 6 类（无 future/optional）：
+  SLOT_AT_CAPACITY: 'slot_at_capacity', // 时段硬容量已满（capacity>0 且活跃参与数已达上限）
+  PSP_MISSING: 'psp_missing', // slot + occurrence_position 同时给定，但 participation_slot_positions 无活跃配置
+  PARENT_MISMATCH: 'parent_mismatch', // signup/occurrence/slot/op/position 跨父级不一致或父级未处于有效状态
+  CROSS_MODE_CONFLICT: 'cross_mode_conflict', // occurrence-level 与 slot-level 互斥（同 signup+occurrence 已存在另一模式）
+  OLD_NOT_ACTIVE: 'old_not_active', // reassign 的 old 参与行非活跃（已取消 / 非 slot-level / slot 相同）
+  PUBLIC_ID_CONFLICT: 'public_id_conflict', // 客户端 new_public_id 已存在但与本次指纹不一致 / 命中自然重复（不泄露冲突行）
+  // S2-NEW-ARCH-P19（新增，纯增量）：deterministic ensure 目标 occurrence 存在 active slot，
+  // 不可确定性物化，必须人工选择（P11 create / slot 级）。
+  PARTICIPATION_REQUIRES_MANUAL: 'participation_requires_manual',
+  // S2-NEW-ARCH-P16（新增，纯增量）：签到所引用的 Participation 已取消（非 assigned）。
+  // HTTP 409；与 attendance_not_signed_up 区分——用户已报名且已排班，只是排班被取消。
+  ATTENDANCE_PARTICIPATION_NOT_ACTIVE: 'attendance_participation_not_active',
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];

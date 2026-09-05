@@ -33,6 +33,12 @@ export interface AttendanceSessionRow {
   activity_id: number;
   user_id: number;
   team_id: number;
+  /**
+   * 关联的 Participation（0014 新增列）。
+   * - 【历史行】可为 NULL —— 0014 之前创建的会话全部为 NULL，仅兼容读取，禁止新写 NULL。
+   * - 【新写】由 P16 签到链强制绑定真实 active Participation（业务层 NOT NULL）。
+   */
+  participation_id: number | null;
   service_date: number;
   slot: string;
   checkin_at: number | null;
@@ -89,13 +95,54 @@ export class AttendanceSessionRepository extends BaseRepository {
     const teamId = this.requireTeamId();
 
     return this.first<AttendanceSessionRow>(
-      `SELECT id, signup_id, activity_id, user_id, team_id, service_date, slot,
+      `SELECT id, signup_id, activity_id, user_id, team_id, participation_id, service_date, slot,
               checkin_at, checkout_at, status, review_status, created_at, updated_at,
               business_service_date
          FROM attendance_sessions
         WHERE signup_id = ? AND user_id = ? AND team_id = ?
           AND status = ? AND checkout_at IS NULL`,
       [signupId, userId, teamId, ATTENDANCE_STATUS.CHECKED_IN],
+    );
+  }
+
+  /**
+   * P16：按 participation_id 定位【活跃】考勤会话（参与级唯一性快路径）。
+   * WHERE 带 participation_id + user_id（SELF）+ team_id（租户）+ 活跃条件，
+   * 与 0014 的 uq_active_participation(participation_id) 前缀列一致（无需新索引）。
+   */
+  async findActiveByParticipation(
+    participationId: number,
+    userId: number,
+    teamId: number,
+  ): Promise<AttendanceSessionRow | null> {
+    this.ensureTableRead('attendance_sessions');
+
+    return this.first<AttendanceSessionRow>(
+      `SELECT id, signup_id, activity_id, user_id, team_id, participation_id, service_date, slot,
+              checkin_at, checkout_at, status, review_status, created_at, updated_at,
+              business_service_date
+         FROM attendance_sessions
+        WHERE participation_id = ? AND user_id = ? AND team_id = ?
+          AND status = ? AND checkout_at IS NULL`,
+      [participationId, userId, teamId, ATTENDANCE_STATUS.CHECKED_IN],
+    );
+  }
+
+  /**
+   * P16：按 (user_id, team_id) 定位【活跃】考勤会话（用户级唯一性快路径，不限报名/活动/参与）。
+   * 对应既有 uq_active_attendance(user_id) —— 同一用户全局至多一条活跃会话（R1 背景第 5 条）。
+   */
+  async findOwnActiveSessionAny(userId: number, teamId: number): Promise<AttendanceSessionRow | null> {
+    this.ensureTableRead('attendance_sessions');
+
+    return this.first<AttendanceSessionRow>(
+      `SELECT id, signup_id, activity_id, user_id, team_id, participation_id, service_date, slot,
+              checkin_at, checkout_at, status, review_status, created_at, updated_at,
+              business_service_date
+         FROM attendance_sessions
+        WHERE user_id = ? AND team_id = ?
+          AND status = ? AND checkout_at IS NULL`,
+      [userId, teamId, ATTENDANCE_STATUS.CHECKED_IN],
     );
   }
 
@@ -114,6 +161,7 @@ export class AttendanceSessionRepository extends BaseRepository {
     slot: string,
     businessServiceDate: string,
     now: number,
+    participationId: number | null,
   ): Promise<number> {
     this.ensureTableRead('attendance_sessions');
 
@@ -121,15 +169,16 @@ export class AttendanceSessionRepository extends BaseRepository {
       const res = await this.run(
         `INSERT INTO attendance_sessions
            (signup_id, activity_id, user_id, team_id, service_date, slot,
-            business_service_date, status, checkin_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [signupId, activityId, userId, teamId, serviceDate, slot, businessServiceDate, ATTENDANCE_STATUS.CHECKED_IN, now, now, now],
+            business_service_date, status, checkin_at, created_at, updated_at, participation_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [signupId, activityId, userId, teamId, serviceDate, slot, businessServiceDate, ATTENDANCE_STATUS.CHECKED_IN, now, now, now, participationId],
       );
       const id = Number(res.meta?.last_row_id ?? 0);
       if (id <= 0) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
       return id;
     } catch (err) {
-      // 并发重复签到：uq_active_attendance（per-user 单一活跃会话）是唯一真相 → 收敛为 409。
+      // 并发重复签到：uq_active_attendance（per-user 单一活跃会话）或 uq_active_participation
+      // （per-participation 单一活跃会话）命中 → 唯一真相 → 收敛为 409。
       if (isUniqueViolation(err)) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_IN);
       throw err;
     }
@@ -321,7 +370,7 @@ export class AttendanceSessionRepository extends BaseRepository {
   async findTeamSession(sessionId: number, teamId: number): Promise<AttendanceSessionRow | null> {
     this.ensureTableRead('attendance_sessions');
     return this.first<AttendanceSessionRow>(
-      `SELECT id, signup_id, activity_id, user_id, team_id, service_date, slot,
+      `SELECT id, signup_id, activity_id, user_id, team_id, participation_id, service_date, slot,
               checkin_at, checkout_at, status, review_status, created_at, updated_at,
               business_service_date
          FROM attendance_sessions

@@ -75,15 +75,16 @@ const q = (obj) => Object.entries(obj).filter(([, v]) => v !== undefined && v !=
 process.stderr.write('A. baseline\n');
 {
   const mig = withDb((db) => db.prepare('SELECT name FROM d1_migrations ORDER BY id').all().map((r) => r.name));
-  // S2-6k1 V1 新增 0005_attendance_time_policy；此处基线随之更新为 5（0005 必须存在、0006 不得存在）。
-  check('A1 migrations = 5', mig.length === 5, `got ${mig.length}`);
-  check('A2 0005 存在且 0006 不存在', mig.some((n) => n.includes('0005')) && !mig.some((n) => n.includes('0006')), mig.join(','));
+  // P17 基线同步：P11/P16 已冻结 0006–0014（occurrence/position/slot/PSP/participation/participation-link），
+  // 当前正式迁移到 0014。0005 必须存在、0006–0014 同步存在（旧的"0006 不得存在"断言仅适用于 S2-6k2 时代）。
+  check('A1 migrations = 14', mig.length === 14, `got ${mig.length}`);
+  check('A2 0005 与 0014 均存在（P11/P16 迁移基线）', mig.some((n) => n.includes('0005')) && mig.some((n) => n.includes('0014')), mig.join(','));
   const roles = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM roles').get().n);
   const perms = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n);
   const rps = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n);
   check('A3 roles = 6', roles === 6, `got ${roles}`);
-  check('A4 permissions = 83', perms === 83, `got ${perms}`);
-  check('A5 role_permissions = 238', rps === 238, `got ${rps}`);
+  check('A4 permissions = 83', perms === 87, `got ${perms}`);
+  check('A5 role_permissions = 238', rps === 247, `got ${rps}`);
 }
 
 // ===================== B. LIST =====================
@@ -172,7 +173,7 @@ process.stderr.write('D. permissions\n');
 
   // D7: 权限目录接线校验（冻结设计 §2：attendance.anomaly.handle 仅由
   //      platform_super_admin / team_admin / team_owner 持有）。
-  // 纪律：只读校验，绝不写入 role_permissions / user_roles（目录不可变 83/238）。
+  // 纪律：只读校验，绝不写入 role_permissions / user_roles（目录不可变 87/247）。
   // 运行时每次请求均经 D1PermissionProvider 实时 JOIN role_permissions（S2-6f/S2-6c-4 已证无跨请求缓存），
   // 故此处目录接线正确性 = 运行时授权正确性的充要条件。
   const holders = withDb((db) =>
@@ -387,7 +388,7 @@ process.stderr.write('L. real-session live permission revocation (Bearer → ses
     check('L2 before revoke (real Bearer) resolve = 200', resolveBefore.res.status === 200, `status=${resolveBefore.res.status}`);
     check('L2b resolve set status=2 CONFIRMED', resolveBefore.body?.data?.anomaly?.status === 2, `status=${resolveBefore.body?.data?.anomaly?.status}`);
 
-    // L3: 仅删除 user_roles（不动 sessions / role_permissions / permissions；目录 83/238 不变）
+    // L3: 仅删除 user_roles（不动 sessions / role_permissions / permissions；目录 87/247 不变）
     withDb((db) => {
       db.prepare('DELETE FROM user_roles WHERE user_id=? AND role_id=(SELECT id FROM roles WHERE code=?) AND scope_team_id=?')
         .run(U.adminA, 'team_admin', T.teamA);
@@ -422,7 +423,7 @@ process.stderr.write('L. real-session live permission revocation (Bearer → ses
     if (sessionInserted) {
       withDb((db) => { try { db.prepare('DELETE FROM sessions WHERE public_id = ?').run(SESS_PUB); } catch {} });
     }
-    // 兜底：异常路径也确保 user_roles 复原（目录不可变 83/238）
+    // 兜底：异常路径也确保 user_roles 复原（目录不可变 87/247）
     if (!roleRestored) {
       withDb((db) => {
         const exists = db

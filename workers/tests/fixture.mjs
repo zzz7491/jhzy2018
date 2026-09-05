@@ -91,6 +91,24 @@ export const IDS = {
   actAtt4: '01TESTATT4AAAAAAAAAAAAAAAA', // teamA / status=1 / volA 已报名（D 组权限矩阵）
   actAtt5: '01TESTATT5AAAAAAAAAAAAAAAA', // teamA / status=1 / volA 已报名（E 组实时授权）
   actAttB: '01TESTATTBAAAAAAAAAAAAAAAA', // teamB / status=1 / volB 已报名（跨团队 → 404）
+  // ===== S2-NEW-ARCH-P16：Attendance check-in 契约所需 occurrence / participation =====
+  // 新 check-in 必须提交合法 participation_public_id 且 session 绑定 Participation。
+  // occurrence（'01TESTCC...'，参与/签到不直接路由 occurrence，仅作父级链存在性锚点）
+  occAtt1: '01TESTCC1AAAAAAAAAAAAAAAAA', // actAtt1
+  occAtt2: '01TESTCC2AAAAAAAAAAAAAAAAA', // actAtt2
+  occAtt3: '01TESTCC3AAAAAAAAAAAAAAAAA', // actAtt3
+  occAtt4: '01TESTCC4AAAAAAAAAAAAAAAAA', // actAtt4
+  occAtt5: '01TESTCC5AAAAAAAAAAAAAAAAA', // actAtt5
+  occAttB: '01TESTCCBAAAAAAAAAAAAAAAAA', // actAttB
+  // participation（26 位 Crockford ULID，满足路由 isUlid 校验）
+  partAtt1: '01TESTPART1AAAAAAAAAAAAAAA',        // volA → actAtt1，活跃（B/C/G 主路径）
+  partAtt1Cancelled: '01TESTPART2AAAAAAAAAAAAAAA', // volA → actAtt1，已取消（P16 → 409 NOT_ACTIVE）
+  partAtt2: '01TESTPART3AAAAAAAAAAAAAAA',        // volA → actAtt2，活跃
+  partAtt3: '01TESTPART4AAAAAAAAAAAAAAA',        // volA → actAtt3，signup=已取消（P16 → 409 NOT_SIGNED_UP）
+  partAtt4: '01TESTPART5AAAAAAAAAAAAAAA',        // volA → actAtt4，活跃
+  partAtt5: '01TESTPART6AAAAAAAAAAAAAAA',        // volA → actAtt5，活跃
+  partAtt5Owner: '01TESTPART7AAAAAAAAAAAAAAA',   // ownerA → actAtt5，活跃（D6）
+  partAttB: '01TESTPARTBAAAAAAAAAAAAAAA',        // volB → actAttB，活跃（跨团队 404 载体）
   // ===== S2-6i（Review + Force Checkout）专用 fixture =====
   adminA: '01TESTUSERadminA', // team_admin @ teamA
   ownerB: '01TESTUSERownerB', // team_owner @ teamB
@@ -184,6 +202,15 @@ function clean(db) {
     .all()
     .map((r) => r.id);
   cascadeDeleteTestRefs(db, ids, teamIds, activityIds);
+  // activity_participations 的 FK 只在 signup / occurrence 层（不直接引用 users/teams/activities），
+  // cascadeDeleteTestRefs 覆盖不到。必须【在 activity_signups/occurrences 被删除之后】以活动维度兜底，
+  // 并按 public_id 前缀显式清理（参与行本身可能已被级联删除，此步容错幂等）。
+  db.prepare(
+    `DELETE FROM activity_participations
+      WHERE public_id LIKE '01TEST%' OR public_id LIKE 'TEST%'
+         OR signup_id IN (SELECT id FROM activity_signups WHERE activity_id IN (
+              SELECT id FROM activities WHERE public_id LIKE '01TEST%' OR public_id LIKE 'TEST%'))`,
+  ).run();
   // 兜底：按 public_id 显式清理活动（activities.team_id / created_by 已被级联覆盖）。
   db.prepare(`DELETE FROM activities WHERE public_id LIKE '01TEST%' OR public_id LIKE 'TEST%'`).run();
   db.prepare(`DELETE FROM teams WHERE public_id LIKE '01TEST%' OR public_id LIKE 'TEST%'`).run();
@@ -233,11 +260,11 @@ function setup() {
   insAct.run(IDS.actA2, teamAId, 'TEST Activity A2', T0 + 172800, T0 + 176400, ownerAId);
   insAct.run(IDS.actB1, teamBId, 'TEST Activity B1', T0 + 86400, T0 + 90000, volBId);
 
-  // 安全断言（S2-6e）：fixture 后权限目录必须保持在 seed 基线 83/238（测试不得改动权限目录）。
+  // 安全断言（S2-6e）：fixture 后权限目录必须保持在 seed 基线 87/247（测试不得改动权限目录）。
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) {
-    throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238，目录基线漂移`);
+  if (p !== 87 || rp !== 247) {
+    throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247，目录基线漂移`);
   }
 
   console.log(`[fixture] setup OK: users=5 teams=2 members=4 activities=3 (permissions=${p}, role_permissions=${rp})`);
@@ -247,13 +274,13 @@ function setup() {
 function teardown() {
   const db = new DatabaseSync(findDbPath());
   clean(db);
-  // S2-6e：teardown 仅断言【测试 fixture 表】零残留；权限目录(83/238)为 seed 基线，合法非 0。
+  // S2-6e：teardown 仅断言【测试 fixture 表】零残留；权限目录(87/247)为 seed 基线，合法非 0。
   // （permissions / role_permissions 不在以下"必须=0"集合内——S2-6e 起已 seed。）
   const cnt = (sql) => db.prepare(sql).get().n;
   const p = cnt('SELECT COUNT(*) AS n FROM permissions');
   const rp = cnt('SELECT COUNT(*) AS n FROM role_permissions');
-  if (p !== 83 || rp !== 238) {
-    throw new Error(`FATAL: permission catalog 基线漂移 permissions=${p} role_permissions=${rp}（期望 83/238）`);
+  if (p !== 87 || rp !== 247) {
+    throw new Error(`FATAL: permission catalog 基线漂移 permissions=${p} role_permissions=${rp}（期望 87/247）`);
   }
   const u = cnt('SELECT COUNT(*) AS n FROM users');
   const ui = cnt('SELECT COUNT(*) AS n FROM user_identities');
@@ -269,15 +296,19 @@ function teardown() {
   const sess = cnt('SELECT COUNT(*) AS n FROM attendance_sessions');
   const ev = cnt('SELECT COUNT(*) AS n FROM attendance_events');
   const anom = cnt('SELECT COUNT(*) AS n FROM attendance_anomalies');
+  // S2-NEW-ARCH-P16：attendance occurrence / participation 同样必须回 0。
+  const occ = cnt('SELECT COUNT(*) AS n FROM activity_occurrences');
+  const part = cnt('SELECT COUNT(*) AS n FROM activity_participations');
   const bad = Object.entries({ users: u, user_identities: ui,
     sessions: s, user_roles: ur, team_members: tm, teams: t, security_events: se,
-    activities: ac, activity_signups: as, attendance_sessions: sess, attendance_events: ev, attendance_anomalies: anom })
+    activities: ac, activity_signups: as, attendance_sessions: sess, attendance_events: ev, attendance_anomalies: anom,
+    activity_occurrences: occ, activity_participations: part })
     .filter(([, v]) => v !== 0);
   if (bad.length > 0) {
     throw new Error(`teardown check failed: ${bad.map(([k, v]) => `${k}=${v}`).join(' ')}`);
   }
   console.log(
-    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events/attendance_anomalies = 0, permission catalog seeded (83/238)`,
+    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events/attendance_anomalies/activity_occurrences/activity_participations = 0, permission catalog seeded (87/247)`,
   );
   db.close();
 }
@@ -338,7 +369,7 @@ function sessionSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
   console.log(`[fixture] session setup OK: users=6(含1停用) user_roles=8 teams=2 (permissions=${p}, role_permissions=${rp})`);
   db.close();
 }
@@ -431,7 +462,7 @@ function runAuthSetup(addConflictRows) {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
   const ids = db
     .prepare(
       `SELECT COUNT(*) AS n FROM user_identities ui JOIN users u ON u.id = ui.user_id WHERE u.public_id LIKE '01TEST%'`,
@@ -530,7 +561,7 @@ function authzSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
   console.log(
     `[fixture] authz setup OK: users=7(含1停用) user_roles=9 teams=2 activities=3 (permissions=${p}, role_permissions=${rp})`,
   );
@@ -590,7 +621,7 @@ function signupSetup() {
   insUR.run(ownerAId, rid('volunteer'), teamBId); // 多团队角色行（切换 active team 验证）
   insUR.run(teamAdminAId, rid('team_admin'), teamAId);
   insUR.run(platId, rid('platform_operator'), null); // 平台角色（scope NULL）
-  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 83）
+  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 87）
 
   const insAct = db.prepare(
     `INSERT INTO activities (public_id, team_id, title, start_time, end_time, quota, status,
@@ -606,7 +637,7 @@ function signupSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
   const su = db.prepare('SELECT COUNT(*) AS n FROM activity_signups').get().n;
   console.log(
     `[fixture] signup setup OK: users=6 user_roles=8 teams=2 activities=6 activity_signups=${su} (permissions=${p}, role_permissions=${rp})`,
@@ -665,7 +696,7 @@ function attendanceSetup() {
   insUR.run(ownerAId, rid('volunteer'), teamBId); // 多团队角色行（切换 active team 验证）
   insUR.run(teamAdminAId, rid('team_admin'), teamAId);
   insUR.run(platId, rid('platform_operator'), null); // 平台角色（scope NULL）
-  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 83）
+  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 87）
 
   const insAct = db.prepare(
     `INSERT INTO activities (public_id, team_id, title, start_time, end_time, quota, status,
@@ -680,10 +711,15 @@ function attendanceSetup() {
   insAct.run(IDS.actAttB, teamBId, 'TEST Attend B1', T0 + 86400, T0 + 90000, 1, 1, 0, volBId);
 
   // 预置报名（status=1 有效）：volA → actAtt1/2/4/5；volB → actAttB。
-  // actAtt3 故意不报名（验证"无报名 → 409 NOT_SIGNED_UP"）。
+  // actAtt3 预置一条【已取消】报名（volA，status=2）——P16 下"未报名 → 409 NOT_SIGNED_UP"
+  // 只能由"signup 非 REGISTERED"触发（合法 Participation 必须挂真实 signup）。
   const insSignup = db.prepare(
     `INSERT INTO activity_signups (activity_id, user_id, review_status, status, created_at)
      VALUES (?, ?, 1, 1, ?)`,
+  );
+  const insSignupCancelled = db.prepare(
+    `INSERT INTO activity_signups (activity_id, user_id, review_status, status, created_at)
+     VALUES (?, ?, 1, 2, ?)`,
   );
   const actId = (pub) => db.prepare('SELECT id FROM activities WHERE public_id = ?').get(pub)?.id;
   insSignup.run(actId(IDS.actAtt1), volAId, T0);
@@ -692,14 +728,56 @@ function attendanceSetup() {
   insSignup.run(actId(IDS.actAtt5), volAId, T0);
   insSignup.run(actId(IDS.actAtt5), ownerAId, T0); // ownerA 本人已报名（用于 D6 team_owner 持 checkin 签到）
   insSignup.run(actId(IDS.actAttB), volBId, T0);
+  insSignupCancelled.run(actId(IDS.actAtt3), volAId, T0); // 已取消报名 → 409 NOT_SIGNED_UP 载体
+
+  // ===== S2-NEW-ARCH-P16：occurrence + participation（新 check-in 契约前置）=====
+  // 每个 attendance 活动一条 occurrence（status=1 scheduled），
+  // 匹配的 participation 承接各组的真实/负面 check-in 路径。
+  const insOcc = db.prepare(
+    `INSERT INTO activity_occurrences (public_id, activity_id, status, start_time, end_time, created_at)
+     VALUES (?, ?, 1, ?, ?, ?)`,
+  );
+  const occByAct = {};
+  const insOccFor = (occPub, actPub) => {
+    const act = actId(actPub);
+    insOcc.run(occPub, act, T0 + 86400, T0 + 90000, T0);
+    occByAct[actPub] = occPub;
+  };
+  insOccFor(IDS.occAtt1, IDS.actAtt1);
+  insOccFor(IDS.occAtt2, IDS.actAtt2);
+  insOccFor(IDS.occAtt3, IDS.actAtt3);
+  insOccFor(IDS.occAtt4, IDS.actAtt4);
+  insOccFor(IDS.occAtt5, IDS.actAtt5);
+  insOccFor(IDS.occAttB, IDS.actAttB);
+
+  const insPart = db.prepare(
+    `INSERT INTO activity_participations
+       (public_id, signup_id, occurrence_id, slot_id, occurrence_position_id, status, cancelled_at, created_at, updated_at)
+     VALUES (?,?,?,NULL,NULL,?,?,?,?)`,
+  );
+  const signupOf = (actPub, userPid) =>
+    db.prepare('SELECT id FROM activity_signups WHERE activity_id=? AND user_id=?').get(actId(actPub), uid(userPid))?.id;
+  const occIdOf = (occPub) => db.prepare('SELECT id FROM activity_occurrences WHERE public_id=?').get(occPub)?.id;
+  // 活跃参与
+  insPart.run(IDS.partAtt1, signupOf(IDS.actAtt1, IDS.volA), occIdOf(IDS.occAtt1), 1, null, T0, T0);
+  insPart.run(IDS.partAtt2, signupOf(IDS.actAtt2, IDS.volA), occIdOf(IDS.occAtt2), 1, null, T0, T0);
+  insPart.run(IDS.partAtt3, signupOf(IDS.actAtt3, IDS.volA), occIdOf(IDS.occAtt3), 1, null, T0, T0);
+  insPart.run(IDS.partAtt4, signupOf(IDS.actAtt4, IDS.volA), occIdOf(IDS.occAtt4), 1, null, T0, T0);
+  insPart.run(IDS.partAtt5, signupOf(IDS.actAtt5, IDS.volA), occIdOf(IDS.occAtt5), 1, null, T0, T0);
+  insPart.run(IDS.partAtt5Owner, signupOf(IDS.actAtt5, IDS.ownerA), occIdOf(IDS.occAtt5), 1, null, T0, T0);
+  insPart.run(IDS.partAttB, signupOf(IDS.actAttB, IDS.volB), occIdOf(IDS.occAttB), 1, null, T0, T0);
+  // 已取消参与（P16 → 409 attendance_participation_not_active 载体）
+  insPart.run(IDS.partAtt1Cancelled, signupOf(IDS.actAtt1, IDS.volA), occIdOf(IDS.occAtt1), 2, T0, T0, T0);
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
   const su = db.prepare('SELECT COUNT(*) AS n FROM activity_signups').get().n;
+  const occ = db.prepare('SELECT COUNT(*) AS n FROM activity_occurrences').get().n;
+  const part = db.prepare('SELECT COUNT(*) AS n FROM activity_participations').get().n;
   const ss = db.prepare('SELECT COUNT(*) AS n FROM attendance_sessions').get().n;
   console.log(
-    `[fixture] attendance setup OK: users=6 user_roles=8 teams=2 activities=6 activity_signups=${su} attendance_sessions=${ss} (permissions=${p}, role_permissions=${rp})`,
+    `[fixture] attendance setup OK: users=6 user_roles=8 teams=2 activities=6 activity_signups=${su} occurrences=${occ} participations=${part} attendance_sessions=${ss} (permissions=${p}, role_permissions=${rp})`,
   );
   db.close();
 }
@@ -854,7 +932,7 @@ function attendanceManagementSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
 
   const manifest = {
     users: {
@@ -1007,7 +1085,7 @@ function attendanceAnomalySetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 83 || rp !== 238) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 83/238`);
+  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
 
   const manifest = {
     users: { volA: volAId, volB: volBId, ownerA: ownerAId, adminA: adminAId, auditorA: auditorAId, ownerB: ownerBId, plat: platId, platSuper: platSuperId },

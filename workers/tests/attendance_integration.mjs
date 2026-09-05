@@ -13,7 +13,7 @@
  *   attendance.record.force / review / anomaly 为 TEAM scope —— 本阶段不使用（管理员操作他人属后续切片）
  *
  * 纪律（用户 §八/§九/§十/§十二/§十四/§十五/§十六/§十九/§二十/§二十一）：
- * - 权限完全来自 D1（83/238），无 mock、无角色名短路。
+ * - 权限完全来自 D1（87/247），无 mock、无角色名短路。
  * - 跨团队一律 404（不泄露存在性）；无权限 403；未认证 401；业务状态冲突 409；平台角色无 team 上下文 → 403 team scope。
  * - 套件内不写 permissions / role_permissions；E 组临时改 user_roles 后必须恢复。
  * - 不创建 migration、不改 Schema、不改 Catalog。
@@ -63,6 +63,15 @@ const IDS = {
   actMissing: '01TESTATTZZZZZZZZZZZZZZZZZ',
   // SQL 注入载荷（必须被 ULID 校验拦截在 DB 之前 → 400）。
   actInjection: "01TESTATT1AAAAAAAAAAAAAAAA' OR '1'='1",
+  // S2-NEW-ARCH-P16：合法 participation_public_id（fixture attendance 模式播种）。
+  partAtt1: '01TESTPART1AAAAAAAAAAAAAAA',          // volA → actAtt1，活跃
+  partAtt1Cancelled: '01TESTPART2AAAAAAAAAAAAAAA', // volA → actAtt1，已取消 → 409 NOT_ACTIVE
+  partAtt2: '01TESTPART3AAAAAAAAAAAAAAA',          // volA → actAtt2，活跃
+  partAtt3: '01TESTPART4AAAAAAAAAAAAAAA',          // volA → actAtt3（signup 已取消）→ 409 NOT_SIGNED_UP
+  partAtt4: '01TESTPART5AAAAAAAAAAAAAAA',          // volA → actAtt4，活跃
+  partAtt5: '01TESTPART6AAAAAAAAAAAAAAA',          // volA → actAtt5，活跃
+  partAtt5Owner: '01TESTPART7AAAAAAAAAAAAAAA',     // ownerA → actAtt5，活跃
+  partAttB: '01TESTPARTBAAAAAAAAAAAAAAA',          // volB → actAttB（跨团队 → 404）
 };
 
 function dbFile() {
@@ -81,6 +90,7 @@ const userIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM users WHERE 
 const teamIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM teams WHERE public_id = ?').get(pub)?.id);
 const actIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM activities WHERE public_id = ?').get(pub)?.id);
 const roleIdOf = (code) => withDb((db) => db.prepare('SELECT id FROM roles WHERE code = ?').get(code)?.id);
+const partIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM activity_participations WHERE public_id = ?').get(pub)?.id);
 
 /** 读取某活动下某用户的考勤会话行。 */
 function sessionRow(activityId, userId) {
@@ -139,23 +149,31 @@ function restoreVolunteerAtTeamA() {
 }
 
 // ===== HTTP helpers =====
-async function req(method, path, headers = {}) {
-  const res = await fetch(`${BASE}${path}`, { method, headers });
-  let body = null;
+async function req(method, path, headers = {}, body) {
+  const init = { method, headers };
+  if (body !== undefined) init.body = body;
+  const res = await fetch(`${BASE}${path}`, init);
+  let bodyRes = null;
   try {
-    body = await res.json();
+    bodyRes = await res.json();
   } catch {
-    body = null;
+    bodyRes = null;
   }
-  return { res, body, text: JSON.stringify(body ?? {}) };
+  return { res, body: bodyRes, text: JSON.stringify(bodyRes ?? {}) };
 }
 const authHeaders = (token, team) => {
   const h = { authorization: `Bearer ${token}` };
   if (team != null) h['x-team-id'] = String(team);
   return h;
 };
-const checkIn = (activityId, token, team) =>
-  req('POST', `/api/v2/activities/${encodeURIComponent(activityId)}/attendance/checkin`, authHeaders(token, team));
+// P17：新 check-in 必须提交合法 participation_public_id（body），location 可选（S2-6k2 保留）。
+const checkIn = (activityId, token, team, participationPublicId, location) =>
+  req(
+    'POST',
+    `/api/v2/activities/${encodeURIComponent(activityId)}/attendance/checkin`,
+    { ...authHeaders(token, team), 'content-type': 'application/json' },
+    JSON.stringify({ participation_public_id: participationPublicId, ...(location !== undefined ? { location } : {}) }),
+  );
 const checkOut = (activityId, token, team) =>
   req('POST', `/api/v2/activities/${encodeURIComponent(activityId)}/attendance/checkout`, authHeaders(token, team));
 
@@ -184,12 +202,12 @@ const a5 = actIdOf(IDS.actAtt5);
 const aB = actIdOf(IDS.actAttB);
 
 // ---------------------------------------------------------------- A. Baseline
-process.stderr.write('A. Baseline（目录 83/238 + 冻结签到权限 + fixture 就绪）\n');
+process.stderr.write('A. Baseline（目录 87/247 + 冻结签到权限 + fixture 就绪）\n');
 {
   const probe = await req('GET', '/probe');
   // 注意：/probe 是基础设施探针，刻意回显表行数；不参与 F 组业务面泄漏扫描。
-  check('A1 permissions=83', probe.body?.data?.permissions === 83, `got ${probe.body?.data?.permissions}`);
-  check('A2 role_permissions=238', probe.body?.data?.role_permissions === 238, `got ${probe.body?.data?.role_permissions}`);
+  check('A1 permissions=87', probe.body?.data?.permissions === 87, `got ${probe.body?.data?.permissions}`);
+  check('A2 role_permissions=247', probe.body?.data?.role_permissions === 247, `got ${probe.body?.data?.role_permissions}`);
 
   const codes = withDb((db) =>
     db
@@ -223,68 +241,88 @@ process.stderr.write('A. Baseline（目录 83/238 + 冻结签到权限 + fixture
     teams: db.prepare('SELECT COUNT(*) AS n FROM teams').get().n,
     acts: db.prepare('SELECT COUNT(*) AS n FROM activities').get().n,
     su: db.prepare('SELECT COUNT(*) AS n FROM activity_signups').get().n,
+    occ: db.prepare('SELECT COUNT(*) AS n FROM activity_occurrences').get().n,
+    part: db.prepare('SELECT COUNT(*) AS n FROM activity_participations').get().n,
     ss: db.prepare('SELECT COUNT(*) AS n FROM attendance_sessions').get().n,
     ev: db.prepare('SELECT COUNT(*) AS n FROM attendance_events').get().n,
   }));
-  check('A4 fixture 就绪：teams=2 activities=6 activity_signups=6 sessions=0 events=0',
-    fx.teams === 2 && fx.acts === 6 && fx.su === 6 && fx.ss === 0 && fx.ev === 0, JSON.stringify(fx));
+  check('A4 fixture 就绪：teams=2 activities=6 signups=7 occurrences=6 participations=8 sessions=0 events=0',
+    fx.teams === 2 && fx.acts === 6 && fx.su === 7 && fx.occ === 6 && fx.part === 8 && fx.ss === 0 && fx.ev === 0, JSON.stringify(fx));
 }
 
 // ---------------------------------------------------------------- B. Check-in (Create)
 process.stderr.write('B. 本人签到（Check-in）\n');
 {
-  const r = await checkIn(IDS.actAtt1, TOKENS.volA, teamA);
+  const r = await checkIn(IDS.actAtt1, TOKENS.volA, teamA, IDS.partAtt1, { latitude: 31.2304, longitude: 121.4737, accuracy: 12.5 });
   logAtt(r);
   check('B5 volA 合法签到 actAtt1 → 201', r.res.status === 201 && r.body?.data?.attendance?.session_id > 0, `got ${r.res.status}/${r.body?.error?.code}`);
   if (r.res.status === 201) { expSessions += 1; expEvents += 1; }
   check('B6 返回统一响应 envelope', r.body?.success === true && r.body?.data?.attendance != null, JSON.stringify(r.body).slice(0, 80));
   const row = sessionRow(a1, volAId);
   check('B7 会话写入正确 user_id', row?.user_id === volAId, `got ${row?.user_id}`);
+  check('B7b 会话 participation_id 绑定 resolved Participation（P16 契约）', row?.participation_id === partIdOf(IDS.partAtt1), `got ${row?.participation_id}`);
   check('B8 会话对应正确 activity', row?.activity_id === a1, `got ${row?.activity_id}`);
   check('B9 会话对应正确 team', row?.team_id === teamA, `got ${row?.team_id}`);
   check('B10 会话 status=1（已签到）', row?.status === 1, `got ${row?.status}`);
   check('B11 会话 checkin_at 已写入', row?.checkin_at != null, `got ${row?.checkin_at}`);
   const ev = row ? eventCountForSession(row.id) : 0;
   check('B12 写最小 checkin 事件证据行', ev >= 1, `got ${ev}`);
+  const locEv = withDb((db) => db.prepare('SELECT latitude, longitude, accuracy, distance FROM attendance_events WHERE session_id=? AND event_type=\'checkin\'').get(row.id));
+  check('B12b 带 location 签到坐标落库（S2-6k2 契约保留）', locEv?.latitude === 31.2304 && locEv?.longitude === 121.4737 && locEv?.accuracy === 12.5 && locEv?.distance === null, `got ${JSON.stringify(locEv)}`);
 
   // R2 模型：同一用户任意时刻至多一条活跃会话（uq_active_attendance）。
   // volA 已持有 actAtt1 活跃会话，跨活动签到 actAtt2 必须被拦截。
-  const r2 = await checkIn(IDS.actAtt2, TOKENS.volA, teamA);
+  const r2 = await checkIn(IDS.actAtt2, TOKENS.volA, teamA, IDS.partAtt2);
   logAtt(r2);
   check('B13 volA 跨活动签到 actAtt2（actAtt1 已活跃）→ 409 ALREADY_CHECKED_IN（单一活跃会话）',
     r2.res.status === 409 && r2.body?.error?.details?.reason === 'attendance_already_checked_in',
     `got ${r2.res.status}/${r2.body?.error?.details?.reason}`);
 
-  const rno = await checkIn(IDS.actAtt1, null, teamA);
+  const rno = await checkIn(IDS.actAtt1, null, teamA, IDS.partAtt1);
   logAtt(rno);
   check('B14 无 Session → 401 AUTH_REQUIRED', rno.res.status === 401 && rno.body?.error?.code === 'AUTH_REQUIRED', `got ${rno.res.status}/${rno.body?.error?.code}`);
 
-  const radm = await checkIn(IDS.actAtt1, TOKENS.teamAdminA, teamA);
+  const radm = await checkIn(IDS.actAtt1, TOKENS.teamAdminA, teamA, IDS.partAtt1);
   logAtt(radm);
   check('B15 无 checkin 权限（team_admin@teamA）→ 403 FORBIDDEN', radm.res.status === 403 && radm.body?.error?.code === 'FORBIDDEN', `got ${radm.res.status}/${radm.body?.error?.code}`);
 
-  const rmiss = await checkIn(IDS.actMissing, TOKENS.volA, teamA);
+  const rmiss = await checkIn(IDS.actMissing, TOKENS.volA, teamA, IDS.partAtt1);
   logAtt(rmiss);
   check('B16 活动不存在（合法 ULID）→ 404 NOT_FOUND', rmiss.res.status === 404 && rmiss.body?.error?.code === 'NOT_FOUND', `got ${rmiss.res.status}`);
 
-  const rx = await checkIn(IDS.actAttB, TOKENS.volA, teamA);
+  const rx = await checkIn(IDS.actAttB, TOKENS.volA, teamA, IDS.partAttB);
   logAtt(rx);
-  check('B17 跨团队活动（actAttB@teamB，active=teamA，权限已授予）→ 404 NOT_FOUND（不泄露存在）', rx.res.status === 404 && rx.body?.error?.code === 'NOT_FOUND', `got ${rx.res.status}/${rx.body?.error?.code}`);
+  check('B17 跨团队 Participation（teamB 的 partAttB，active=teamA）→ 404 NOT_FOUND（不泄露存在）', rx.res.status === 404 && rx.body?.error?.code === 'NOT_FOUND', `got ${rx.res.status}/${rx.body?.error?.code}`);
 
-  const rinj = await checkIn(IDS.actInjection, TOKENS.volA, teamA);
+  const rinj = await checkIn(IDS.actInjection, TOKENS.volA, teamA, IDS.partAtt1);
   logAtt(rinj);
   check('B18 SQL 注入 activityId → 400 INVALID_PARAM（先于 DB）', rinj.res.status === 400 && rinj.body?.error?.code === 'INVALID_PARAM', `got ${rinj.res.status}/${rinj.body?.error?.code}`);
 
-  const rns = await checkIn(IDS.actAtt3, TOKENS.volA, teamA);
+  const rns = await checkIn(IDS.actAtt3, TOKENS.volA, teamA, IDS.partAtt3);
   logAtt(rns);
-  check('B19 未报名活动（actAtt3）→ 409 CONFLICT reason=attendance_not_signed_up', rns.res.status === 409 && rns.body?.error?.details?.reason === 'attendance_not_signed_up', `got ${rns.res.status}/${rns.body?.error?.details?.reason}`);
+  check('B19 signup 非 REGISTERED（actAtt3 已取消报名）→ 409 CONFLICT reason=attendance_not_signed_up', rns.res.status === 409 && rns.body?.error?.details?.reason === 'attendance_not_signed_up', `got ${rns.res.status}/${rns.body?.error?.details?.reason}`);
 
-  const rdup = await checkIn(IDS.actAtt1, TOKENS.volA, teamA);
+  const rdup = await checkIn(IDS.actAtt1, TOKENS.volA, teamA, IDS.partAtt1);
   logAtt(rdup);
   check('B20 重复签到 → 409 reason=attendance_already_checked_in', rdup.res.status === 409 && rdup.body?.error?.details?.reason === 'attendance_already_checked_in', `got ${rdup.res.status}/${rdup.body?.error?.details?.reason}`);
 
   const n = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM attendance_sessions WHERE activity_id=? AND user_id=?').get(a1, volAId).n);
   check('B21 重复签到后数据库仍只有 1 条', n === 1, `got ${n}`);
+
+  // P16：缺 participation_public_id → 400（body 契约）。
+  const rmissBody = await req(
+    'POST',
+    `/api/v2/activities/${encodeURIComponent(IDS.actAtt1)}/attendance/checkin`,
+    { ...authHeaders(TOKENS.volA, teamA), 'content-type': 'application/json' },
+    JSON.stringify({}),
+  );
+  logAtt(rmissBody);
+  check('B22 缺 participation_public_id → 400 INVALID_PARAM', rmissBody.res.status === 400 && rmissBody.body?.error?.code === 'INVALID_PARAM', `got ${rmissBody.res.status}/${rmissBody.body?.error?.code}`);
+
+  // P16：已取消 Participation → 409（与 not_signed_up 区分）。
+  const rcancel = await checkIn(IDS.actAtt1, TOKENS.volA, teamA, IDS.partAtt1Cancelled);
+  logAtt(rcancel);
+  check('B23 已取消 Participation → 409 reason=attendance_participation_not_active', rcancel.res.status === 409 && rcancel.body?.error?.details?.reason === 'attendance_participation_not_active', `got ${rcancel.res.status}/${rcancel.body?.error?.details?.reason}`);
 }
 
 // ---------------------------------------------------------------- C. Check-out Own
@@ -314,7 +352,7 @@ process.stderr.write('C. 本人签退（Check-out）\n');
   check('C10 已报名未签到活动（actAtt4）→ 409 reason=attendance_checkin_required', rns.res.status === 409 && rns.body?.error?.details?.reason === 'attendance_checkin_required', `got ${rns.res.status}/${rns.body?.error?.details?.reason}`);
 
   // 他人考勤：volB 先签到 actAttB，volA 尝试签退（volA 未报名 actAttB）→ 必须不影响 volB 会话。
-  const rb = await checkIn(IDS.actAttB, TOKENS.volB, teamB);
+  const rb = await checkIn(IDS.actAttB, TOKENS.volB, teamB, IDS.partAttB);
   logAtt(rb);
   check('C11 volB 签到自己 actAttB → 201', rb.res.status === 201 && rb.body?.data?.attendance?.session_id > 0, `got ${rb.res.status}`);
   if (rb.res.status === 201) { expSessions += 1; expEvents += 1; }
@@ -337,35 +375,35 @@ process.stderr.write('C. 本人签退（Check-out）\n');
 // ---------------------------------------------------------------- D. Permission + Tenant
 process.stderr.write('D. 权限 + 租户作用域\n');
 {
-  const r1 = await checkIn(IDS.actAtt4, TOKENS.volA, teamA);
+  const r1 = await checkIn(IDS.actAtt4, TOKENS.volA, teamA, IDS.partAtt4);
   logAtt(r1);
   check('D1 TeamA volunteer + active A 签到 actAtt4 → 201', r1.res.status === 201, `got ${r1.res.status}`);
   if (r1.res.status === 201) { expSessions += 1; expEvents += 1; }
 
-  const r2 = await checkIn(IDS.actAtt4, TOKENS.teamAdminA, teamA);
+  const r2 = await checkIn(IDS.actAtt4, TOKENS.teamAdminA, teamA, IDS.partAtt4);
   logAtt(r2);
   check('D2 TeamA admin（无 checkin 权限）→ 403 FORBIDDEN', r2.res.status === 403 && r2.body?.error?.code === 'FORBIDDEN', `got ${r2.res.status}`);
 
-  const r3 = await checkIn(IDS.actAtt1, TOKENS.volA, teamB);
+  const r3 = await checkIn(IDS.actAtt1, TOKENS.volA, teamB, IDS.partAtt1);
   logAtt(r3);
   check('D3 切换 active=teamB（volA 无 teamB 角色绑定）→ 403 FORBIDDEN（权限随团队上下文失效）', r3.res.status === 403 && r3.body?.error?.code === 'FORBIDDEN', `got ${r3.res.status}`);
 
-  const r4 = await checkIn(IDS.actAtt4, TOKENS.plat, teamA);
+  const r4 = await checkIn(IDS.actAtt4, TOKENS.plat, teamA, IDS.partAtt4);
   logAtt(r4);
   check('D4 platform_operator（无 checkin 权限）→ 403 FORBIDDEN', r4.res.status === 403 && r4.body?.error?.code === 'FORBIDDEN', `got ${r4.res.status}`);
 
-  const r5 = await checkIn(IDS.actAtt4, TOKENS.platSuper, teamA);
+  const r5 = await checkIn(IDS.actAtt4, TOKENS.platSuper, teamA, IDS.partAtt4);
   logAtt(r5);
   check('D5 platform_super_admin（持 checkin 但无 team 上下文）→ 403 TEAM_SCOPE_REQUIRED（Permission ≠ Tenant Scope）', r5.res.status === 403 && r5.body?.error?.code === 'TEAM_SCOPE_REQUIRED', `got ${r5.res.status}/${r5.body?.error?.code}`);
 
-  const r6 = await checkIn(IDS.actAtt5, TOKENS.ownerA, teamA);
+  const r6 = await checkIn(IDS.actAtt5, TOKENS.ownerA, teamA, IDS.partAtt5Owner);
   logAtt(r6);
   check('D6 team_owner（兼 volunteer）→ 201（持有 checkin 且本人已报名）', r6.res.status === 201, `got ${r6.res.status}`);
   if (r6.res.status === 201) { expSessions += 1; expEvents += 1; }
 
-  const r7 = await checkIn(IDS.actAttB, TOKENS.ownerA, teamA);
+  const r7 = await checkIn(IDS.actAttB, TOKENS.ownerA, teamA, IDS.partAttB);
   logAtt(r7);
-  check('D7 team_owner 跨团队活动（actAttB）→ 404 NOT_FOUND', r7.res.status === 404 && r7.body?.error?.code === 'NOT_FOUND', `got ${r7.res.status}`);
+  check('D7 team_owner 跨团队 Participation（actAttB/partAttB）→ 404 NOT_FOUND', r7.res.status === 404 && r7.body?.error?.code === 'NOT_FOUND', `got ${r7.res.status}`);
 }
 
 // ---------------------------------------------------------------- E. Live Authorization
@@ -377,7 +415,7 @@ process.stderr.write('E. 实时授权（权限未固化进 Session）\n');
   check('E0 volA 签退 actAtt4（收尾 D1 活跃会话）→ 200', e0.res.status === 200 && e0.body?.data?.attendance?.status === 2, `got ${e0.res.status}`);
   if (e0.res.status === 200) expEvents += 1;
 
-  const r1 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA);
+  const r1 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA, IDS.partAtt5);
   logAtt(r1);
   check('E1 volA 签到 actAtt5 → 201（基线，权限生效）', r1.res.status === 201, `got ${r1.res.status}`);
   if (r1.res.status === 201) { expSessions += 1; expEvents += 1; }
@@ -386,11 +424,11 @@ process.stderr.write('E. 实时授权（权限未固化进 Session）\n');
   const afterRevoke = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM user_roles WHERE user_id=? AND role_id=? AND scope_team_id=?').get(volAId, roleIdOf('volunteer'), teamA).n);
   check('E2 撤销 volA volunteer@teamA 已落库（user_roles 行移除）', afterRevoke === 0, `got ${afterRevoke}`);
 
-  const r3 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA);
+  const r3 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA, IDS.partAtt5);
   logAtt(r3);
   check('E3 角色撤销后下一请求 → 403（权限即时失效）', r3.res.status === 403 && r3.body?.error?.code === 'FORBIDDEN', `got ${r3.res.status}`);
 
-  const r4 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA);
+  const r4 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA, IDS.partAtt5);
   logAtt(r4);
   check('E4 撤销期间重复请求仍 403（稳定）', r4.res.status === 403, `got ${r4.res.status}`);
 
@@ -452,7 +490,7 @@ process.stderr.write('G. 多次参加 / 单一活跃会话（S2-6h-R2 模型修�
   );
   check('G2 进入前 volA 活跃会话数=0', activeBefore === 0, `got ${activeBefore}`);
 
-  const g2 = await checkIn(IDS.actAtt1, TOKENS.volA, teamA);
+  const g2 = await checkIn(IDS.actAtt1, TOKENS.volA, teamA, IDS.partAtt1);
   logAtt(g2);
   check('G3 签退后再次签到 actAtt1（同一报名多次参加）→ 201', g2.res.status === 201 && g2.body?.data?.attendance?.session_id > 0, `got ${g2.res.status}`);
   if (g2.res.status === 201) { expSessions += 1; expEvents += 1; }
@@ -463,8 +501,9 @@ process.stderr.write('G. 多次参加 / 单一活跃会话（S2-6h-R2 模型修�
   check('G4 新会话 service_date 已锚定（>0）', newRow?.service_date > 0, `got ${newRow?.service_date}`);
   check('G5 新会话 slot 默认值（空串）', newRow?.slot === '', `got ${JSON.stringify(newRow?.slot)}`);
   check('G6 新会话 status=1 活跃', newRow?.status === 1 && newRow?.checkout_at == null, `status=${newRow?.status}`);
+  check('G6b 新会话 participation_id 绑定 partAtt1（P16）', newRow?.participation_id === partIdOf(IDS.partAtt1), `got ${newRow?.participation_id}`);
 
-  const g4 = await checkIn(IDS.actAtt1, TOKENS.volA, teamA);
+  const g4 = await checkIn(IDS.actAtt1, TOKENS.volA, teamA, IDS.partAtt1);
   logAtt(g4);
   check('G7 同活动未签退再次签到 → 409 ALREADY_CHECKED_IN（同报名单一活跃）', g4.res.status === 409 && g4.body?.error?.details?.reason === 'attendance_already_checked_in', `got ${g4.res.status}/${g4.body?.error?.details?.reason}`);
 
@@ -480,7 +519,7 @@ process.stderr.write('G. 多次参加 / 单一活跃会话（S2-6h-R2 模型修�
 
   // 跨活动单一活跃会话：volA 已签退全部 → 签到 actAtt2（已有签退会话）→ 新活跃；
   // 此时再签到 actAtt5（不同活动）必须 409（uq_active_attendance 跨活动兜底）。
-  const g7 = await checkIn(IDS.actAtt2, TOKENS.volA, teamA);
+  const g7 = await checkIn(IDS.actAtt2, TOKENS.volA, teamA, IDS.partAtt2);
   logAtt(g7);
   check('G10 签退后签到 actAtt2（多次参加另一活动）→ 201', g7.res.status === 201, `got ${g7.res.status}`);
   if (g7.res.status === 201) { expSessions += 1; expEvents += 1; }
@@ -505,7 +544,7 @@ process.stderr.write('G. 多次参加 / 单一活跃会话（S2-6h-R2 模型修�
   }
   check('G12 并发兜底：直接写入第二条 volA 活跃会话被 uq_active_attendance 拒绝', dupInsertThrew === true, `threw=${dupInsertThrew}`);
 
-  const g9 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA);
+  const g9 = await checkIn(IDS.actAtt5, TOKENS.volA, teamA, IDS.partAtt5);
   logAtt(g9);
   check('G13 已有活跃会话时跨活动签到 actAtt5 → 409 ALREADY_CHECKED_IN（R1 背景第 5 条）', g9.res.status === 409 && g9.body?.error?.details?.reason === 'attendance_already_checked_in', `got ${g9.res.status}/${g9.body?.error?.details?.reason}`);
 

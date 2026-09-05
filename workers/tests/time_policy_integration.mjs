@@ -59,11 +59,13 @@ const teamIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM teams WHERE 
 const actIdOf = (pub) => withDb((db) => db.prepare('SELECT id FROM activities WHERE public_id = ?').get(pub)?.id);
 
 // ===== HTTP helpers =====
-async function req(method, path, headers = {}) {
-  const res = await fetch(`${BASE}${path}`, { method, headers });
-  let body = null;
-  try { body = await res.json(); } catch { body = null; }
-  return { res, body };
+async function req(method, path, headers = {}, body) {
+  const init = { method, headers };
+  if (body !== undefined) init.body = body;
+  const res = await fetch(`${BASE}${path}`, init);
+  let bodyRes = null;
+  try { bodyRes = await res.json(); } catch { bodyRes = null; }
+  return { res, body: bodyRes };
 }
 const authHeaders = (token, team) => {
   const h = { authorization: `Bearer ${token}` };
@@ -71,7 +73,9 @@ const authHeaders = (token, team) => {
   return h;
 };
 const checkIn = (activityId, token, team) =>
-  req('POST', `/api/v2/activities/${encodeURIComponent(activityId)}/attendance/checkin`, authHeaders(token, team));
+  req('POST', `/api/v2/activities/${encodeURIComponent(activityId)}/attendance/checkin`,
+    { ...authHeaders(token, team), 'content-type': 'application/json' },
+    JSON.stringify({ participation_public_id: '01TESTPART1AAAAAAAAAAAAAAA' })); // P17：volA → actAtt1
 
 // Beijing(Asia/Shanghai) → UTC epoch seconds
 function beijing(y, mo, d, h, mi, s) {
