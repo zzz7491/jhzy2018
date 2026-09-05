@@ -69,6 +69,8 @@ export const ConflictReason = {
   FORM_VERSION_STALE: 'form_version_stale', // 提交/draft 指向的 version 已不是当前 published version
   FORM_SUBMISSION_DUPLICATE: 'form_submission_duplicate', // 同 grain（definition+submitter+consumer）已存在活跃 submitted
   FORM_NOT_AVAILABLE: 'form_not_available', // 合法 consumer 上不存在可用 published form（仅此场景可返回该 reason）
+  // S2-NEW-ARCH-P21（新增，纯增量）：signup 消费 binding 策略为 required(2) 但未提供 submitted form。
+  SIGNUP_FORM_REQUIRED: 'signup_form_required',
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];

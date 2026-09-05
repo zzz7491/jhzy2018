@@ -29,6 +29,26 @@ export interface ActivitySignupRow {
   cancel_count: number;
   created_at: number;
   updated_at: number | null;
+  form_submission_id: number | null; // P21（0016）
+}
+
+/** P21 读投影基础行（signup + form submission + frozen schema；service 层按权限裁剪）。 */
+export interface SignupReadRow {
+  id: number;
+  activity_public_id: string;
+  user_public_id: string;
+  review_status: number;
+  status: number;
+  cancel_count: number;
+  created_at: number;
+  updated_at: number | null;
+  form_data: string | null;
+  submission_public_id: string | null;
+  submission_status: number | null;
+  version_public_id: string | null;
+  answers_json: string | null;
+  version_schema_json: string | null;
+  submitter_user_id: number | null;
 }
 
 /** activity_signups.status 字典（docs/嘉禾志愿2.0技术架构设计方案V1.0.md §activity_signups）。 */
@@ -178,7 +198,7 @@ export class ActivitySignupRepository extends BaseRepository {
 
     const row = await this.first<ActivitySignupRow>(
       `SELECT s.id, s.activity_id, s.user_id, s.review_status, s.status,
-              s.cancel_count, s.created_at, s.updated_at
+              s.cancel_count, s.created_at, s.updated_at, s.form_submission_id
          FROM activity_signups s
          JOIN activities a ON a.id = s.activity_id
         WHERE s.id = ? AND a.team_id = ? AND a.deleted_at IS NULL`,
@@ -186,5 +206,202 @@ export class ActivitySignupRepository extends BaseRepository {
     );
     if (!row) throw notFound('Signup');
     return row;
+  }
+
+  // =========================================================================
+  // P21 —— Signup × Form Submission 绑定 / 重报 / 读投影（唯一写入口保持本文件）
+  // =========================================================================
+
+  /** 仅绑定 P20 已 submitted 的 evidence：单条原子 INSERT…SELECT，guard 全含，以 changes 判定。 */
+  async insertSignupWithFormAtomically(input: {
+    activityPublicId: string;
+    userId: number;
+    teamId: number;
+    submissionPublicId: string;
+    now: number;
+  }): Promise<number> {
+    this.ensureTableRead('activity_signups');
+    const { activityPublicId, userId, teamId, submissionPublicId, now } = input;
+    const params: unknown[] = [];
+    const P = (v: unknown) => { params.push(v == null ? null : v); return '?'; };
+
+    const res = await this.run(
+      `INSERT INTO activity_signups (activity_id, user_id, review_status, status, created_at, form_submission_id)
+       SELECT a.id, ${P(userId)}, (CASE WHEN a.need_audit = 1 THEN 0 ELSE 1 END), 1, ${P(now)}, s.id
+         FROM activities a
+         JOIN form_submissions s ON s.public_id = ${P(submissionPublicId)}
+         JOIN form_definitions d ON d.id = s.definition_id
+        WHERE a.public_id = ${P(activityPublicId)} AND a.team_id = ${P(teamId)}
+          AND a.status = 1 AND a.deleted_at IS NULL
+          AND s.status = 2 AND s.submitter_user_id = ${P(userId)}
+          AND s.consumer_type = 'activity.signup' AND s.consumer_public_id = a.public_id
+          AND d.team_id = a.team_id AND d.status = 2
+          AND s.version_id = d.published_version_id
+          AND EXISTS (SELECT 1 FROM form_bindings b
+                       WHERE b.status = 1 AND b.consumer_type = 'activity.signup'
+                         AND b.team_id = a.team_id AND b.consume_policy IN (1,2)
+                         AND ( (b.consumer_public_id = a.public_id AND b.definition_id = s.definition_id)
+                               OR (b.consumer_public_id IS NULL AND b.is_default = 1
+                                   AND b.definition_id = s.definition_id) ))
+          AND NOT EXISTS (SELECT 1 FROM activity_signups g
+                           JOIN activities ga ON ga.id = g.activity_id
+                          WHERE g.user_id = ${P(userId)} AND g.activity_id = a.id)
+          AND NOT EXISTS (SELECT 1 FROM activity_signups g2 WHERE g2.form_submission_id = s.id)`,
+      params,
+    );
+    return Number(res.meta?.changes ?? 0);
+  }
+
+  /** 重新报名（无表单，form_submission_id=NULL）：原 cancelled 行 status=2 → 1。 */
+  async reactivateSignupAtomically(input: {
+    activityPublicId: string;
+    userId: number;
+    teamId: number;
+    now: number;
+  }): Promise<number> {
+    this.ensureTableRead('activity_signups');
+    const { activityPublicId, userId, teamId, now } = input;
+    const params: unknown[] = [];
+    const P = (v: unknown) => { params.push(v == null ? null : v); return '?'; };
+
+    const res = await this.run(
+      `UPDATE activity_signups AS g
+          SET status = 1,
+              review_status = (SELECT CASE WHEN a.need_audit = 1 THEN 0 ELSE 1 END
+                                FROM activities a
+                               WHERE a.id = g.activity_id AND a.team_id = ${P(teamId)} AND a.deleted_at IS NULL),
+              review_by = NULL, review_at = NULL, review_reason = NULL,
+              form_submission_id = NULL,
+              updated_at = ${P(now)}
+        WHERE g.user_id = ${P(userId)} AND g.status = 2
+          AND g.activity_id = (SELECT a.id FROM activities a
+                                WHERE a.public_id = ${P(activityPublicId)}
+                                  AND a.team_id = ${P(teamId)}
+                                  AND a.status = 1 AND a.deleted_at IS NULL)`,
+      params,
+    );
+    return Number(res.meta?.changes ?? 0);
+  }
+
+  /**
+   * 重新报名（绑定已校验的证据 id）：原子 UPDATE…WHERE，关键 1:1 排除当前行内联。
+   * 除确保原行 status=2（cancelled）外，对 ensureBindable 已核过的全部证据在 UPDATE 谓词内
+   * 再次原子复核，消除 ensureBindable 与本次写之间的 TOCTOU（管理员 publish/archive/改 binding
+   * 等中间态不可把旧证据错误绑入）：
+   *   - 证据仍 submitted（status=2）
+   *   - 证据归属本人（submitter_user_id = g.user_id）
+   *   - 证据 consumer 匹配本活动（consumer_type + consumer_public_id = 活动 public_id）
+   *   - 定义仍 published（d.status=2 且 team 一致）
+   *   - 证据版本仍 = 当前 published_version_id
+   *   - 活跃 binding 仍指向该 definition 且 consume_policy ∈ (1,2)
+   *   - 该 evidence 未被其它 signup 占用（排除当前行）
+   * 任一条件不满足 → changes=0 → 上层 reclassify 安全重分类（不泄露 SQL/内部 id）。
+   */
+  async reactivateSignupWithGivenSubmissionAtomically(input: {
+    activityPublicId: string;
+    userId: number;
+    teamId: number;
+    submissionId: number;
+    now: number;
+  }): Promise<number> {
+    this.ensureTableRead('activity_signups');
+    const { activityPublicId, userId, teamId, submissionId, now } = input;
+    const params: unknown[] = [];
+    const P = (v: unknown) => { params.push(v == null ? null : v); return '?'; };
+
+    const res = await this.run(
+      `UPDATE activity_signups AS g
+          SET status = 1,
+              review_status = (SELECT CASE WHEN a.need_audit = 1 THEN 0 ELSE 1 END
+                                FROM activities a
+                               WHERE a.id = g.activity_id AND a.team_id = ${P(teamId)} AND a.deleted_at IS NULL),
+              review_by = NULL, review_at = NULL, review_reason = NULL,
+              form_submission_id = ${P(submissionId)}, updated_at = ${P(now)}
+        WHERE g.user_id = ${P(userId)} AND g.status = 2
+          AND g.activity_id = (SELECT a.id FROM activities a
+                                WHERE a.public_id = ${P(activityPublicId)} AND a.team_id = ${P(teamId)}
+                                  AND a.status = 1 AND a.deleted_at IS NULL)
+          -- 证据仍 submitted + 归属本人 + consumer 匹配本活动
+          AND EXISTS (SELECT 1 FROM form_submissions s
+                       WHERE s.id = ${P(submissionId)}
+                         AND s.status = 2
+                         AND s.submitter_user_id = g.user_id
+                         AND s.consumer_type = 'activity.signup'
+                         AND s.consumer_public_id = (SELECT a2.public_id FROM activities a2 WHERE a2.id = g.activity_id))
+          -- 定义仍 published 且证据版本仍 = 当前 published_version_id
+          AND EXISTS (SELECT 1 FROM form_submissions s2
+                       JOIN form_definitions d ON d.id = s2.definition_id
+                      WHERE s2.id = ${P(submissionId)}
+                        AND d.team_id = ${P(teamId)} AND d.status = 2
+                        AND s2.version_id = d.published_version_id)
+          -- 活跃 binding 仍指向该 definition 且 consume_policy ∈ (1,2)
+          AND EXISTS (SELECT 1 FROM form_bindings b
+                       WHERE b.status = 1 AND b.consumer_type = 'activity.signup'
+                         AND b.team_id = ${P(teamId)} AND b.consume_policy IN (1,2)
+                         AND EXISTS (SELECT 1 FROM form_submissions s3
+                                      WHERE s3.id = ${P(submissionId)}
+                                        AND ( (b.consumer_public_id = (SELECT a2.public_id FROM activities a2 WHERE a2.id = g.activity_id) AND b.definition_id = s3.definition_id)
+                                              OR (b.consumer_public_id IS NULL AND b.is_default = 1 AND b.definition_id = s3.definition_id) )))
+          -- 该 evidence 未被其它 signup 占用（排除当前行）
+          AND NOT EXISTS (SELECT 1 FROM activity_signups g2 WHERE g2.form_submission_id = ${P(submissionId)} AND g2.id <> g.id)`,
+      params,
+    );
+    return Number(res.meta?.changes ?? 0);
+  }
+
+  private readonly SIGNUP_READ_SELECT = `
+    SELECT g.id, a.public_id AS activity_public_id, u.public_id AS user_public_id,
+           g.review_status, g.status, g.cancel_count, g.created_at, g.updated_at,
+           g.form_data, s.public_id AS submission_public_id, s.status AS submission_status,
+           v.public_id AS version_public_id, s.answers_json, v.schema_json AS version_schema_json,
+           s.submitter_user_id
+      FROM activity_signups g
+      JOIN activities a ON a.id = g.activity_id
+      JOIN users u ON u.id = g.user_id
+      LEFT JOIN form_submissions s ON s.id = g.form_submission_id
+      LEFT JOIN form_definition_versions v ON v.id = s.version_id`;
+
+  /** form_submission_id 被多少条 signup 使用（排除自身行；P21 1:1 占位判定）。 */
+  async countFormSubmissionUsages(submissionId: number, excludeSignupId?: number): Promise<number> {
+    this.ensureTableRead('activity_signups');
+    this.requireTeamId();
+    const row = await this.first<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM activity_signups
+        WHERE form_submission_id = ? AND (? IS NULL OR id <> ?)`,
+      [submissionId, excludeSignupId ?? null, excludeSignupId ?? null],
+    );
+    return Number(row?.n ?? 0);
+  }
+
+  /** 本人唯一 signup 详情（含 cancelled；经活动派生租户隔离）。 */
+  async findOwnSignupDetail(activityId: number, userId: number, teamId: number): Promise<SignupReadRow | null> {
+    this.ensureTableRead('activity_signups');
+    return this.first<SignupReadRow>(
+      `${this.SIGNUP_READ_SELECT}
+        WHERE g.activity_id = ? AND g.user_id = ? AND a.team_id = ? AND a.deleted_at IS NULL`,
+      [activityId, userId, teamId],
+    );
+  }
+
+  /** 按 user_public_id 的指定 signup 详情（TEAM；跨团队/用户不存在 → null）。 */
+  async findSignupDetailByUser(activityPublicId: string, userPublicId: string, teamId: number): Promise<SignupReadRow | null> {
+    this.ensureTableRead('activity_signups');
+    return this.first<SignupReadRow>(
+      `${this.SIGNUP_READ_SELECT}
+        WHERE a.public_id = ? AND u.public_id = ? AND a.team_id = ? AND a.deleted_at IS NULL`,
+      [activityPublicId, userPublicId, teamId],
+    );
+  }
+
+  /** 团队 signup 列表（分页；含所有 status；不批量携带敏感 answers 由 service 层裁剪）。 */
+  async listSignupsForTeam(activityPublicId: string, teamId: number, limit: number, offset: number): Promise<SignupReadRow[]> {
+    this.ensureTableRead('activity_signups');
+    return this.all<SignupReadRow>(
+      `${this.SIGNUP_READ_SELECT}
+        WHERE a.public_id = ? AND a.team_id = ? AND a.deleted_at IS NULL
+        ORDER BY g.created_at DESC, g.id DESC
+        LIMIT ? OFFSET ?`,
+      [activityPublicId, teamId, limit, offset],
+    );
   }
 }

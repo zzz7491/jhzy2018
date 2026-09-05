@@ -45,9 +45,16 @@ export interface FormBindingRow {
   consumer_public_id: string | null;
   is_default: number;
   status: number; // 1 active / 2 archived
+  consume_policy: number; // 0 none / 1 optional / 2 required（P21，0016）
   created_at: number;
   updated_at: number | null;
 }
+
+export const FORM_CONSUME_POLICY = {
+  NONE: 0,
+  OPTIONAL: 1,
+  REQUIRED: 2,
+} as const;
 
 export interface FormVersionRow {
   id: number;
@@ -476,17 +483,18 @@ const stmt0 = this.db
     consumerType: string;
     consumerPublicId: string | null;
     isDefault: number;
+    consumePolicy: number;
     now: number;
   }): Promise<number> {
     this.ensureTableRead('form_bindings');
-    const { publicId, teamId, definitionId, consumerType, consumerPublicId, isDefault, now } = input;
+    const { publicId, teamId, definitionId, consumerType, consumerPublicId, isDefault, consumePolicy, now } = input;
     const params: unknown[] = [];
     const P = (v: unknown) => { params.push(v == null ? null : v); return '?'; };
 
     const res = await this.run(
       `INSERT INTO form_bindings
-         (public_id, team_id, definition_id, consumer_type, consumer_public_id, is_default, status, created_at, updated_at)
-       SELECT ${P(publicId)}, ${P(teamId)}, ${P(definitionId)}, ${P(consumerType)}, ${P(consumerPublicId)}, ${P(isDefault)}, 1, ${P(now)}, NULL
+         (public_id, team_id, definition_id, consumer_type, consumer_public_id, is_default, consume_policy, status, created_at, updated_at)
+       SELECT ${P(publicId)}, ${P(teamId)}, ${P(definitionId)}, ${P(consumerType)}, ${P(consumerPublicId)}, ${P(isDefault)}, ${P(consumePolicy)}, 1, ${P(now)}, NULL
        WHERE
          (SELECT 1 FROM form_definitions d
            WHERE d.id = ${P(definitionId)} AND d.team_id = ${P(teamId)} AND d.status = 2) IS NOT NULL

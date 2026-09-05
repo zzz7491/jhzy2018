@@ -25,6 +25,7 @@ import { ActivityRepository } from '../repository/activities';
 import { ActivitySignupService } from '../services/activity-signup-service';
 import { ActivityAttendanceService } from '../services/attendance-service';
 import { requirePermission } from '../middleware/rbac';
+import { D1PermissionProvider } from '../services/permission-provider';
 import { ok } from '../utils/response';
 import { authRequired, invalidParam, AppError, ErrorCode } from '../utils/errors';
 import { requireUlidParam, parsePagination, isUlid } from '../utils/validation';
@@ -57,23 +58,97 @@ activities.get('/:id', async (c) => {
 });
 
 /**
- * POST /api/v2/activities/:activityId/signups —— 报名（S2-6g）。
+ * POST /api/v2/activities/:activityId/signups —— 报名（S2-6g / P21：create + reapply）。
  *
  * - 权限：signup.signup.create（D1 裁决；未认证 401 / 无授权 403）。
- * - :activityId 为 ULID public_id；非法格式 → 400 INVALID_PARAM（先于任何 DB 访问，
- *   同时阻断 SQL 注入载荷，用户 §十五 测试 14）。
- * - 请求体本阶段【不接受任何字段】：user_id 恒等于 AuthContext.userId，
- *   team_id 由 activities.team_id 派生；不接受前端传入（R1 铁律）。
+ * - :activityId 为 ULID public_id；非法格式 → 400 INVALID_PARAM（先于任何 DB 访问）。
+ * - Body（向后兼容）：可选 `form_submission_public_id`（P20 已 submitted 表单证据，ULID）
+ *   与 legacy `form_data`（保持兼容接受，但 P21 不写入、不双写、不以此替代 submission）。
+ * - user_id / team_id 仍全部由服务端派生（R1 铁律）。
  */
 activities.post('/:activityId/signups', requirePermission('signup.signup.create'), async (c) => {
   const auth = c.get('auth');
   if (!auth.authenticated) throw authRequired();
 
   const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+
+  let formSubmissionPublicId: string | undefined;
+  try {
+    const body = await c.req.json().catch(() => null);
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+      const f = (body as Record<string, unknown>).form_submission_public_id;
+      if (f !== undefined && f !== null) {
+        if (typeof f !== 'string' || !isUlid(f)) {
+          throw invalidParam('form_submission_public_id', 'must be a 26-char ULID');
+        }
+        formSubmissionPublicId = f;
+      }
+    }
+  } catch (e) {
+    if (e instanceof AppError && e.code === ErrorCode.INVALID_PARAM) throw e;
+    throw invalidParam('request', 'invalid request body');
+  }
+
   const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
-  const signup = await service.createOwn(activityPublicId);
+  const signup = await service.createOwn(activityPublicId, { formSubmissionPublicId });
 
   return ok(c, { signup }, 201);
+});
+
+// =========================================================================
+// P21 —— Signup 读端点（SELF / TEAM；字面量 `/signups/me` 优先注册）
+// =========================================================================
+
+/** 动态二次鉴权（answers/schema 额外门控；真实 PermissionProvider，非角色名硬编码）。 */
+const hasPerm = async (c: import('hono').Context, code: string): Promise<boolean> => {
+  const auth = c.get('auth');
+  if (!auth?.authenticated) return false;
+  const provider = new D1PermissionProvider(c.env.DB);
+  return provider.hasPermission(auth, code);
+};
+
+/** GET /api/v2/activities/:activityId/signups/me —— 本人报名详情（含自有答案/schema）。 */
+activities.get('/:activityId/signups/me', requirePermission('signup.signup.create'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+
+  const includeAnswers = await hasPerm(c, 'form.submission.read');
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const view = await service.getOwnSignupDetail(activityPublicId, {
+    includeAnswers,
+    includeLegacyFormData: includeAnswers,
+  });
+  return ok(c, { signup: view });
+});
+
+/** GET /api/v2/activities/:activityId/signups —— 团队报名列表（默认不含 answers/schema/legacy form_data）。 */
+activities.get('/:activityId/signups', requirePermission('signup.signup.review'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+  const { page, pageSize } = parsePagination(c.req.query());
+
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const result = await service.listSignups(activityPublicId, page, pageSize);
+  return ok(c, { signups: result.items });
+});
+
+/** GET /api/v2/activities/:activityId/signups/users/:userPublicId —— 指定志愿者报名详情（TEAM）。 */
+activities.get('/:activityId/signups/users/:userPublicId', requirePermission('signup.signup.review'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+  const userPublicId = c.req.param('userPublicId');
+  if (!isUlid(userPublicId)) throw invalidParam('userPublicId', 'must be a 26-char ULID');
+
+  const includeAnswers = await hasPerm(c, 'form.submission.manage');
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const view = await service.getSignupDetailByUser(activityPublicId, userPublicId, {
+    includeAnswers,
+    includeLegacyFormData: includeAnswers,
+  });
+  return ok(c, { signup: view });
 });
 
 /**

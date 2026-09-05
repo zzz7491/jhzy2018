@@ -1,32 +1,30 @@
-/**
- * ActivitySignupService（S2-6g）—— 活动报名 use-case（创建 / 取消本人报名）。
- *
- * 分层（用户 §十八）：route（HTTP/校验） → authorization（middleware 权限裁决）
- *   → service/use-case（业务不变式 + 归属判定 + 编排） → repository（SQL + 租户范围）。
- * 本文件【不】做认证、不读 Cookie、不发响应；只做业务编排。
- *
- * 判定模型（RESOURCE-OWNERSHIP-RULES §7）：
- *   Authenticated AND Permission AND Tenant Scope AND Ownership AND Business invariant
- *
- * 冻结权限码（唯一事实 = workers/scripts/permission-catalog.json，禁止新增/改名）：
- *   signup.signup.create  —— 报名活动（scopeType USER, risk LOW）
- *   signup.signup.cancel  —— 取消自己的报名（scopeType USER, risk LOW）
- *   signup.signup.review  —— 审核活动报名（scopeType TEAM，本阶段不使用：审核 ≠ 取消他人）
- */
-
+﻿/**
+ * ActivitySignupService锛圫2-6g 鈫?S2-NEW-ARCH-P21锛夆€斺€?娲诲姩鎶ュ悕 use-case銆? *
+ * P21 鎺ョ嚎锛歴ignup 鍙€滅粦瀹氣€漃20 宸?submitted 鐨?form submission锛堜笉鍒涘缓/涓嶅鍒惰〃鍗曢€昏緫锛夈€? * - consumer policy 鍒ゅ畾璧?form_bindings.consume_policy锛? none / 1 optional / 2 required锛夈€? * - 琛ㄥ崟缁戝畾 = repo 鍗曟潯鍘熷瓙 INSERT鈥ELECT / UPDATE鈥orrelated predicates锛実uard 鍏ㄥ惈锛屼互 changes 鍒ゅ畾銆? * - 鍙栨秷=鍘熻 status=2锛涢噸鎶?reactivation锛坰tatus=2鈫?锛夛紝缁濅笉 INSERT 绗簩琛岋紙UNIQUE(user_id,activity_id)锛夈€? * - 璇绘姇褰辨寜鏉冮檺瑁佸壀锛圫ELF / TEAM review / submission answers,legacy form_data 闅愮锛夈€? */
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import { ActivityRepository } from '../repository/activities';
 import {
   ActivitySignupRepository,
+  type SignupReadRow,
   SIGNUP_REVIEW_STATUS,
   SIGNUP_STATUS,
 } from '../repository/activity-signups';
+import { FormEngineRepository, FORM_SUBMISSION_STATUS, FORM_CONSUME_POLICY } from '../repository/form-engine';
 import { ActivitySignupOwnershipPolicy } from '../policies/ownership';
-import { authRequired, conflict, notFound, teamScopeRequired, ConflictReason } from '../utils/errors';
+import {
+  authRequired,
+  conflict,
+  notFound,
+  notFoundReason,
+  teamScopeRequired,
+  internalError,
+  ConflictReason,
+} from '../utils/errors';
+import { isUlid } from '../utils/validation';
 
-/** 服务依赖（由路由层从 Context 组装，Service 不接触 HTTP 对象）。 */
+/** 鏈嶅姟渚濊禆锛堢敱璺敱灞備粠 Context 缁勮锛孲ervice 涓嶆帴瑙?HTTP 瀵硅薄锛夈€?*/
 export interface SignupServiceDeps {
   db: D1Database;
   auth: AuthContext;
@@ -42,6 +40,16 @@ export interface SignupView {
   cancel_count: number;
 }
 
+export interface SignupCreateOptions {
+  formSubmissionPublicId?: string;
+}
+
+/** 璇绘姇褰辫鍓紑鍏筹紙鐢?route 缁忕湡瀹?PermissionProvider 璁＄畻锛岄潪瑙掕壊鍚嶇‖缂栫爜锛夈€?*/
+export interface SignupReadOptions {
+  includeAnswers: boolean;
+  includeLegacyFormData: boolean;
+}
+
 const ownershipPolicy = new ActivitySignupOwnershipPolicy();
 
 export class ActivitySignupService {
@@ -55,11 +63,6 @@ export class ActivitySignupService {
     this.tenant = deps.tenant;
   }
 
-  /**
-   * 公共前置：已认证 + 有 userId + 有合法团队上下文。
-   * - 未认证 → 401（与 middleware 语义一致，双保险）。
-   * - 无团队上下文 → 403 TEAM_SCOPE_REQUIRED（activity_signups 为 TEAM_SCOPED 派生表）。
-   */
   private requireActor(): { userId: number; teamId: number } {
     const auth = this.auth;
     if (!auth.authenticated || auth.userId == null) throw authRequired();
@@ -72,87 +75,107 @@ export class ActivitySignupService {
     return {
       activities: new ActivityRepository({ db: this.db, ctx }),
       signups: new ActivitySignupRepository({ db: this.db, ctx }),
+      forms: new FormEngineRepository({ db: this.db, ctx }),
     };
   }
 
   /**
-   * 报名创建（POST /api/v2/activities/:activityId/signups）。
-   *
-   * 顺序（§十九：任何一步失败都必须零写入）：
-   * 1) 身份 + 团队上下文
-   * 2) 活动存在 + 属于当前租户（跨团队 / 不存在 → 同一 404，不泄露存在性）
-   * 3) 业务不变式：activities.status = 1（报名中）→ 否则 409
-   * 4) 重复报名预检（快路径）→ 409
-   * 5) INSERT（真正的重复防护 = UNIQUE(user_id, activity_id)，race → 409）
-   */
-  async createOwn(activityPublicId: string): Promise<SignupView> {
+   * 鎶ュ悕鍏ュ彛 = create + reapply锛圥21锛夈€?   * 淇℃伅娴侊細鏃?binding 鈫?legacy锛沺olicy none 鈫?legacy锛堝甫 submission 鈫?form_not_available锛夛紱
+   * optional 鈫?鍙甫鍙己锛況equired 鈫?缂?submission 409銆?   */
+async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Promise<SignupView> {
     const { userId } = this.requireActor();
     const { activities, signups } = this.repos();
 
-    // 2) 活动 + 租户范围（Repository 内已强制 team_id = tenant.teamId AND deleted_at IS NULL）。
-    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
-
-    // 3) 业务不变式：仅"报名中"状态开放报名。
-    //    字典来源：docs/嘉禾志愿2.0数据库设计方案V1.0.md §4.2 activities.status（0草稿/1报名中/2进行中/3已结束/4已取消/5已下架）。
-    if (activity.status !== ACTIVITY_STATUS_SIGNUP_OPEN) {
-      throw conflict(ConflictReason.ACTIVITY_SIGNUP_CLOSED);
+    if (options.formSubmissionPublicId != null && !isUlid(options.formSubmissionPublicId)) {
+      throw notFound('Form submission');
     }
 
-    // 4) 重复报名预检（UNIQUE 覆盖全 status，故预检也不限定 status）。
+    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    if (activity.status !== 1) throw conflict(ConflictReason.ACTIVITY_SIGNUP_CLOSED);
+
+    const binding = await this.resolvePolicy(activityPublicId);
+    const policy = binding == null ? FORM_CONSUME_POLICY.NONE : binding.consume_policy;
+
     const existing = await signups.findOwnSignup(activity.id, userId);
-    if (existing != null) throw conflict(ConflictReason.SIGNUP_ALREADY_EXISTS);
-
-    // 5) INSERT。review_status 由 activities.need_audit 决定
-    //    （证据：docs/嘉禾志愿V2.0 最终产品与技术架构蓝图V1.0.md ——「活动免审 → 报名成功 / 活动需审 → 待审核」）。
-    const reviewStatus =
-      activity.need_audit === 1 ? SIGNUP_REVIEW_STATUS.PENDING : SIGNUP_REVIEW_STATUS.APPROVED;
     const now = Math.floor(Date.now() / 1000);
-    const id = await signups.insertSignup(activity.id, userId, reviewStatus, now);
 
-    return {
-      id,
-      activity_id: activity.id,
-      user_id: userId,
-      review_status: reviewStatus,
-      status: SIGNUP_STATUS.REGISTERED,
-      cancel_count: 0,
-    };
+    if (existing == null) {
+      // ---------- CREATE ----------
+      if (policy === FORM_CONSUME_POLICY.REQUIRED && options.formSubmissionPublicId == null) {
+        throw conflict(ConflictReason.SIGNUP_FORM_REQUIRED);
+      }
+      if (options.formSubmissionPublicId != null && policy === FORM_CONSUME_POLICY.NONE) {
+        throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE);
+      }
+      if (options.formSubmissionPublicId != null) {
+        // 本请求成功 sentinel = INSERT 实际命中行数（meta.changes）。
+        // 严禁用 findOwnSignup 的"存在性"判成功：并发报名竞争时 request B 的 INSERT 0 行，
+        // 但随后会读到 request A 的 active signup，若以"存在即成功"会误报 200（false-success）。
+        const created = await signups.insertSignupWithFormAtomically({
+          activityPublicId,
+          userId,
+          teamId: this.tenant.teamId!,
+          submissionPublicId: options.formSubmissionPublicId,
+          now,
+        });
+        if (created !== 1) {
+          // INSERT 未实际发生（并发报名已存在 / submission 已被占用 / 证据不合法）→ 安全重分类为 409/404。
+          await this.reclassifyFormBindFail(activityPublicId, userId, options.formSubmissionPublicId!);
+          throw internalError(); // reclassifyFormBindFail 必然抛错，此行不可达
+        }
+        const fresh = await signups.findOwnSignup(activity.id, userId);
+        if (fresh == null) throw internalError();
+        return this.toView(fresh.id, activity.id, userId, fresh.review_status, SIGNUP_STATUS.REGISTERED, fresh.cancel_count);
+      }
+      const reviewStatus = activity.need_audit === 1 ? SIGNUP_REVIEW_STATUS.PENDING : SIGNUP_REVIEW_STATUS.APPROVED;
+      await signups.insertSignup(activity.id, userId, reviewStatus, now);
+      const fresh = await signups.findOwnSignup(activity.id, userId);
+      if (fresh == null) throw internalError();
+      return this.toView(fresh.id, activity.id, userId, fresh.review_status, SIGNUP_STATUS.REGISTERED, fresh.cancel_count);
+    }
+
+    // ---------- REAPPLY（reaction：原行 status=2→1，不 INSERT 第二行）----------
+    if (existing.status === SIGNUP_STATUS.REGISTERED) throw conflict(ConflictReason.SIGNUP_ALREADY_EXISTS);
+    if (policy === FORM_CONSUME_POLICY.REQUIRED && options.formSubmissionPublicId == null) {
+      throw conflict(ConflictReason.SIGNUP_FORM_REQUIRED);
+    }
+    if (options.formSubmissionPublicId != null && policy === FORM_CONSUME_POLICY.NONE) {
+      throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE);
+    }
+    if (options.formSubmissionPublicId != null) {
+      const subId = await this.ensureBindable(activityPublicId, userId, options.formSubmissionPublicId, existing.id);
+      await signups.reactivateSignupWithGivenSubmissionAtomically({
+        activityPublicId,
+        userId,
+        teamId: this.tenant.teamId!,
+        submissionId: subId,
+        now,
+      });
+      const fresh = await signups.findOwnSignup(activity.id, userId);
+      if (fresh == null || fresh.status !== SIGNUP_STATUS.REGISTERED) {
+        await this.reclassifyFormBindFail(activityPublicId, userId, options.formSubmissionPublicId!, existing.id);
+        throw internalError();
+      }
+      return this.toView(fresh.id, activity.id, userId, fresh.review_status, SIGNUP_STATUS.REGISTERED, fresh.cancel_count);
+    }
+    await signups.reactivateSignupAtomically({ activityPublicId, userId, teamId: this.tenant.teamId!, now });
+    const fresh = await signups.findOwnSignup(activity.id, userId);
+    if (fresh == null || fresh.status !== SIGNUP_STATUS.REGISTERED) throw internalError();
+    return this.toView(fresh.id, activity.id, userId, fresh.review_status, SIGNUP_STATUS.REGISTERED, fresh.cancel_count);
   }
 
-  /**
-   * 取消本人报名（DELETE /api/v2/activities/:activityId/signups/me）。
-   *
-   * 顺序：
-   * 1) 身份 + 团队上下文
-   * 2) 活动存在 + 属于当前租户 → 404
-   * 3) 业务不变式：activities.allow_cancel = 1（RESOURCE-OWNERSHIP-RULES §3 明示约束）→ 否则 409
-   * 4) 查本人有效报名（status=1，经 activities 派生租户隔离）→ 无 → 404
-   * 5) Ownership 策略判定（signup.user_id === auth.userId）→ 不成立 → 404（不泄露存在）
-   * 6) 原子 UPDATE（租户 + 归属 + 状态在同一 WHERE）→ 0 命中 → 404
-   *
-   * §十九：步骤 5 之前不产生任何写；步骤 6 的 WHERE 自带归属与租户条件，
-   *        因此归属/租户不成立时 changes = 0 —— 无 UPDATE、无 status 变化、无副作用。
-   */
+  /** 鍙栨秷鏈汉鎶ュ悕锛堝師琛?status 2锛涗笉鏀?form_submission 鐘舵€侊級銆?*/
   async cancelOwn(activityPublicId: string): Promise<SignupView> {
     const { userId } = this.requireActor();
     const { activities, signups } = this.repos();
 
-    // 2) 活动 + 租户范围。
     const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    if (activity.allow_cancel !== 1) throw conflict(ConflictReason.ACTIVITY_CANCEL_NOT_ALLOWED);
 
-    // 3) 冻结不变式：allow_cancel = 0 的活动禁止取消（RESOURCE-OWNERSHIP-RULES §3）。
-    if (activity.allow_cancel !== 1) {
-      throw conflict(ConflictReason.ACTIVITY_CANCEL_NOT_ALLOWED);
-    }
-
-    // 4) 本人有效报名（已取消 → 查不到 → 404，符合"取消是单向终态"的冻结语义）。
     const signup = await signups.findOwnActiveSignup(activity.id, userId);
     if (signup == null) throw notFound('Signup');
-
-    // 5) Ownership（SELF）：策略判定失败直接 404，不泄露资源存在性（§六/§十三）。
     if (!ownershipPolicy.canAct(signup, this.auth)) throw notFound('Signup');
 
-    // 6) 原子取消（租户 + 归属 + 状态同在 WHERE）。
     const now = Math.floor(Date.now() / 1000);
     const cancelled = await signups.cancelOwnSignup(signup.id, activity.id, userId, now);
     if (!cancelled) throw notFound('Signup');
@@ -166,11 +189,148 @@ export class ActivitySignupService {
       cancel_count: signup.cancel_count + 1,
     };
   }
+
+  /** 娑堣垂绛栫暐瑙ｆ瀽锛氭棤 active binding 鈫?null锛堢瓑浠?policy none锛夈€?*/
+  private async resolvePolicy(activityPublicId: string) {
+    const { forms } = this.repos();
+    return forms.resolveBindingForConsumer(this.tenant.teamId!, 'activity.signup', activityPublicId);
+  }
+
+  /** 提交前完整校验（reapply-with-form 用）：返回可绑定 submission.id 或抛出对应 token。 */
+  private async ensureBindable(
+    activityPublicId: string,
+    userId: number,
+    submissionPublicId: string,
+    excludeSignupId?: number,
+  ): Promise<number> {
+    const { signups, forms } = this.repos();
+    const sub = await forms.findSubmissionByPublicIdTeamScope(submissionPublicId, this.tenant.teamId!);
+    if (sub == null) throw notFound('Form submission');
+    if (sub.status !== FORM_SUBMISSION_STATUS.SUBMITTED || sub.submitter_user_id !== userId) {
+      throw notFound('Form submission');
+    }
+    if (sub.consumer_type !== 'activity.signup' || sub.consumer_public_id !== activityPublicId) {
+      throw conflict(ConflictReason.PARENT_MISMATCH);
+    }
+    const def = await forms.resolveDefinitionById(sub.definition_id, this.tenant.teamId!);
+    if (def == null || def.status !== 2) throw notFound('Form submission');
+    const published = await forms.resolvePublishedVersion(def.id, this.tenant.teamId!);
+    if (published == null || published.id !== sub.version_id) throw conflict(ConflictReason.FORM_VERSION_STALE);
+    const binding = await forms.resolveBindingForConsumer(this.tenant.teamId!, 'activity.signup', activityPublicId);
+    if (binding == null || binding.consume_policy === FORM_CONSUME_POLICY.NONE || binding.definition_id !== def.id) {
+      throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE);
+    }
+    const used = await signups.countFormSubmissionUsages(sub.id, excludeSignupId);
+    if (used > 0) throw conflict(ConflictReason.FORM_SUBMISSION_DUPLICATE);
+    return sub.id;
+  }
+
+  /** 0 changes 鍚庣殑瀹夊叏閲嶅垎绫伙紙涓嶆硠闇插唴閮級銆?*/
+  private async reclassifyFormBindFail(activityPublicId: string, userId: number, submissionPublicId: string, excludeSignupId?: number): Promise<never> {
+    const { signups, forms } = this.repos();
+    const existing = await this.findOwnSignupByActivity(activityPublicId, userId);
+    if (existing != null && existing.status === SIGNUP_STATUS.REGISTERED) {
+      throw conflict(ConflictReason.SIGNUP_ALREADY_EXISTS);
+    }
+const sub = await forms.findSubmissionByPublicIdTeamScope(submissionPublicId, this.tenant.teamId!);
+    if (sub == null) throw notFound('Form submission');
+    if (sub.status !== FORM_SUBMISSION_STATUS.SUBMITTED || sub.submitter_user_id !== userId) {
+      throw notFound('Form submission');
+    }
+    if (sub.consumer_type !== 'activity.signup' || sub.consumer_public_id !== activityPublicId) {
+      throw conflict(ConflictReason.PARENT_MISMATCH); // 鍏跺畠 activity 鐨?submission
+    }
+    const def = await forms.resolveDefinitionById(sub.definition_id, this.tenant.teamId!);
+    if (def == null || def.status !== 2) throw notFound('Form submission');
+    const published = await forms.resolvePublishedVersion(def.id, this.tenant.teamId!);
+    if (published == null || published.id !== sub.version_id) throw conflict(ConflictReason.FORM_VERSION_STALE);
+    const binding = await forms.resolveBindingForConsumer(this.tenant.teamId!, 'activity.signup', activityPublicId);
+    if (binding == null || binding.consume_policy === FORM_CONSUME_POLICY.NONE || binding.definition_id !== def.id) {
+      throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE);
+    }
+    const used = await signups.countFormSubmissionUsages(sub.id, excludeSignupId);
+    if (used > 0) throw conflict(ConflictReason.FORM_SUBMISSION_DUPLICATE);
+    throw internalError();
+  }
+
+  private async findOwnSignupByActivity(activityPublicId: string, userId: number) {
+    const { activities, signups } = this.repos();
+    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    if (activity == null) return null;
+    return signups.findOwnSignup(activity.id, userId);
+  }
+
+  private toView(id: number, activityId: number, userId: number, reviewStatus: number, status: number, cancelCount: number): SignupView {
+    return { id, activity_id: activityId, user_id: userId, review_status: reviewStatus, status, cancel_count: cancelCount };
+  }
+
+  // ================= P21 璇绘姇褰?=================
+
+  /** SELF signup 璇︽儏銆?*/
+  async getOwnSignupDetail(activityPublicId: string, opts: SignupReadOptions): Promise<Record<string, unknown> | null> {
+    const { userId, teamId } = this.requireActor();
+    const { activities, signups } = this.repos();
+    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    if (activity == null) throw notFound('Activity');
+    const row = await signups.findOwnSignupDetail(activity.id, userId, teamId);
+    if (row == null) throw notFound('Signup');
+    return this.buildReadView(row, opts);
+  }
+
+  /** TEAM 鎸囧畾鐢ㄦ埛 signup 璇︽儏銆?*/
+  async getSignupDetailByUser(activityPublicId: string, userPublicId: string, opts: SignupReadOptions): Promise<Record<string, unknown> | null> {
+    const { teamId } = this.requireActor();
+    const { signups } = this.repos();
+    const row = await signups.findSignupDetailByUser(activityPublicId, userPublicId, teamId);
+    if (row == null) throw notFound('Signup');
+    return this.buildReadView(row, opts);
+  }
+
+  /** TEAM signup 鍒楄〃锛堥粯璁や笉杩斿洖 answers/schema/legacy form_data锛夈€?*/
+  async listSignups(activityPublicId: string, page: number, pageSize: number): Promise<{ items: Record<string, unknown>[]; total: number }> {
+    const { teamId } = this.requireActor();
+    const { signups } = this.repos();
+    const opts: SignupReadOptions = { includeAnswers: false, includeLegacyFormData: false };
+    const limit = Math.max(1, Math.min(pageSize, 100));
+    const offset = (page - 1) * limit;
+    const items = await signups.listSignupsForTeam(activityPublicId, teamId, limit, offset);
+    return {
+      items: items.map((r) => this.buildReadView(r, opts)),
+      total: items.length === limit ? offset + items.length : -1,
+    };
+  }
+
+  private buildReadView(row: SignupReadRow, opts: SignupReadOptions): Record<string, unknown> {
+    const view: Record<string, unknown> = {
+      activity_public_id: row.activity_public_id,
+      user_public_id: row.user_public_id,
+      signup: {
+        review_status: row.review_status,
+        status: row.status,
+        cancel_count: row.cancel_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      },
+      form_submission:
+        row.submission_public_id != null
+          ? { public_id: row.submission_public_id, status: row.submission_status, version_public_id: row.version_public_id }
+          : null,
+    };
+    if (opts.includeAnswers && row.submission_public_id != null) {
+      let answers: unknown = null;
+      let schema: unknown = null;
+      try { answers = JSON.parse(row.answers_json ?? 'null'); } catch { answers = null; }
+      try { schema = JSON.parse(row.version_schema_json ?? 'null'); } catch { schema = null; }
+      view.answers = answers;
+      view.schema = schema;
+    }
+    if (opts.includeLegacyFormData && row.form_data != null) {
+      try { view.legacy_form_data = JSON.parse(row.form_data); } catch { view.legacy_form_data = null; }
+    }
+    return view;
+  }
 }
 
 /**
- * activities.status 中"开放报名"的取值。
- * 字典来源：docs/嘉禾志愿2.0数据库设计方案V1.0.md §4.2（0草稿/1报名中/2进行中/3已结束/4已取消/5已下架）。
- * 本阶段只实现"报名中"；其余状态是否允许报名属 OPEN BUSINESS RULE（见报告 §17）。
- */
+ * activities.status 涓?寮€鏀炬姤鍚?鐨勫彇鍊硷紙0鑽夌/1鎶ュ悕涓?2杩涜涓?3宸茬粨鏉?4宸插彇娑?5宸蹭笅鏋讹級銆? */
 export const ACTIVITY_STATUS_SIGNUP_OPEN = 1;

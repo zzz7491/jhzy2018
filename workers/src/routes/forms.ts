@@ -127,12 +127,27 @@ forms.post('/bindings', requirePermission('form.definition.manage'), async (c) =
   const consumerType = str(b.consumer_type);
   if (!definitionPublicId) throw invalidParam('definition_public_id', 'required');
   if (!consumerType) throw invalidParam('consumer_type', 'required');
+  // P21：consume_policy 从请求体透传（0 none / 1 optional（缺省） / 2 required）；非 0/1/2 → 400。
+  // 服务层再做一次规范与缺省（OPTIONAL），此处为 route 层第一道校验。
+  let consumePolicy: number | undefined;
+  if (b.consume_policy !== undefined) {
+    if (
+      typeof b.consume_policy !== 'number' ||
+      !Number.isInteger(b.consume_policy) ||
+      b.consume_policy < 0 ||
+      b.consume_policy > 2
+    ) {
+      throw invalidParam('consume_policy', 'must be 0 (none) / 1 (optional) / 2 (required)');
+    }
+    consumePolicy = b.consume_policy;
+  }
   const svc = buildService(c);
   const result = await svc.createBinding({
     definition_public_id: definitionPublicId,
     consumer_type: consumerType,
     consumer_public_id: str(b.consumer_public_id),
     is_default: b.is_default === true,
+    consume_policy: consumePolicy,
   });
   return ok(c, { binding: result.binding }, result.created ? 201 : 200);
 });

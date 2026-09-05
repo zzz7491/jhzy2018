@@ -24,8 +24,8 @@ export async function buildFormDb() {
     teamA: generateUlid(), teamB: generateUlid(),
     userVolA: generateUlid(), userVolB: generateUlid(),
     userOwnerA: generateUlid(), userAdminA: generateUlid(), userAuditorA: generateUlid(),
-    actA1: generateUlid(), actB1: generateUlid(),
-    ids: { teamA: 1, teamB: 2, volA: 1, volB: 2, ownerA: 3, adminA: 4, auditorA: 5, actA1: 1, actB1: 2 },
+    actA1: generateUlid(), actA2: generateUlid(), actB1: generateUlid(),
+    ids: { teamA: 1, teamB: 2, volA: 1, volB: 2, ownerA: 3, adminA: 4, auditorA: 5, actA1: 1, actA2: 3, actB1: 2 },
   };
   const run = (sql, p = []) => raw.prepare(sql).run(...p);
   run('INSERT INTO users (id, public_id, nickname, status) VALUES (?,?,?,1)', [1, fixture.userVolA, 'volA']);
@@ -38,6 +38,7 @@ export async function buildFormDb() {
   const t0 = T0;
   run('INSERT INTO activities (id, public_id, team_id, title, status, created_by, start_time, end_time) VALUES (?,?,?,?,1,?,?,?)', [1, fixture.actA1, 1, 'actA1', 3, t0, t0 + 3600]);
   run('INSERT INTO activities (id, public_id, team_id, title, status, created_by, start_time, end_time) VALUES (?,?,?,?,1,?,?,?)', [2, fixture.actB1, 2, 'actB1', 2, t0, t0 + 3600]);
+  run('INSERT INTO activities (id, public_id, team_id, title, status, created_by, start_time, end_time) VALUES (?,?,?,?,1,?,?,?)', [3, fixture.actA2, 1, 'actA2', 3, t0, t0 + 3600]);
 
   const db = new D1Database(raw);
   return {

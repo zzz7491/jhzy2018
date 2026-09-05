@@ -24,6 +24,7 @@ import {
   type FormBindingRow,
   FORM_DEF_STATUS,
   FORM_SUBMISSION_STATUS,
+  FORM_CONSUME_POLICY,
 } from '../repository/form-engine';
 import {
   authRequired,
@@ -78,6 +79,7 @@ export interface FormBindingView {
   consumer_type: string;
   consumer_public_id: string | null;
   is_default: boolean;
+  consume_policy: number; // 0 none / 1 optional / 2 required（P21）
   status: number;
 }
 
@@ -560,6 +562,7 @@ export class FormService {
     consumer_type: string;
     consumer_public_id?: string;
     is_default?: boolean;
+    consume_policy?: number;
   }): Promise<BindingCreateResult> {
     const { teamId } = this.requireActor();
     const { forms } = this.repos();
@@ -573,6 +576,10 @@ export class FormService {
     }
     if (consumerPublicId != null && !isUlid(consumerPublicId)) {
       throw invalidParam('consumer_public_id', 'must be a 26-char ULID');
+    }
+    const consumePolicy = input.consume_policy ?? FORM_CONSUME_POLICY.OPTIONAL;
+    if (!Number.isInteger(consumePolicy) || consumePolicy < 0 || consumePolicy > 2) {
+      throw invalidParam('consume_policy', 'must be 0 (none) / 1 (optional) / 2 (required)');
     }
 
     const def = await forms.resolveDefinitionByPublicId(input.definition_public_id, teamId);
@@ -591,6 +598,7 @@ export class FormService {
       consumerType: input.consumer_type,
       consumerPublicId: consumerPublicId,
       isDefault: isDefault ? 1 : 0,
+      consumePolicy,
       now,
     });
     if (created === 1) {
@@ -616,6 +624,7 @@ export class FormService {
       consumer_type: b.consumer_type,
       consumer_public_id: b.consumer_public_id,
       is_default: b.is_default === 1,
+      consume_policy: b.consume_policy,
       status: b.status,
     };
   }
@@ -629,6 +638,9 @@ export class FormService {
     if (!isUlid(consumerPublicId)) throw invalidParam('consumer_public_id', 'must be a 26-char ULID');
     const binding = await forms.resolveBindingForConsumer(teamId, consumerType, consumerPublicId);
     if (!binding) throw notFound('Form'); // 跨团队 / 无绑定 → 普通 404
+    if (binding.consume_policy === FORM_CONSUME_POLICY.NONE) {
+      throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE); // policy=0：不可填写
+    }
     const published = await forms.resolvePublishedVersion(binding.definition_id, teamId);
     if (!published) throw notFoundReason(ConflictReason.FORM_NOT_AVAILABLE);
     const def = await forms.resolveDefinitionById(binding.definition_id, teamId);
