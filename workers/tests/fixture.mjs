@@ -260,11 +260,11 @@ function setup() {
   insAct.run(IDS.actA2, teamAId, 'TEST Activity A2', T0 + 172800, T0 + 176400, ownerAId);
   insAct.run(IDS.actB1, teamBId, 'TEST Activity B1', T0 + 86400, T0 + 90000, volBId);
 
-  // 安全断言（S2-6e）：fixture 后权限目录必须保持在 seed 基线 87/247（测试不得改动权限目录）。
+  // 安全断言（S2-6e）：fixture 后权限目录必须保持在 seed 基线 92/266（测试不得改动权限目录）。
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) {
-    throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247，目录基线漂移`);
+  if (p !== 92 || rp !== 266) {
+    throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266，目录基线漂移`);
   }
 
   console.log(`[fixture] setup OK: users=5 teams=2 members=4 activities=3 (permissions=${p}, role_permissions=${rp})`);
@@ -274,13 +274,13 @@ function setup() {
 function teardown() {
   const db = new DatabaseSync(findDbPath());
   clean(db);
-  // S2-6e：teardown 仅断言【测试 fixture 表】零残留；权限目录(87/247)为 seed 基线，合法非 0。
+  // S2-6e：teardown 仅断言【测试 fixture 表】零残留；权限目录(92/266)为 seed 基线，合法非 0。
   // （permissions / role_permissions 不在以下"必须=0"集合内——S2-6e 起已 seed。）
   const cnt = (sql) => db.prepare(sql).get().n;
   const p = cnt('SELECT COUNT(*) AS n FROM permissions');
   const rp = cnt('SELECT COUNT(*) AS n FROM role_permissions');
-  if (p !== 87 || rp !== 247) {
-    throw new Error(`FATAL: permission catalog 基线漂移 permissions=${p} role_permissions=${rp}（期望 87/247）`);
+  if (p !== 92 || rp !== 266) {
+    throw new Error(`FATAL: permission catalog 基线漂移 permissions=${p} role_permissions=${rp}（期望 92/266）`);
   }
   const u = cnt('SELECT COUNT(*) AS n FROM users');
   const ui = cnt('SELECT COUNT(*) AS n FROM user_identities');
@@ -308,7 +308,7 @@ function teardown() {
     throw new Error(`teardown check failed: ${bad.map(([k, v]) => `${k}=${v}`).join(' ')}`);
   }
   console.log(
-    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events/attendance_anomalies/activity_occurrences/activity_participations = 0, permission catalog seeded (87/247)`,
+    `[fixture] teardown OK: users/user_identities/sessions/user_roles/team_members/teams/security_events/activities/activity_signups/attendance_sessions/attendance_events/attendance_anomalies/activity_occurrences/activity_participations = 0, permission catalog seeded (92/266)`,
   );
   db.close();
 }
@@ -369,7 +369,7 @@ function sessionSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
   console.log(`[fixture] session setup OK: users=6(含1停用) user_roles=8 teams=2 (permissions=${p}, role_permissions=${rp})`);
   db.close();
 }
@@ -462,7 +462,7 @@ function runAuthSetup(addConflictRows) {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
   const ids = db
     .prepare(
       `SELECT COUNT(*) AS n FROM user_identities ui JOIN users u ON u.id = ui.user_id WHERE u.public_id LIKE '01TEST%'`,
@@ -561,7 +561,7 @@ function authzSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
   console.log(
     `[fixture] authz setup OK: users=7(含1停用) user_roles=9 teams=2 activities=3 (permissions=${p}, role_permissions=${rp})`,
   );
@@ -621,7 +621,7 @@ function signupSetup() {
   insUR.run(ownerAId, rid('volunteer'), teamBId); // 多团队角色行（切换 active team 验证）
   insUR.run(teamAdminAId, rid('team_admin'), teamAId);
   insUR.run(platId, rid('platform_operator'), null); // 平台角色（scope NULL）
-  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 87）
+  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 92）
 
   const insAct = db.prepare(
     `INSERT INTO activities (public_id, team_id, title, start_time, end_time, quota, status,
@@ -637,7 +637,7 @@ function signupSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
   const su = db.prepare('SELECT COUNT(*) AS n FROM activity_signups').get().n;
   console.log(
     `[fixture] signup setup OK: users=6 user_roles=8 teams=2 activities=6 activity_signups=${su} (permissions=${p}, role_permissions=${rp})`,
@@ -696,7 +696,7 @@ function attendanceSetup() {
   insUR.run(ownerAId, rid('volunteer'), teamBId); // 多团队角色行（切换 active team 验证）
   insUR.run(teamAdminAId, rid('team_admin'), teamAId);
   insUR.run(platId, rid('platform_operator'), null); // 平台角色（scope NULL）
-  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 87）
+  insUR.run(platSuperId, rid('platform_super_admin'), null); // 平台超管（scope NULL，持全部 92）
 
   const insAct = db.prepare(
     `INSERT INTO activities (public_id, team_id, title, start_time, end_time, quota, status,
@@ -771,7 +771,7 @@ function attendanceSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
   const su = db.prepare('SELECT COUNT(*) AS n FROM activity_signups').get().n;
   const occ = db.prepare('SELECT COUNT(*) AS n FROM activity_occurrences').get().n;
   const part = db.prepare('SELECT COUNT(*) AS n FROM activity_participations').get().n;
@@ -932,7 +932,7 @@ function attendanceManagementSetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
 
   const manifest = {
     users: {
@@ -1085,7 +1085,7 @@ function attendanceAnomalySetup() {
 
   const p = db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n;
   const rp = db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n;
-  if (p !== 87 || rp !== 247) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 87/247`);
+  if (p !== 92 || rp !== 266) throw new Error(`FATAL: permissions=${p} role_permissions=${rp} — 期望 S2-6e seed 基线 92/266`);
 
   const manifest = {
     users: { volA: volAId, volB: volBId, ownerA: ownerAId, adminA: adminAId, auditorA: auditorAId, ownerB: ownerBId, plat: platId, platSuper: platSuperId },

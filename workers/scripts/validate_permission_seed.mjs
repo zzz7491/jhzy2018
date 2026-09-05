@@ -76,8 +76,8 @@ const log = (ok, label) => {
 const setEq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 const segCount = (c) => c.split('.').length;
 
-// 1. permissions = 83
-log(dbPerms.length === 83, `1. permissions 行数 = 83（实际 ${dbPerms.length}）`);
+// 1. permissions = 92
+log(dbPerms.length === 92, `1. permissions 行数 = 92（实际 ${dbPerms.length}）`);
 // 2. code 全唯一
 const uniq = new Set(dbPerms.map((r) => r.code));
 log(uniq.size === dbPerms.length, `2. permission code 全唯一（${uniq.size}/${dbPerms.length}）`);
@@ -133,10 +133,10 @@ log(teamOk, `15. TEAM 角色无 PLATFORM role-management 权限（platform/team 
 const audJson = jsonRolePermMap.get('team_auditor');
 const audDb = dbRolePermMap.get('team_auditor') || new Set();
 log(setEq(audJson, audDb), `16. team_auditor 集合 == 冻结矩阵（${audJson.size}/${audDb.size}）`);
-// 17. super_admin 显式 = 全部 83
+// 17. super_admin 显式 = 全部 92
 const saJson = jsonRolePermMap.get('platform_super_admin');
 const saDb = dbRolePermMap.get('platform_super_admin') || new Set();
-log(setEq(saJson, saDb) && saDb.size === 83, `17. super_admin 显式关联全部 83（DB ${saDb.size}）`);
+log(setEq(saJson, saDb) && saDb.size === 92, `17. super_admin 显式关联全部 92（DB ${saDb.size}）`);
 // 18. 无 wildcard
 const wild = dbPerms.filter((r) => r.code.includes('*'));
 log(wild.length === 0, `18. 无 wildcard '*'（${wild.length}）`);

@@ -96,11 +96,11 @@ const reasonOk = '管理审核：符合要求';
 // =====================================================================
 // A. Baseline
 // =====================================================================
-process.stderr.write('A. Baseline（目录 87/247 + roles=6 + fixture 就绪）\n');
+process.stderr.write('A. Baseline：目录 92/266 + roles=6 + fixture 就绪\n');
 {
   const probe = await req('GET', '/probe');
-  check('A1 permissions=87', probe.body?.data?.permissions === 87, `got ${probe.body?.data?.permissions}`);
-  check('A2 role_permissions=247', probe.body?.data?.role_permissions === 247, `got ${probe.body?.data?.role_permissions}`);
+  check('A1 permissions=92', probe.body?.data?.permissions === 92, `got ${probe.body?.data?.permissions}`);
+  check('A2 role_permissions=266', probe.body?.data?.role_permissions === 266, `got ${probe.body?.data?.role_permissions}`);
   check('A3 roles=6', probe.body?.data?.roles === 6, `got ${probe.body?.data?.roles}`);
 
   const cat = withDb((db) =>

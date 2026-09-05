@@ -77,14 +77,14 @@ process.stderr.write('A. baseline\n');
   const mig = withDb((db) => db.prepare('SELECT name FROM d1_migrations ORDER BY id').all().map((r) => r.name));
   // P17 基线同步：P11/P16 已冻结 0006–0014（occurrence/position/slot/PSP/participation/participation-link），
   // 当前正式迁移到 0014。0005 必须存在、0006–0014 同步存在（旧的"0006 不得存在"断言仅适用于 S2-6k2 时代）。
-  check('A1 migrations = 14', mig.length === 14, `got ${mig.length}`);
-  check('A2 0005 与 0014 均存在（P11/P16 迁移基线）', mig.some((n) => n.includes('0005')) && mig.some((n) => n.includes('0014')), mig.join(','));
+  check('A1 migrations = 15', mig.length === 15, `got ${mig.length}`);
+  check('A2 0005 与 0015 均存在（P11/P16/P20 迁移基线）', mig.some((n) => n.includes('0005')) && mig.some((n) => n.includes('0015')), mig.join(','));
   const roles = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM roles').get().n);
   const perms = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM permissions').get().n);
   const rps = withDb((db) => db.prepare('SELECT COUNT(*) AS n FROM role_permissions').get().n);
   check('A3 roles = 6', roles === 6, `got ${roles}`);
-  check('A4 permissions = 83', perms === 87, `got ${perms}`);
-  check('A5 role_permissions = 238', rps === 247, `got ${rps}`);
+  check('A4 permissions = 92', perms === 92, `got ${perms}`);
+  check('A5 role_permissions = 266', rps === 266, `got ${rps}`);
 }
 
 // ===================== B. LIST =====================

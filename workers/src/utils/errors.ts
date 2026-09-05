@@ -64,6 +64,11 @@ export const ConflictReason = {
   // S2-NEW-ARCH-P16（新增，纯增量）：签到所引用的 Participation 已取消（非 assigned）。
   // HTTP 409；与 attendance_not_signed_up 区分——用户已报名且已排班，只是排班被取消。
   ATTENDANCE_PARTICIPATION_NOT_ACTIVE: 'attendance_participation_not_active',
+  // S2-NEW-ARCH-P20（新增，纯增量）：通用动态表单引擎。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
+  FORM_VERSION_STALE: 'form_version_stale', // 提交/draft 指向的 version 已不是当前 published version
+  FORM_SUBMISSION_DUPLICATE: 'form_submission_duplicate', // 同 grain（definition+submitter+consumer）已存在活跃 submitted
+  FORM_NOT_AVAILABLE: 'form_not_available', // 合法 consumer 上不存在可用 published form（仅此场景可返回该 reason）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];
@@ -115,6 +120,15 @@ export function userScopeRequired(): AppError {
 
 export function notFound(resource = 'Resource'): AppError {
   return new AppError(ErrorCode.NOT_FOUND, 404, `${resource} not found`);
+}
+
+/**
+ * 404 且带稳定 reason（S2-NEW-ARCH-P20 最小扩展）。
+ * 既有普通 notFound() 调用完全不受影响；本 helper 仅用于「合法 consumer 上无可用 published form」
+ * 这类「可安全区分、不构成跨团队泄露」的场景（P20：form_not_available）。
+ */
+export function notFoundReason(reason: string, resource = 'Resource'): AppError {
+  return new AppError(ErrorCode.NOT_FOUND, 404, `${resource} not available`, { reason });
 }
 
 export function invalidParam(param: string, reason: string): AppError {

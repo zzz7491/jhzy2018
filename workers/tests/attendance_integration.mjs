@@ -202,12 +202,12 @@ const a5 = actIdOf(IDS.actAtt5);
 const aB = actIdOf(IDS.actAttB);
 
 // ---------------------------------------------------------------- A. Baseline
-process.stderr.write('A. Baseline（目录 87/247 + 冻结签到权限 + fixture 就绪）\n');
+process.stderr.write('A. Baseline：目录 92/266 + 冻结签到权限 + fixture 就绪\n');
 {
   const probe = await req('GET', '/probe');
   // 注意：/probe 是基础设施探针，刻意回显表行数；不参与 F 组业务面泄漏扫描。
-  check('A1 permissions=87', probe.body?.data?.permissions === 87, `got ${probe.body?.data?.permissions}`);
-  check('A2 role_permissions=247', probe.body?.data?.role_permissions === 247, `got ${probe.body?.data?.role_permissions}`);
+  check('A1 permissions=92', probe.body?.data?.permissions === 92, `got ${probe.body?.data?.permissions}`);
+  check('A2 role_permissions=266', probe.body?.data?.role_permissions === 266, `got ${probe.body?.data?.role_permissions}`);
 
   const codes = withDb((db) =>
     db

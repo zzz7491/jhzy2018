@@ -25,6 +25,7 @@ import users from './routes/users';
 import teams from './routes/teams';
 import activities from './routes/activities';
 import participations from './routes/participations'; // S2-NEW-ARCH-P11：参与/排班分配
+import forms from './routes/forms'; // S2-NEW-ARCH-P20：通用动态表单引擎
 import attendanceSessions from './routes/attendance-sessions';
 import attendanceAnomalies from './routes/attendance-anomalies';
 import authRoutes from './routes/auth';
@@ -59,6 +60,7 @@ export function createApp() {
   v2.route('/activities', participations); // S2-NEW-ARCH-P11：参与/排班分配（/activities/:id/participations/*）
   v2.route('/attendance-sessions', attendanceSessions); // S2-6i：Review + Force Checkout（sessionId 资源键）
   v2.route('/attendance-anomalies', attendanceAnomalies); // S2-6j V1：Anomaly Handling（anomalyId 资源键，handling ONLY）
+  v2.route('/forms', forms); // S2-NEW-ARCH-P20：动态表单引擎（/api/v2/forms/*）
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁
   app.route('/api/v2', v2);

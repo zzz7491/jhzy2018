@@ -46,6 +46,12 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   attendance_sessions: 'TEAM_SCOPED',
   attendance_events: 'TEAM_SCOPED',
   attendance_anomalies: 'TEAM_SCOPED',
+  // S2-NEW-ARCH-P20：通用动态表单引擎——definitions/bindings 持有真实 team_id；
+  // versions/submissions 无 team_id，经 form_definitions 派生（见 DERIVED_TEAM_TABLES）。
+  form_definitions: 'TEAM_SCOPED',
+  form_bindings: 'TEAM_SCOPED',
+  form_definition_versions: 'TEAM_SCOPED',
+  form_submissions: 'TEAM_SCOPED',
   service_records: 'TEAM_SCOPED',
   service_record_audits: 'TEAM_SCOPED',
   courses: 'TEAM_SCOPED',
@@ -107,6 +113,9 @@ export const DERIVED_TEAM_TABLES = new Set<string>([
   'occurrence_positions',
   'participation_slot_positions',
   'activity_positions',
+  // S2-NEW-ARCH-P20：form 引擎派生表（team 经 form_definition_versions/form_submissions → form_definitions → team_id）
+  'form_definition_versions',
+  'form_submissions',
 ]);
 
 /** 读取审计日志所需的授权角色（AUDIT_ONLY 不得被普通团队上下文错误暴露）。 */

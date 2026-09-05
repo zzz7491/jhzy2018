@@ -2,11 +2,11 @@
   "meta": {
     "phase": "S2-6d",
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
-    "status": "SEEDED (S2-6e) — 83 permissions / 238 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
-    "generatedAt": "2026-09-02",
-    "permissionsRowCount": 83,
-    "rolePermissionsRowCount": 238,
-    "totalPermissions": 83,
+    "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
+    "generatedAt": "2026-09-05",
+    "permissionsRowCount": 92,
+    "rolePermissionsRowCount": 266,
+    "totalPermissions": 92,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -256,9 +256,77 @@
         "id_pools"
       ],
       "description": "平台级配置、ID 池管理、备份导出（部分为未来能力，MVP=no）。"
+    },
+    {
+      "code": "participation",
+      "name": "活动参与分配",
+      "tables": [
+        "activity_participations"
+      ],
+      "description": "活动参与分配（报名+场次+可选时段）的创建/取消/改岗/团队代分配。"
     }
   ],
   "permissions": [
+    {
+      "code": "form.definition.manage",
+      "domain": "form",
+      "resource": "definition",
+      "action": "manage",
+      "description": "创建/编辑/发布/归档表单定义与绑定",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "form_definitions,form_bindings"
+    },
+    {
+      "code": "form.definition.read",
+      "domain": "form",
+      "resource": "definition",
+      "action": "read",
+      "description": "读取已发布表单定义与字段（渲染用）",
+      "scopeType": "TEAM",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "form_definitions"
+    },
+    {
+      "code": "form.submission.manage",
+      "domain": "form",
+      "resource": "submission",
+      "action": "manage",
+      "description": "团队提交列表读取与无效化处置",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "form_submissions"
+    },
+    {
+      "code": "form.submission.read",
+      "domain": "form",
+      "resource": "submission",
+      "action": "read",
+      "description": "读取本人提交",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "form_submissions"
+    },
+    {
+      "code": "form.submission.submit",
+      "domain": "form",
+      "resource": "submission",
+      "action": "submit",
+      "description": "创建/修改/撤回本人表单提交（draft/submitted）",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "form_submissions"
+    },
     {
       "code": "account.identity.bind",
       "domain": "account",
@@ -1254,10 +1322,63 @@
       "riskLevel": 3,
       "mvp": false,
       "evidence": "(platform ops)"
+    },
+    {
+      "code": "participation.assignment.create",
+      "domain": "participation",
+      "resource": "assignment",
+      "action": "create",
+      "description": "本人报名参与分配（报名+场次+可选时段）",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "activity_participations"
+    },
+    {
+      "code": "participation.assignment.cancel",
+      "domain": "participation",
+      "resource": "assignment",
+      "action": "cancel",
+      "description": "取消本人的参与分配",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "activity_participations"
+    },
+    {
+      "code": "participation.assignment.update",
+      "domain": "participation",
+      "resource": "assignment",
+      "action": "update",
+      "description": "修改本人参与分配的岗位（不重建行）",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "activity_participations"
+    },
+    {
+      "code": "participation.assignment.manage",
+      "domain": "participation",
+      "resource": "assignment",
+      "action": "manage",
+      "description": "团队代分配/管理成员的参与分配",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "activity_participations"
     }
   ],
   "rolePermissions": {
     "platform_super_admin": [
+      "form.definition.manage",
+      "form.definition.read",
+      "form.submission.manage",
+      "form.submission.read",
+      "form.submission.submit",
       "account.identity.bind",
       "account.identity.unbind",
       "account.profile.view",
@@ -1340,7 +1461,11 @@
       "rbac.catalog.view",
       "system.config.manage",
       "system.idpool.manage",
-      "system.backup.manage"
+      "system.backup.manage",
+      "participation.assignment.create",
+      "participation.assignment.cancel",
+      "participation.assignment.update",
+      "participation.assignment.manage"
     ],
     "platform_operator": [
       "activity.category.manage",
@@ -1371,6 +1496,11 @@
       "system.idpool.manage"
     ],
     "team_owner": [
+      "form.definition.manage",
+      "form.definition.read",
+      "form.submission.manage",
+      "form.submission.read",
+      "form.submission.submit",
       "account.profile.view",
       "account.certification.review",
       "team.team.update",
@@ -1418,9 +1548,15 @@
       "ai.assist.use",
       "rbac.role.assign.team",
       "rbac.role.revoke.team",
-      "rbac.catalog.view"
+      "rbac.catalog.view",
+      "participation.assignment.manage"
     ],
     "team_admin": [
+      "form.definition.manage",
+      "form.definition.read",
+      "form.submission.manage",
+      "form.submission.read",
+      "form.submission.submit",
       "account.profile.view",
       "account.certification.review",
       "team.team.update",
@@ -1463,9 +1599,11 @@
       "audit.security.view",
       "audit.security.handle",
       "ai.assist.use",
-      "rbac.catalog.view"
+      "rbac.catalog.view",
+      "participation.assignment.manage"
     ],
     "team_auditor": [
+      "form.definition.read",
       "account.profile.view",
       "account.certification.review",
       "signup.signup.review",
@@ -1487,6 +1625,9 @@
       "notification.notification.view"
     ],
     "volunteer": [
+      "form.definition.read",
+      "form.submission.read",
+      "form.submission.submit",
       "account.identity.bind",
       "account.identity.unbind",
       "account.profile.update",
@@ -1505,7 +1646,10 @@
       "notification.notification.view",
       "file.file.upload",
       "file.file.view",
-      "ai.assist.use"
+      "ai.assist.use",
+      "participation.assignment.create",
+      "participation.assignment.cancel",
+      "participation.assignment.update"
     ]
   }
 }
