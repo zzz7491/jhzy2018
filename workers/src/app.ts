@@ -29,6 +29,7 @@ import forms from './routes/forms'; // S2-NEW-ARCH-P20：通用动态表单引�
 import attendanceSessions from './routes/attendance-sessions';
 import attendanceAnomalies from './routes/attendance-anomalies';
 import serviceRecords from './routes/service-records'; // S2-NEW-ARCH-P22：服务时长记录（read/adjust）
+import points from './routes/points'; // P23-P4B：个人积分账户 / 流水 SELF 只读
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
 import { ok } from './utils/response';
@@ -62,6 +63,7 @@ export function createApp() {
   v2.route('/attendance-sessions', attendanceSessions); // S2-6i：Review + Force Checkout（sessionId 资源键）
   v2.route('/attendance-anomalies', attendanceAnomalies); // S2-6j V1：Anomaly Handling（anomalyId 资源键，handling ONLY）
   v2.route('/service-records', serviceRecords); // S2-NEW-ARCH-P22：ServiceRecord 读 + 人工修正（public_id 资源键；/mine 字面量优先）
+  v2.route('/points', points); // P23-P4B：个人积分账户 / 流水 SELF 只读（/account、/transactions）
   v2.route('/forms', forms); // S2-NEW-ARCH-P20：动态表单引擎（/api/v2/forms/*）
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁

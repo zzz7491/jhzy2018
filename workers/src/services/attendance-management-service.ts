@@ -217,12 +217,13 @@ export class AttendanceManagementService {
     const nonce = `review:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     let reviewExtra: D1PreparedStatement[] = [];
     if (decision === 'approve') {
-      reviewExtra = [this.srService.buildSettleStatement(sessionId, actor.teamId, 'review_approved', nonce)];
+      reviewExtra = this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'review_approved', nonce, 'review_approve', actor.userId);
     } else {
-      reviewExtra = await this.srService.buildRevokeStatementsForSession(sessionId, {
+      reviewExtra = await this.srService.buildRevokeStatementsForSessionWithPoints(sessionId, {
         reason: reason || 'review rejected',
         operatorId: actor.userId,
         gateNonce: nonce,
+        remark: 'review_reject',
       });
     }
     const changes = await this.repo.reviewSessionAtomically(
@@ -280,7 +281,7 @@ export class AttendanceManagementService {
 
     // P22-P3：settlement 组合进同一 force-checkout db.batch（强事务）.
     const nonce = `force:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
-    const settleStmt = this.srService.buildSettleStatement(sessionId, actor.teamId, 'automatic', nonce);
+    const settleStmts = this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'automatic', nonce, 'force_checkout', null);
     const changes = await this.repo.forceCheckoutAtomically(
       sessionId,
       actor.teamId,
@@ -290,7 +291,7 @@ export class AttendanceManagementService {
       raw,
       actor.userId,
       writeStatus,
-      { nonce, extraStatements: [settleStmt] },
+      { nonce, extraStatements: settleStmts },
     );
 
     if (changes === 0) {

@@ -274,10 +274,10 @@ export class ActivityAttendanceService {
     //    duplicate checkout（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
     const now = Math.floor(Date.now() / 1000);
     const nonce = `checkout:${session.id}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
-    const settleStmt = this.srService.buildSettleStatement(session.id, teamId, 'automatic', nonce);
+    const settleStmts = this.srService.buildSettleStatementWithPoints(session.id, teamId, 'automatic', nonce, 'checkout', null);
     const ok = await attendance.checkOutAtomically(signup.id, userId, teamId, now, activity.id, {
       nonce,
-      extraStatements: [settleStmt],
+      extraStatements: settleStmts,
     });
     if (!ok) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_OUT);
 

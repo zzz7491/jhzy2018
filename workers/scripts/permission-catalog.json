@@ -3,10 +3,10 @@
     "phase": "S2-6d",
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
-    "generatedAt": "2026-09-05",
-    "permissionsRowCount": 94,
-    "rolePermissionsRowCount": 273,
-    "totalPermissions": 94,
+    "generatedAt": "2026-09-06",
+    "permissionsRowCount": 95,
+    "rolePermissionsRowCount": 275,
+    "totalPermissions": 95,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -904,6 +904,18 @@
       "evidence": "volunteer_levels"
     },
     {
+      "code": "points.account.read",
+      "domain": "points",
+      "resource": "account",
+      "action": "read",
+      "description": "查看本人积分账户与流水",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "points_accounts / points_ledger"
+    },
+    {
       "code": "honor.honor.manage",
       "domain": "honor",
       "resource": "honor",
@@ -1451,6 +1463,7 @@
       "points.ledger.view",
       "points.growth.manage",
       "points.level.view",
+      "points.account.read",
       "honor.honor.manage",
       "honor.honor.award",
       "content.article.create",
@@ -1680,7 +1693,8 @@
       "participation.assignment.create",
       "participation.assignment.cancel",
       "participation.assignment.update",
-      "service.record.read"
+      "service.record.read",
+      "points.account.read"
     ]
   }
 }

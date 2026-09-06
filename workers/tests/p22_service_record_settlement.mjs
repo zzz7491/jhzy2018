@@ -85,9 +85,19 @@ function freshSqlite() {
   sqlite.exec('PRAGMA foreign_keys = OFF;'); // 测试种子不强制 FK（与生产迁移解耦）
   return sqlite;
 }
+/**
+ * P22 regression suite 的 migration horizon 固定为 0001→0017（P22 contract）。
+ * 后续新增的 0018/0019/…（属于 P23）不得纳入本 suite 的迁移计数 /
+ * 权限计数 / upgrade-path fixture。从文件名解析迁移序号并限定 <= 17。
+ */
+function migrationNumber(fname) {
+  const m = /^(\d+)_/.exec(fname);
+  return m ? parseInt(m[1], 10) : Number.NaN;
+}
 function applyMigrations(sqlite) {
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.sql'))
+    .filter((f) => migrationNumber(f) <= 17)
     .sort();
   for (const f of files) {
     const content = readFileSync(join(MIGRATIONS_DIR, f), 'utf8');
@@ -98,6 +108,29 @@ function applyMigrations(sqlite) {
 function freshMigrated() {
   const sqlite = freshSqlite();
   const n = applyMigrations(sqlite);
+  const db = new D1Database(sqlite);
+  return { sqlite, db, migrationCount: n };
+}
+/**
+ * Runtime behavior tests (SECTION 5–13) 使用【当前完整 migration chain】
+ * （当前 = 0001→0019），因为 P23 生产源码已合法依赖 0018 的
+ * service_records.points_revision / points_accounts / points_ledger。
+ * 该 helper 仅提供完整 schema 供源码运行，不做任何 P22 业务断言覆盖。
+ * migration discovery 基于目录真实 .sql 文件（不硬编码未来迁移数量）。
+ */
+function applyAllMigrations(sqlite) {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  for (const f of files) {
+    const content = readFileSync(join(MIGRATIONS_DIR, f), 'utf8');
+    sqlite.exec(content);
+  }
+  return files.length;
+}
+function freshCurrentRuntimeDb() {
+  const sqlite = freshSqlite();
+  const n = applyAllMigrations(sqlite);
   const db = new D1Database(sqlite);
   return { sqlite, db, migrationCount: n };
 }
@@ -271,8 +304,10 @@ async function main() {
     // ---- upgrade (0001..0016 -> 0017) ----
     const up = freshSqlite();
     const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+    // P22 upgrade horizon：本循环只应用 0001→0016；0017 在下方单独应用；
+    // 0018+（P23）一律排除，避免污染 P22 contract 的 upgrade path fixture。
     for (const f of files) {
-      if (f === '0017_service_record_settlement.sql') continue;
+      if (migrationNumber(f) > 16) continue;
       up.exec(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
     }
     const permBefore = get1(up, 'SELECT count(*) c FROM permissions').c;
@@ -328,7 +363,7 @@ async function main() {
   // -----------------------------------------------------------------------
   section('SECTION 5 — Settlement core');
   {
-    const { sqlite, db } = freshMigrated();
+    const { sqlite, db } = freshCurrentRuntimeDb();
     const repo = new M.ServiceRecordRepository({
       db,
       ctx: { auth: { authenticated: true, teamId: 10, userId: 101 }, tenant: { teamId: 10 } },
@@ -566,7 +601,7 @@ async function main() {
 
     // 7.1 normal force-checkout -> session transition + EFFECTIVE SR same transaction
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 401, diffSeconds: 2700, sessionStatus: 1, sessionReview: 0, checkinAt: NOW - 2700, checkoutAt: null });
       const mgt = new M.AttendanceManagementService({
         db,
@@ -583,7 +618,7 @@ async function main() {
 
     // 7.2 fault injection mode 2 (UPDATE fails) -> full rollback
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 402, diffSeconds: 2700, sessionStatus: 1, sessionReview: 0, checkinAt: NOW - 2700, checkoutAt: null });
       const mgt = new M.AttendanceManagementService({
         db,
@@ -608,7 +643,7 @@ async function main() {
 
     // 7.3 fault injection mode 1 (event INSERT fails) -> full rollback
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 403, diffSeconds: 2700, sessionStatus: 1, sessionReview: 0, checkinAt: NOW - 2700, checkoutAt: null });
       const mgt = new M.AttendanceManagementService({
         db,
@@ -631,7 +666,7 @@ async function main() {
 
     // 7.4 duplicate force-checkout -> 409, no extra SR/audit
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 404, diffSeconds: 2700, sessionStatus: 1, sessionReview: 0, checkinAt: NOW - 2700, checkoutAt: null });
       const mgt = new M.AttendanceManagementService({
         db,
@@ -654,7 +689,7 @@ async function main() {
 
     // 7.5 review approve (CONFIRMED anomaly) -> EFFECTIVE
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 405, diffSeconds: 2700, sessionStatus: 2, sessionReview: 0 });
       seedAnomaly(sqlite, { anomalyId: 721, sessionId: 405, status: 2 });
       const mgt = new M.AttendanceManagementService({
@@ -671,7 +706,7 @@ async function main() {
 
     // 7.6 review reject of an EFFECTIVE SR -> REVOKED + exactly one audit
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 406, diffSeconds: 2700, sessionStatus: 2, sessionReview: 0 });
       const repo = new M.ServiceRecordRepository({
         db,
@@ -698,7 +733,7 @@ async function main() {
 
     // 7.7 anomaly confirm EFFECTIVE -> REVOKED + exactly one audit
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 407, diffSeconds: 2700, sessionStatus: 2, sessionReview: 0 });
       const repo = new M.ServiceRecordRepository({
         db,
@@ -753,7 +788,7 @@ async function main() {
 
     // 7.9 OPEN anomaly + normal checkout -> checkout ok, no SR
     {
-      ({ sqlite, db } = freshMigrated());
+      ({ sqlite, db } = freshCurrentRuntimeDb());
       const s = seedChain(sqlite, { sessionId: 408, diffSeconds: 2700, sessionStatus: 1, sessionReview: 0, checkinAt: NOW - 2700, checkoutAt: null });
       seedAnomaly(sqlite, { anomalyId: 723, sessionId: 408, status: 1 });
       const mgt = new M.AttendanceManagementService({
@@ -811,7 +846,7 @@ async function main() {
   // -----------------------------------------------------------------------
   section('SECTION 8 — Transition-gating (event nonce gate)');
   {
-    const { sqlite, db } = freshMigrated();
+    const { sqlite, db } = freshCurrentRuntimeDb();
     const repo = new M.ServiceRecordRepository({
       db,
       ctx: { auth: { authenticated: true, teamId: 10, userId: 101 }, tenant: { teamId: 10 } },
@@ -913,7 +948,7 @@ async function main() {
   // -----------------------------------------------------------------------
   section('SECTION 9 — Revoke audit');
   {
-    const { sqlite, db } = freshMigrated();
+    const { sqlite, db } = freshCurrentRuntimeDb();
     const repo = new M.ServiceRecordRepository({
       db,
       ctx: { auth: { authenticated: true, teamId: 10, userId: 103 }, tenant: { teamId: 10 } },
@@ -1022,7 +1057,7 @@ async function main() {
   // -----------------------------------------------------------------------
   section('SECTION 10/11/12/13 — Routes (read / public_id / adjust / projection)');
   {
-    const { sqlite, db } = freshMigrated();
+    const { sqlite, db } = freshCurrentRuntimeDb();
     // seed SRs
     run(sqlite, 'INSERT OR IGNORE INTO teams (id, public_id, name, owner_user_id, status) VALUES (?,?,?,?,1)', [10, ulid(), 't10', 199]);
     run(sqlite, 'INSERT OR IGNORE INTO teams (id, public_id, name, owner_user_id, status) VALUES (?,?,?,?,1)', [20, ulid(), 't20', 199]);

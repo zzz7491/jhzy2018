@@ -283,14 +283,15 @@ export class AttendanceAnomalyService {
     if (target && target.session_id != null) {
       if (decision === 'confirm') {
         // CONFIRMED：若已存在 EFFECTIVE ServiceRecord → 撤销为 REVOKED（同批）；无 SR → no-op。
-        anomalyExtra = await this.srService.buildRevokeStatementsForSession(target.session_id, {
+        anomalyExtra = await this.srService.buildRevokeStatementsForSessionWithPoints(target.session_id, {
           reason: resolution,
           operatorId: actor.userId,
           gateNonce: nonce,
+          remark: 'anomaly_confirm',
         });
       } else {
         // DISMISS：会话已签退且无未决 anomaly → automatic settlement EFFECTIVE（同批）。
-        anomalyExtra = [this.srService.buildSettleStatement(target.session_id, actor.teamId, 'automatic', nonce)];
+        anomalyExtra = this.srService.buildSettleStatementWithPoints(target.session_id, actor.teamId, 'automatic', nonce, 'anomaly_dismiss', null);
       }
     }
     const changes = await this.repo.resolveAnomalyAtomically(

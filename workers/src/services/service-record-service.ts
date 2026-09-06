@@ -27,6 +27,7 @@ import {
   ServiceRecordListFilters,
   computePointsUnits,
 } from '../repository/service-records';
+import { PointsLedgerRepository } from '../repository/points-ledger';
 import { generateUlid } from '../utils/crypto';
 import {
   authRequired,
@@ -68,12 +69,15 @@ export class ServiceRecordService {
   private readonly auth: AuthContext;
   private readonly tenant: TenantContext;
   private readonly repo: ServiceRecordRepository;
+  /** P23-P3B：积分账本 repository（复用同一 db/ctx，仅提供 build*Statements）。 */
+  private readonly pointsRepo: PointsLedgerRepository;
 
   constructor(deps: ServiceRecordServiceDeps) {
     this.db = deps.db;
     this.auth = deps.auth;
     this.tenant = deps.tenant;
     this.repo = new ServiceRecordRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
+    this.pointsRepo = new PointsLedgerRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
   }
 
   /**
@@ -141,10 +145,34 @@ export class ServiceRecordService {
     teamId: number,
     mode: SettlementMode,
     gateNonce?: string | null,
+    opts?: { now?: number; publicId?: string },
   ): D1PreparedStatement {
-    const publicId = generateUlid();
-    const now = this.nowSeconds();
+    const publicId = opts?.publicId ?? generateUlid();
+    const now = opts?.now ?? this.nowSeconds();
     return this.repo.buildSettleStatement({ sessionId, teamId, mode, publicId, now, gateNonce });
+  }
+
+  /**
+   * P23-P3B：settlement + 积分三件套组合为同一批 statements（供 P22-P3 追加进 attendance db.batch）。
+   * 顺序固定：settleStmt → S0 → S1 → S2；now 单一来源，确保积分与 settlement 时间语义一致。
+   */
+  buildSettleStatementWithPoints(
+    sessionId: number,
+    teamId: number,
+    mode: SettlementMode,
+    gateNonce?: string | null,
+    remark?: string | null,
+    operatorId?: number | null,
+  ): D1PreparedStatement[] {
+    const now = this.nowSeconds();
+    const settleStmt = this.buildSettleStatement(sessionId, teamId, mode, gateNonce, { now });
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId,
+      now,
+      remark: remark ?? 'checkout',
+      operatorId: operatorId ?? null,
+    });
+    return [settleStmt, ...pts.statements];
   }
 
   /**
@@ -158,9 +186,10 @@ export class ServiceRecordService {
    */
   async buildRevokeStatementsForSession(
     sessionId: number,
-    opts: { reason?: string; operatorId?: number; traceId?: string | null; gateNonce: string },
+    opts: { reason?: string; operatorId?: number; traceId?: string | null; gateNonce: string; now?: number },
   ): Promise<D1PreparedStatement[]> {
     const { userId, teamId } = this.requireActor();
+    const now = opts.now ?? this.nowSeconds();
     const sr = await this.repo.findBySessionId(sessionId, teamId);
     if (sr == null || sr.settlement_status !== SETTLEMENT_STATUS.EFFECTIVE) return [];
     return this.repo.buildRevokeStatementSet({
@@ -169,9 +198,35 @@ export class ServiceRecordService {
       reason: opts.reason ?? 'post-settlement anomaly confirmed',
       operatorId: opts.operatorId ?? userId,
       traceId: opts.traceId ?? null,
-      now: this.nowSeconds(),
+      now,
       gateNonce: opts.gateNonce,
     });
+  }
+
+  /**
+   * P23-P3B：revoke + 积分三件套组合为同一批 statements（供 P22-P3 追加进 attendance/anomaly db.batch）。
+   * 顺序固定：audit → revoke → S0 → S1 → S2。若无非 EFFECTIVE ServiceRecord 则直接返回空数组（与后端一致）。
+   */
+  async buildRevokeStatementsForSessionWithPoints(
+    sessionId: number,
+    opts: {
+      reason?: string;
+      operatorId?: number;
+      traceId?: string | null;
+      gateNonce: string;
+      remark?: string | null;
+    },
+  ): Promise<D1PreparedStatement[]> {
+    const now = this.nowSeconds();
+    const revokeSet = await this.buildRevokeStatementsForSession(sessionId, { ...opts, now });
+    if (revokeSet.length === 0) return [];
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId,
+      now,
+      remark: opts.remark ?? 'revoke',
+      operatorId: opts.operatorId ?? null,
+    });
+    return [...revokeSet, ...pts.statements];
   }
 
   /**
@@ -190,6 +245,7 @@ export class ServiceRecordService {
     return this.repo.revokeAtomically({
       serviceRecordId: sr.id,
       teamId,
+      sessionId: sr.session_id,
       reason: opts.reason ?? 'post-settlement anomaly confirmed',
       operatorId: opts.operatorId ?? userId,
       traceId: opts.traceId ?? null,
@@ -332,6 +388,7 @@ export class ServiceRecordService {
     const changes = await this.repo.adjustAtomically({
       serviceRecordId: current.id,
       teamId,
+      sessionId: current.session_id,
       expectedMinutes: current.minutes,
       expectedPoints: current.points_awarded_units,
       expectedStatus: current.settlement_status,

@@ -25,7 +25,8 @@
  */
 
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
-import { BaseRepository } from './base';
+import { BaseRepository, type RepoDeps } from './base';
+import { PointsLedgerRepository } from './points-ledger';
 
 /** settlement mode：仅服务器代码选择，永不来自请求体。 */
 export type SettlementMode = 'automatic' | 'review_approved';
@@ -86,6 +87,8 @@ export interface RevokeInput {
   operatorId: number;
   traceId: string | null;
   now: number;
+  /** P23-P3B：对应 ServiceRecord 的 session_id，用于定位积分账本 selector（与 settlement/adjust 同源）。 */
+  sessionId?: number;
   /**
    * P22-P3 transition gate（可空，向后兼容）。非空时仅当同批存在该 nonce 的 transition event 才执行
    * audit + revoke，确保与 anomaly/review 主 transition 严格关联（changes=0 不产生副作用）。
@@ -150,6 +153,8 @@ export interface ServiceRecordListFilters {
 export interface AdjustInput {
   serviceRecordId: number;
   teamId: number;
+  /** P23-P3B：对应 ServiceRecord 的 session_id（来自调用方已读取的行；禁止按 id 重复查询或传入 numeric SR id）。 */
+  sessionId?: number;
   /** 调用方读到的当前快照（乐观并发判据）。 */
   expectedMinutes: number;
   expectedPoints: number;
@@ -192,6 +197,14 @@ const SR_COLUMNS = `
   settlement_status, created_at, updated_at`;
 
 export class ServiceRecordRepository extends BaseRepository {
+  /** P23-P3B：积分账本 repository（复用同一 db/ctx；仅提供 build*Statements，不自行执行 batch）。 */
+  private readonly pointsRepo: PointsLedgerRepository;
+
+  constructor(deps: RepoDeps) {
+    super(deps);
+    this.pointsRepo = new PointsLedgerRepository({ db: this.db, ctx: this.ctx });
+  }
+
   /**
    * 构建【单条原子】settlement 语句：INSERT...SELECT...WHERE。
    * 资格链全部在 SQL 内重算（attendance_sessions s → activity_participations p →
@@ -257,7 +270,7 @@ export class ServiceRecordRepository extends BaseRepository {
         session_id, user_id, team_id, activity_id, minutes, source,
         service_date, business_service_date,
         points_min_minutes, points_base_units_per_hour, points_multiplier_pct, points_awarded_units,
-        settlement_status, public_id, status, review_status, created_at, updated_at
+        settlement_status, public_id, status, review_status, points_revision, created_at, updated_at
       )
       SELECT
         sid, uid, tid, aid, minutes, 'auto',
@@ -276,6 +289,7 @@ export class ServiceRecordRepository extends BaseRepository {
         ?,
         ${ /* legacy status/review_status：不赋予新业务语义，沿用既有默认值 */ 1},
         ${0},
+        ${ /* P23-P3A：仅真实 INSERT 新 SR 时产生 revision=1（duplicate 走 NOT EXISTS(session_id) 0 行，不动既有 revision） */ 1},
         ?,
         ?
       FROM settled
@@ -296,8 +310,15 @@ export class ServiceRecordRepository extends BaseRepository {
    */
   async settleEligibleSessionAtomically(p: SettlementInput): Promise<number> {
     const stmt = this.buildSettleStatement(p);
-    const res = await stmt.run();
-    return Number((res as { meta?: { changes?: number } }).meta?.changes ?? 0);
+    // P23-P3B：积分三件套（S0→S1→S2）作为同一 atomically batch 追加在 settlement 之后（强事务）。
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId: p.sessionId,
+      now: p.now,
+      remark: 'checkout',
+      operatorId: null,
+    });
+    const results = await this.db.batch([stmt, ...pts.statements]);
+    return Number((results[0] as { meta?: { changes?: number } }).meta?.changes ?? 0);
   }
 
   /**
@@ -342,10 +363,13 @@ export class ServiceRecordRepository extends BaseRepository {
       .bind(p.reason, p.operatorId, p.traceId, p.now, p.serviceRecordId, p.teamId, p.gateNonce ?? null, p.gateNonce ?? null);
 
     // stmt[1]：仅 EFFECTIVE(1) → REVOKED(2)。同一 gate 保证与 transition 严格关联。
+    // P23-P3A：真实 changes=1 时推进 points_revision（repeat revoke / UNVERIFIED / 不存在 → 0 行 → revision 不变）。
     const revokeStmt = this.db
       .prepare(
         `UPDATE service_records
-            SET settlement_status = ${SETTLEMENT_STATUS.REVOKED}, updated_at = ?
+            SET settlement_status = ${SETTLEMENT_STATUS.REVOKED},
+                points_revision = points_revision + 1,
+                updated_at = ?
           WHERE id = ? AND team_id = ? AND settlement_status = ${SETTLEMENT_STATUS.EFFECTIVE}
             AND (? IS NULL OR EXISTS (SELECT 1 FROM attendance_events e WHERE e.nonce = ?))`,
       )
@@ -360,7 +384,14 @@ export class ServiceRecordRepository extends BaseRepository {
    */
   async revokeAtomically(p: RevokeInput): Promise<number> {
     const [auditStmt, revokeStmt] = this.buildRevokeStatementSet(p);
-    const results = await this.db.batch([auditStmt, revokeStmt]);
+    // P23-P3B：积分三件套（S0→S1→S2）作为同一 atomically batch 追加在 revoke 之后（强事务）。
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId: p.sessionId ?? 0,
+      now: p.now,
+      remark: 'revoke',
+      operatorId: p.operatorId,
+    });
+    const results = await this.db.batch([auditStmt, revokeStmt, ...pts.statements]);
     return Number((results[1] as { meta?: { changes?: number } })?.meta?.changes ?? 0);
   }
 
@@ -504,11 +535,15 @@ export class ServiceRecordRepository extends BaseRepository {
       );
 
     // stmt[1]：条件 UPDATE（同一谓词 P）+ 重新认证为 EFFECTIVE。
+    // P23-P3A：真实 changes=1 时推进 points_revision（stale/no-change → 0 行 → revision 不变）。
+    // re-finalize（UNVERIFIED/REVOKED → EFFECTIVE）复用本 UPDATE，一次真实 mutation 恰好 +1，无二次推进。
     const updateStmt = this.db
       .prepare(
         `UPDATE service_records
             SET minutes = ?, points_awarded_units = ?,
-                settlement_status = ${SETTLEMENT_STATUS.EFFECTIVE}, updated_at = ?
+                settlement_status = ${SETTLEMENT_STATUS.EFFECTIVE},
+                points_revision = points_revision + 1,
+                updated_at = ?
           WHERE id = ? AND team_id = ?
             AND minutes = ? AND points_awarded_units = ? AND settlement_status = ?`,
       )
@@ -523,7 +558,14 @@ export class ServiceRecordRepository extends BaseRepository {
         p.expectedStatus,
       );
 
-    const results = await this.db.batch([auditStmt, updateStmt]);
+    // P23-P3B：积分三件套（S0→S1→S2）作为同一 atomically batch 追加在 adjust UPDATE 之后（强事务）。
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId: p.sessionId ?? 0,
+      now: p.now,
+      remark: 'adjust',
+      operatorId: p.operatorId,
+    });
+    const results = await this.db.batch([auditStmt, updateStmt, ...pts.statements]);
     return Number((results[1] as { meta?: { changes?: number } })?.meta?.changes ?? 0);
   }
 }
