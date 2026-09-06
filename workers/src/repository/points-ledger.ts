@@ -246,13 +246,19 @@ export class PointsLedgerRepository extends BaseRepository {
           pl.type                                                       AS type,
           pl.source_type                                                AS source_type,
           CASE WHEN pl.source_type = 'service_record'
-               THEN sr.public_id ELSE NULL END                          AS source_public_id,
+               THEN sr.public_id
+               WHEN pl.source_type = 'mall_order'
+               THEN mo.order_no
+               ELSE NULL END                                            AS source_public_id,
           pl.remark                                                     AS remark,
           pl.created_at                                                 AS created_at
        FROM points_ledger pl
        LEFT JOIN service_records sr
               ON pl.source_type = 'service_record'
              AND pl.source_id   = sr.id
+       LEFT JOIN mall_orders mo
+              ON pl.source_type = 'mall_order'
+             AND pl.source_id   = mo.id
       WHERE pl.user_id = ?
       ORDER BY pl.created_at DESC, pl.id DESC
       LIMIT ? OFFSET ?`,

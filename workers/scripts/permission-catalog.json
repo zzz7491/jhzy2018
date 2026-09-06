@@ -4,9 +4,9 @@
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
     "generatedAt": "2026-09-06",
-    "permissionsRowCount": 95,
-    "rolePermissionsRowCount": 275,
-    "totalPermissions": 95,
+    "permissionsRowCount": 98,
+    "rolePermissionsRowCount": 281,
+    "totalPermissions": 98,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -264,6 +264,15 @@
         "activity_participations"
       ],
       "description": "活动参与分配（报名+场次+可选时段）的创建/取消/改岗/团队代分配。"
+    },
+    {
+      "code": "mall",
+      "name": "积分商城",
+      "tables": [
+        "mall_products",
+        "mall_orders"
+      ],
+      "description": "积分商城商品与兑换订单（商品查看、下单兑换扣分、订单查看与核销）。"
     }
   ],
   "permissions": [
@@ -1406,6 +1415,42 @@
       "riskLevel": 2,
       "mvp": true,
       "evidence": "activity_participations"
+    },
+    {
+      "code": "mall.product.read",
+      "domain": "mall",
+      "resource": "product",
+      "action": "read",
+      "description": "查看团队积分商城商品与库存",
+      "scopeType": "TEAM",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "mall_products"
+    },
+    {
+      "code": "mall.order.read",
+      "domain": "mall",
+      "resource": "order",
+      "action": "read",
+      "description": "查看积分兑换订单（本人订单与团队内核销）",
+      "scopeType": "TEAM",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "mall_orders"
+    },
+    {
+      "code": "mall.order.create",
+      "domain": "mall",
+      "resource": "order",
+      "action": "create",
+      "description": "提交积分兑换订单（扣减积分余额与商品库存）",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "mall_orders,points_accounts,points_ledger"
     }
   ],
   "rolePermissions": {
@@ -1504,7 +1549,10 @@
       "participation.assignment.create",
       "participation.assignment.cancel",
       "participation.assignment.update",
-      "participation.assignment.manage"
+      "participation.assignment.manage",
+      "mall.product.read",
+      "mall.order.read",
+      "mall.order.create"
     ],
     "platform_operator": [
       "activity.category.manage",
@@ -1694,7 +1742,10 @@
       "participation.assignment.cancel",
       "participation.assignment.update",
       "service.record.read",
-      "points.account.read"
+      "points.account.read",
+      "mall.product.read",
+      "mall.order.read",
+      "mall.order.create"
     ]
   }
 }

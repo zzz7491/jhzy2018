@@ -75,6 +75,11 @@ export const ConflictReason = {
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
   SERVICE_RECORD_NO_CHANGE: 'service_record_no_change', // 提交的 effective_minutes 与当前值相同（无变化可审计）
   SERVICE_RECORD_STALE: 'service_record_stale', // 乐观锁未命中：记录已被并发修改 / 已不存在于本团队
+  // P24-P2D-REV1（新增，纯增量）：积分商城兑换业务冲突——余额 / 库存。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id /
+  // 当前余额数值 / 真实库存数字（避免给客户端提供余额/库存探测信号）。
+  MALL_INSUFFICIENT_BALANCE: 'mall_insufficient_balance', // 积分账户不存在 / 余额不足以兑换该商品（统一按"余额不足"语义，不区分无账户）
+  MALL_OUT_OF_STOCK: 'mall_out_of_stock', // 商品库存已耗尽（不泄露真实库存）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];
