@@ -4,9 +4,9 @@
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
     "generatedAt": "2026-09-05",
-    "permissionsRowCount": 92,
-    "rolePermissionsRowCount": 266,
-    "totalPermissions": 92,
+    "permissionsRowCount": 94,
+    "rolePermissionsRowCount": 273,
+    "totalPermissions": 94,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -686,6 +686,30 @@
       "riskLevel": 2,
       "mvp": true,
       "evidence": "service_records.review_status"
+    },
+    {
+      "code": "service.record.read",
+      "domain": "service",
+      "resource": "record",
+      "action": "read",
+      "description": "查看本人服务时长记录（SELF；volunteer + platform_super_admin）",
+      "scopeType": "USER",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "service_records.user_id"
+    },
+    {
+      "code": "service.record.view",
+      "domain": "service",
+      "resource": "record",
+      "action": "view",
+      "description": "查看团队服务时长记录（TEAM；owner/admin/auditor + platform 角色）",
+      "scopeType": "TEAM",
+      "risk": "LOW",
+      "riskLevel": 1,
+      "mvp": true,
+      "evidence": "service_records.team_id"
     },
     {
       "code": "training.course.manage",
@@ -1407,6 +1431,8 @@
       "attendance.anomaly.handle",
       "attendance.record.review",
       "attendance.record.force",
+      "service.record.read",
+      "service.record.view",
       "service.record.adjust",
       "service.record.review",
       "training.course.manage",
@@ -1493,6 +1519,7 @@
       "ai.usage.view",
       "rbac.catalog.view",
       "team.team.create",
+      "service.record.view",
       "system.idpool.manage"
     ],
     "team_owner": [
@@ -1518,6 +1545,7 @@
       "attendance.anomaly.handle",
       "attendance.record.review",
       "attendance.record.force",
+      "service.record.view",
       "service.record.adjust",
       "service.record.review",
       "training.course.manage",
@@ -1572,6 +1600,7 @@
       "attendance.anomaly.handle",
       "attendance.record.review",
       "attendance.record.force",
+      "service.record.view",
       "service.record.adjust",
       "service.record.review",
       "training.course.manage",
@@ -1608,6 +1637,7 @@
       "account.certification.review",
       "signup.signup.review",
       "attendance.record.review",
+      "service.record.view",
       "service.record.review",
       "exam.exam.grade",
       "certificate.certificate.view",
@@ -1649,7 +1679,8 @@
       "ai.assist.use",
       "participation.assignment.create",
       "participation.assignment.cancel",
-      "participation.assignment.update"
+      "participation.assignment.update",
+      "service.record.read"
     ]
   }
 }

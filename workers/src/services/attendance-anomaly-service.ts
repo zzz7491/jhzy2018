@@ -10,10 +10,11 @@
  * settlement / service_records correction / points / certificates / review automation / implicit force checkout。
  */
 
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import type { Env } from '../env';
+import { ServiceRecordService } from '../services/service-record-service';
 import {
   AttendanceAnomalyRepository,
   ANOMALY_TYPES,
@@ -89,6 +90,7 @@ export class AttendanceAnomalyService {
   private readonly tenant: TenantContext;
   private readonly env: Env;
   private readonly repo: AttendanceAnomalyRepository;
+  private readonly srService: ServiceRecordService;
 
   constructor(deps: AttendanceAnomalyDeps) {
     this.db = deps.db;
@@ -96,6 +98,7 @@ export class AttendanceAnomalyService {
     this.tenant = deps.tenant;
     this.env = deps.env;
     this.repo = new AttendanceAnomalyRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
+    this.srService = new ServiceRecordService({ db: this.db, auth: this.auth, tenant: this.tenant });
   }
 
   /**
@@ -271,6 +274,25 @@ export class AttendanceAnomalyService {
     const writeStatus = fault === 2 ? FAULT_STATUS : newStatus;
     const raw = JSON.stringify({ action: 'anomaly_resolve', decision });
 
+    // P22-P3：revoke/settlement 组合进同一 anomaly-resolve db.batch（强事务）。
+    // nonce 作为 transition-gate：仅当本次 anomaly 真实 transition（OPEN→CONFIRMED/DISMISSED）
+    // 才撤销/创建 ServiceRecord；重复处置（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
+    const nonce = `anomaly:${anomalyId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    let anomalyExtra: D1PreparedStatement[] = [];
+    const target = await this.repo.findTeamAnomaly(anomalyId, actor.teamId);
+    if (target && target.session_id != null) {
+      if (decision === 'confirm') {
+        // CONFIRMED：若已存在 EFFECTIVE ServiceRecord → 撤销为 REVOKED（同批）；无 SR → no-op。
+        anomalyExtra = await this.srService.buildRevokeStatementsForSession(target.session_id, {
+          reason: resolution,
+          operatorId: actor.userId,
+          gateNonce: nonce,
+        });
+      } else {
+        // DISMISS：会话已签退且无未决 anomaly → automatic settlement EFFECTIVE（同批）。
+        anomalyExtra = [this.srService.buildSettleStatement(target.session_id, actor.teamId, 'automatic', nonce)];
+      }
+    }
     const changes = await this.repo.resolveAnomalyAtomically(
       anomalyId,
       actor.teamId,
@@ -280,6 +302,7 @@ export class AttendanceAnomalyService {
       raw,
       actor.userId,
       now,
+      { nonce, extraStatements: anomalyExtra },
     );
 
     if (changes === 0) {

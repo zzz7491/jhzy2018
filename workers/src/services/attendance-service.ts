@@ -25,6 +25,7 @@ import { ActivitySignupRepository, SIGNUP_STATUS } from '../repository/activity-
 import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
 import { ParticipationRepository, PARTICIPATION_STATUS } from '../repository/participation';
 import { AttendanceSessionOwnershipPolicy } from '../policies/ownership';
+import { ServiceRecordService } from './service-record-service';
 import { toBusinessDate } from '../utils/time';
 import type { AttendanceLocation } from '../utils/location';
 import {
@@ -61,11 +62,13 @@ export class ActivityAttendanceService {
   private readonly db: D1Database;
   private readonly auth: AuthContext;
   private readonly tenant: TenantContext;
+  private readonly srService: ServiceRecordService;
 
   constructor(deps: AttendanceServiceDeps) {
     this.db = deps.db;
     this.auth = deps.auth;
     this.tenant = deps.tenant;
+    this.srService = new ServiceRecordService({ db: this.db, auth: this.auth, tenant: this.tenant });
   }
 
   /**
@@ -265,14 +268,18 @@ export class ActivityAttendanceService {
       throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_OUT);
     }
 
-    // 7) 原子签退（租户 + 归属 + 状态同在 WHERE）。
+    // 7) 原子签退 + 证据事件 + 强事务 settlement（同批原子，P22-P3）。
+    //    nonce 同时作为 settlement 的 transition-gate（EXISTS 本次 transition event）：
+    //    仅当本次 CHECKED_IN→CHECKED_OUT 真实发生时，才创建 EFFECTIVE ServiceRecord；
+    //    duplicate checkout（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
     const now = Math.floor(Date.now() / 1000);
-    const ok = await attendance.checkOut(signup.id, userId, teamId, now);
+    const nonce = `checkout:${session.id}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    const settleStmt = this.srService.buildSettleStatement(session.id, teamId, 'automatic', nonce);
+    const ok = await attendance.checkOutAtomically(signup.id, userId, teamId, now, activity.id, {
+      nonce,
+      extraStatements: [settleStmt],
+    });
     if (!ok) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_OUT);
-
-    // 8) 写最小证据行。
-    const nonce = `${session.id}:checkout:${now}`;
-    await attendance.insertEvent(session.id, activity.id, userId, teamId, 'checkout', now, userId, nonce);
 
     return {
       session_id: session.id,

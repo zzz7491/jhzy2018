@@ -25,6 +25,7 @@
  */
 
 import { BaseRepository } from './base';
+import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { notFound, teamScopeRequired, conflict, ConflictReason } from '../utils/errors';
 
 export interface AttendanceSessionRow {
@@ -204,6 +205,55 @@ export class AttendanceSessionRepository extends BaseRepository {
   }
 
   /**
+   * 本人签退原子写（P22-P3 强事务版）：与 review/force-checkout 同构的「先 INSERT event 后 UPDATE」结构，
+   * 并在同一 db.batch 内追加 optional extraStatements（settlement）。
+   *
+   * PRE-state 谓词 P := (signup_id = ? AND user_id = ? AND team_id = ? AND status = 1)。
+   * stmt[0] event INSERT...SELECT（守卫 = P）只写 attendance_events，不改变 P 真值；
+   * stmt[1] UPDATE（守卫 = P）求值 P 时必然与 stmt[0] 一致 ⇒ P 真→1 event+1 行；P 假→0+0（409，不写 event）。
+   * 当传入 settlement 作为 extraStatements[0] 时，其 transition-gate（EXISTS 本批 event nonce）
+   * 与 P 严格联动：P 假 ⇒ 无 event ⇒ gate 不命中 ⇒ settlement 0 行（杜绝重复签退产生 SR 副作用）。
+   *
+   * @param opts.nonce        外部注入的事件唯一 nonce（P22-P3 transition-gate 锚点；缺省内部生成）。
+   * @param opts.extraStatements 追加进同批的语句（如 ServiceRecord settlement statement）。
+   * @returns UPDATE 实际变更行数（0 = 守卫未命中，调用方据 findOwnActiveSession 区分 409）。
+   */
+  async checkOutAtomically(
+    signupId: number,
+    userId: number,
+    teamId: number,
+    now: number,
+    activityId: number,
+    opts?: { nonce?: string; extraStatements?: D1PreparedStatement[] },
+  ): Promise<number> {
+    this.ensureTableRead('attendance_sessions');
+    this.ensureTableRead('attendance_events');
+
+    const nonce = opts?.nonce ?? `checkout:${signupId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    // stmt[0]：签退事件，守卫 = PRE-state 谓词 P（与下方 UPDATE 完全一致）。
+    const insertStmt = this.db
+      .prepare(
+        `INSERT INTO attendance_events
+           (session_id, activity_id, user_id, team_id, event_type, nonce, operator_id, occurred_at, created_at)
+         SELECT a.id, ?, ?, ?, 'checkout', ?, ?, ?, ?
+           FROM attendance_sessions a
+          WHERE a.signup_id = ? AND a.user_id = ? AND a.team_id = ? AND a.status = 1`,
+      )
+      .bind(activityId, userId, teamId, nonce, userId, now, now, signupId, userId, teamId);
+    // stmt[1]：条件 UPDATE，守卫 = 同一 PRE-state 谓词 P。
+    const updateStmt = this.db
+      .prepare(
+        `UPDATE attendance_sessions
+            SET status = ?, checkout_at = ?, updated_at = ?
+          WHERE signup_id = ? AND user_id = ? AND team_id = ? AND status = 1`,
+      )
+      .bind(ATTENDANCE_STATUS.CHECKED_OUT, now, now, signupId, userId, teamId);
+
+    const results = await this.db.batch([insertStmt, updateStmt, ...(opts?.extraStatements ?? [])]);
+    return Number(results[1]?.meta?.changes ?? 0);
+  }
+
+  /**
    * 写最小考勤事件证据行（append-only）。
    * - event_type = 'checkin' | 'checkout'
    * - nonce UNIQUE 幂等（格式：${sessionId}:${eventType}:${now}）
@@ -281,11 +331,13 @@ export class AttendanceSessionRepository extends BaseRepository {
     rawJson: string,
     operatorId: number,
     now: number,
+    opts?: { nonce?: string; extraStatements?: D1PreparedStatement[] },
   ): Promise<number> {
     this.ensureTableRead('attendance_sessions');
     this.ensureTableRead('attendance_events');
 
-    const nonce = `review:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    // nonce 可外部注入（P22-P3）：作为 settlement/revoke 的 transition-gate 锚点。
+    const nonce = opts?.nonce ?? `review:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     // stmt[0]：审计事件，守卫 = PRE-state 谓词 P（与下方 UPDATE 完全一致）。
     // session_id 取 a.id（而非重复绑定入参），确保证据行严格绑定到被命中的那一行。
     const insertStmt = this.db
@@ -307,7 +359,7 @@ export class AttendanceSessionRepository extends BaseRepository {
       )
       .bind(newReviewStatus, now, sessionId, teamId);
 
-    const results = await this.db.batch([insertStmt, updateStmt]);
+    const results = await this.db.batch([insertStmt, updateStmt, ...(opts?.extraStatements ?? [])]);
     return Number(results[1]?.meta?.changes ?? 0);
   }
 
@@ -334,11 +386,12 @@ export class AttendanceSessionRepository extends BaseRepository {
     rawJson: string,
     operatorId: number,
     newStatus: number = ATTENDANCE_STATUS.CHECKED_OUT,
+    opts?: { nonce?: string; extraStatements?: D1PreparedStatement[] },
   ): Promise<number> {
     this.ensureTableRead('attendance_sessions');
     this.ensureTableRead('attendance_events');
 
-    const nonce = `force:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    const nonce = opts?.nonce ?? `force:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     // stmt[0]：审计事件，守卫 = PRE-state 谓词 P（与下方 UPDATE 完全一致）。
     const insertStmt = this.db
       .prepare(
@@ -358,7 +411,7 @@ export class AttendanceSessionRepository extends BaseRepository {
       )
       .bind(newStatus, now, now, sessionId, teamId);
 
-    const results = await this.db.batch([insertStmt, updateStmt]);
+    const results = await this.db.batch([insertStmt, updateStmt, ...(opts?.extraStatements ?? [])]);
     return Number(results[1]?.meta?.changes ?? 0);
   }
 

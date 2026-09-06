@@ -13,6 +13,7 @@
  */
 
 import { BaseRepository } from './base';
+import type { D1PreparedStatement } from '@cloudflare/workers-types';
 
 /** 冻结 7 类 anomaly_type（与 0004 CHECK 完全一致）。 */
 export const ANOMALY_TYPES = [
@@ -160,11 +161,13 @@ export class AttendanceAnomalyRepository extends BaseRepository {
     rawJson: string,
     operatorId: number,
     now: number,
+    opts?: { nonce?: string; extraStatements?: D1PreparedStatement[] },
   ): Promise<number> {
     this.ensureTableRead('attendance_anomalies');
     this.ensureTableRead('attendance_events');
 
-    const nonce = `anomaly:${anomalyId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    // nonce 可外部注入（P22-P3）：作为 revoke/settlement 的 transition-gate 锚点。
+    const nonce = opts?.nonce ?? `anomaly:${anomalyId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     // stmt[0]：审计事件，守卫 = PRE-state 谓词 P（与下方 UPDATE 完全一致）。
     // 经 LEFT JOIN attendance_sessions 安全取 activity_id / user_id；session 缺失仅使 SELECT 0 行（原子性不受影响）。
     const insertStmt = this.db
@@ -186,7 +189,7 @@ export class AttendanceAnomalyRepository extends BaseRepository {
       )
       .bind(newStatus, operatorId, now, reason, anomalyId, teamId);
 
-    const results = await this.db.batch([insertStmt, updateStmt]);
+    const results = await this.db.batch([insertStmt, updateStmt, ...(opts?.extraStatements ?? [])]);
     return Number(results[1]?.meta?.changes ?? 0);
   }
 }

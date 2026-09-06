@@ -21,11 +21,12 @@
  * 时间校验 / 位置校验 / 班次调度 / 活动状态机 / 平台跨团队管理 / 新迁移 / 新权限 / catalog 变更。
  */
 
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import type { Env } from '../env';
 import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
+import { ServiceRecordService } from '../services/service-record-service';
 import {
   authRequired,
   conflict,
@@ -74,6 +75,7 @@ export class AttendanceManagementService {
   private readonly tenant: TenantContext;
   private readonly env: Env;
   private readonly repo: AttendanceSessionRepository;
+  private readonly srService: ServiceRecordService;
 
   constructor(deps: AttendanceManagementDeps) {
     this.db = deps.db;
@@ -81,6 +83,7 @@ export class AttendanceManagementService {
     this.tenant = deps.tenant;
     this.env = deps.env;
     this.repo = new AttendanceSessionRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
+    this.srService = new ServiceRecordService({ db: this.db, auth: this.auth, tenant: this.tenant });
   }
 
   /**
@@ -208,6 +211,20 @@ export class AttendanceManagementService {
     const writeReviewStatus = fault === 2 ? FAULT_OUT_OF_RANGE : newReviewStatus;
     const raw = JSON.stringify({ action: 'review', decision });
 
+    // P22-P3：将 settlement/revoke 组合进【同一】review db.batch（强事务）。
+    // nonce 作为 transition-gate：仅当本次 review 真实 transition（review_status 0→approved/rejected）
+    // 才创建/撤销 ServiceRecord；重复 review（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
+    const nonce = `review:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    let reviewExtra: D1PreparedStatement[] = [];
+    if (decision === 'approve') {
+      reviewExtra = [this.srService.buildSettleStatement(sessionId, actor.teamId, 'review_approved', nonce)];
+    } else {
+      reviewExtra = await this.srService.buildRevokeStatementsForSession(sessionId, {
+        reason: reason || 'review rejected',
+        operatorId: actor.userId,
+        gateNonce: nonce,
+      });
+    }
     const changes = await this.repo.reviewSessionAtomically(
       sessionId,
       actor.teamId,
@@ -217,6 +234,7 @@ export class AttendanceManagementService {
       raw,
       actor.userId,
       now,
+      { nonce, extraStatements: reviewExtra },
     );
 
     if (changes === 0) {
@@ -260,6 +278,9 @@ export class AttendanceManagementService {
     const writeStatus = fault === 2 ? FAULT_OUT_OF_RANGE : ATTENDANCE_STATUS.CHECKED_OUT;
     const raw = JSON.stringify({ action: 'force_checkout' });
 
+    // P22-P3：settlement 组合进同一 force-checkout db.batch（强事务）.
+    const nonce = `force:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
+    const settleStmt = this.srService.buildSettleStatement(sessionId, actor.teamId, 'automatic', nonce);
     const changes = await this.repo.forceCheckoutAtomically(
       sessionId,
       actor.teamId,
@@ -269,6 +290,7 @@ export class AttendanceManagementService {
       raw,
       actor.userId,
       writeStatus,
+      { nonce, extraStatements: [settleStmt] },
     );
 
     if (changes === 0) {

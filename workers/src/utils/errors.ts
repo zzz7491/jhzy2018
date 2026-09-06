@@ -71,6 +71,10 @@ export const ConflictReason = {
   FORM_NOT_AVAILABLE: 'form_not_available', // 合法 consumer 上不存在可用 published form（仅此场景可返回该 reason）
   // S2-NEW-ARCH-P21（新增，纯增量）：signup 消费 binding 策略为 required(2) 但未提供 submitted form。
   SIGNUP_FORM_REQUIRED: 'signup_form_required',
+  // S2-NEW-ARCH-P22（新增，纯增量）：ServiceRecord 人工修正（adjust）冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
+  SERVICE_RECORD_NO_CHANGE: 'service_record_no_change', // 提交的 effective_minutes 与当前值相同（无变化可审计）
+  SERVICE_RECORD_STALE: 'service_record_stale', // 乐观锁未命中：记录已被并发修改 / 已不存在于本团队
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];
