@@ -207,11 +207,14 @@ async function main() {
     // 权限计数冻结值
     const permCount = get1(sqlite, 'SELECT COUNT(*) c FROM permissions').c;
     const rpCount = get1(sqlite, 'SELECT COUNT(*) c FROM role_permissions').c;
-    assert(permCount === 98, `S1: permissions = 98 (got ${permCount})`);
-    assert(rpCount === 281, `S1: role_permissions = 281 (got ${rpCount})`);
+    assert(permCount === 99, `S1: permissions = 99 (got ${permCount})`);
+    assert(rpCount === 284, `S1: role_permissions = 284 (got ${rpCount})`);
 
-    const mallPerms = q(sqlite, `SELECT code FROM permissions WHERE code IN ('mall.product.read','mall.order.read','mall.order.create')`).map((r) => r.code).sort();
-    assert(JSON.stringify(mallPerms) === JSON.stringify(['mall.order.create', 'mall.order.read', 'mall.product.read']), `S1: 3 mall perms present (got ${JSON.stringify(mallPerms)})`);
+    const moCols2 = q(sqlite, 'PRAGMA table_info(mall_orders)').map((c) => c.name);
+    assert(moCols2.includes('exchange_code'), 'S1: mall_orders.exchange_code exists (0021)');
+
+    const mallPerms = q(sqlite, `SELECT code FROM permissions WHERE code IN ('mall.product.read','mall.order.read','mall.order.create','mall.order.verify')`).map((r) => r.code).sort();
+    assert(JSON.stringify(mallPerms) === JSON.stringify(['mall.order.create', 'mall.order.read', 'mall.order.verify', 'mall.product.read']), `S1: 4 mall perms present (got ${JSON.stringify(mallPerms)})`);
 
     function mallBindingsFor(roleCode) {
       return get1(sqlite, `SELECT COUNT(*) c FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE r.code=? AND p.perm_group='mall'`, [roleCode]).c;
@@ -220,13 +223,13 @@ async function main() {
       return get1(sqlite, `SELECT COUNT(*) c FROM role_permissions rp JOIN roles r ON r.id=rp.role_id WHERE r.code=?`, [roleCode]).c;
     }
     assert(mallBindingsFor('volunteer') === 3, `S1: volunteer mall bindings = 3 (got ${mallBindingsFor('volunteer')})`);
-    assert(mallBindingsFor('platform_super_admin') === 3, `S1: platform_super_admin mall bindings = 3 (got ${mallBindingsFor('platform_super_admin')})`);
+    assert(mallBindingsFor('platform_super_admin') === 4, `S1: platform_super_admin mall bindings = 4 (got ${mallBindingsFor('platform_super_admin')})`);
     assert(mallBindingsFor('platform_operator') === 0, `S1: platform_operator mall bindings = 0 (got ${mallBindingsFor('platform_operator')})`);
-    assert(mallBindingsFor('team_owner') === 0, `S1: team_owner mall bindings = 0 (got ${mallBindingsFor('team_owner')})`);
-    assert(mallBindingsFor('team_admin') === 0, `S1: team_admin mall bindings = 0 (got ${mallBindingsFor('team_admin')})`);
+    assert(mallBindingsFor('team_owner') === 1, `S1: team_owner mall bindings = 1 (got ${mallBindingsFor('team_owner')})`);
+    assert(mallBindingsFor('team_admin') === 1, `S1: team_admin mall bindings = 1 (got ${mallBindingsFor('team_admin')})`);
     assert(mallBindingsFor('team_auditor') === 0, `S1: team_auditor mall bindings = 0 (got ${mallBindingsFor('team_auditor')})`);
     assert(totalBindingsFor('volunteer') === 30, `S1: volunteer total bindings = 30 (got ${totalBindingsFor('volunteer')})`);
-    assert(totalBindingsFor('platform_super_admin') === 98, `S1: platform_super_admin total bindings = 98 (got ${totalBindingsFor('platform_super_admin')})`);
+    assert(totalBindingsFor('platform_super_admin') === 99, `S1: platform_super_admin total bindings = 99 (got ${totalBindingsFor('platform_super_admin')})`);
   }
 
   // =========================================================================
@@ -253,6 +256,11 @@ async function main() {
     assert(order != null, 'A: mall_order created');
     assert(order.points === 300, `A: order.points=300 (got ${order && order.points})`);
     assert(order.status === 1, `A: order.status=1 (got ${order && order.status})`);
+    // P25-P2B：exchange_code 与 order_no/verify_code 同批原子写入
+    assert(typeof out.exchangeCode === 'string' && /^[0-9A-HJKMNP-TV-Z]{12}$/.test(out.exchangeCode), `A: exchangeCode 12-char (got ${out.exchangeCode})`);
+    assert(order.exchange_code === out.exchangeCode, `A: stored exchange_code == returned (got ${order.exchange_code})`);
+    assert(order.verify_code != null && order.verify_code.length > 0, `A: verify_code present (got ${order.verify_code})`);
+    assert(order.verify_code !== order.exchange_code, `A: verify_code != exchange_code (internal != public)`);
 
     const acct = get1(sqlite, 'SELECT * FROM points_accounts WHERE user_id=11');
     assert(acct.balance === 700, `A: balance=700 (got ${acct.balance})`);
@@ -280,8 +288,10 @@ async function main() {
   {
     const { sqlite, db, P1, orderNo } = A_FIRST;
     const svc = makeMallService(db, 11, 21);
+    const orders0Exchange = get1(sqlite, 'SELECT exchange_code FROM mall_orders WHERE order_no=?', [orderNo]).exchange_code;
     const out = await svc.redeem({ productPublicId: P1, orderNo });
     assert(out.status === 'existing', `B: status=existing (got ${out.status})`);
+    assert(out.exchangeCode === orders0Exchange, `B: replay returns original exchangeCode (got ${out.exchangeCode})`);
     const orders = q(sqlite, 'SELECT * FROM mall_orders WHERE order_no=?', [orderNo]);
     assert(orders.length === 1, `B: orders unchanged=1 (got ${orders.length})`);
     const acct = get1(sqlite, 'SELECT * FROM points_accounts WHERE user_id=11');
@@ -303,6 +313,25 @@ async function main() {
     assert(acct.balance === 700, `C: balance unchanged=700 (got ${acct.balance})`);
     assert(get1(sqlite, 'SELECT stock FROM mall_products WHERE id=101').stock === 4, `C: stock unchanged=4`);
     assert(q(sqlite, 'SELECT * FROM mall_orders WHERE order_no=?', [orderNo]).length === 1, `C: orders unchanged=1`);
+  }
+
+  // C2. legacy NULL exchange_code replay（P25 前已存在订单 exchange_code=NULL → existing + exchangeCode=null，不回填）
+  {
+    const { sqlite, db, P1 } = A_FIRST;
+    const legacyNo = generateUlid();
+    run(sqlite, `INSERT INTO mall_orders (order_no, user_id, team_id, product_id, product_title, points, status, verify_code, verified_by, verified_at)
+      VALUES (?,11,21,101,'P1',100,1,?,NULL,NULL)`, [legacyNo, generateUlid()]);
+    const before = get1(sqlite, 'SELECT * FROM mall_orders WHERE order_no=?', [legacyNo]);
+    assert(before.exchange_code === null, 'C2: legacy exchange_code is NULL');
+    const svc = makeMallService(db, 11, 21);
+    const out = await svc.redeem({ productPublicId: P1, orderNo: legacyNo });
+    assert(out.status === 'existing', `C2: status=existing (got ${out.status})`);
+    assert(out.exchangeCode === null, `C2: exchangeCode=null (got ${out.exchangeCode})`);
+    const after = get1(sqlite, 'SELECT * FROM mall_orders WHERE order_no=?', [legacyNo]);
+    assert(after.exchange_code === null, 'C2: DB exchange_code remains NULL (no backfill)');
+    const acct = get1(sqlite, 'SELECT * FROM points_accounts WHERE user_id=11');
+    assert(acct.balance === 700, `C2: no double debit (balance=700, got ${acct.balance})`);
+    assert(q(sqlite, "SELECT * FROM points_ledger WHERE source_type='mall_order' AND request_id=?", ['ex:' + legacyNo]).length === 0, 'C2: no new ledger for legacy replay');
   }
 
   // D. conflict — 不同 user 复用同 orderNo → 409 public_id_conflict

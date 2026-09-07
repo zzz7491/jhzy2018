@@ -40,9 +40,16 @@ export interface ProductView {
   updated_at: number | null;
 }
 
-/** 订单对外投影（隐藏 verify_code / id / user_id / team_id / product_id / verified_by）。 */
+/**
+ * 订单对外投影（隐藏 verify_code / id / user_id / team_id / product_id / verified_by）。
+ *
+ * P25-P2B 起新增 exchange_code：它是服务端生成的**公开领取凭证**（用户凭此到管理员处领取），
+ * 与 P24 冻结的内部 attempt token `verify_code` 严格分离、永不公开后者。
+ * legacy（P24 之前）订单该列为 NULL → 原样返回 null，本层不做 backfill。
+ */
 export interface OrderListItem {
   order_no: string;
+  exchange_code: string | null;
   product_public_id: string;
   product_title: string;
   points_units: number;
@@ -72,6 +79,7 @@ interface RawProduct {
 /** 订单 SELECT 原始行（points 列映射为 points_units）。 */
 interface RawOrder {
   order_no: string;
+  exchange_code: string | null;
   product_public_id: string;
   product_title: string;
   points: number;
@@ -158,6 +166,7 @@ export class MallRepository extends BaseRepository {
     const rows = await this.all<RawOrder>(
       `SELECT
          mo.order_no                                                    AS order_no,
+         mo.exchange_code                                               AS exchange_code,
          mp.public_id                                                   AS product_public_id,
          mo.product_title                                               AS product_title,
          mo.points                                                      AS points,
@@ -174,6 +183,7 @@ export class MallRepository extends BaseRepository {
     );
     return rows.map((r) => ({
       order_no: r.order_no,
+      exchange_code: r.exchange_code,
       product_public_id: r.product_public_id,
       product_title: r.product_title,
       points_units: r.points,
@@ -203,6 +213,7 @@ export class MallRepository extends BaseRepository {
     const row = await this.first<RawOrder>(
       `SELECT
          mo.order_no                                                    AS order_no,
+         mo.exchange_code                                               AS exchange_code,
          mp.public_id                                                   AS product_public_id,
          mo.product_title                                               AS product_title,
          mo.points                                                      AS points,
@@ -218,6 +229,7 @@ export class MallRepository extends BaseRepository {
     if (row == null) return null;
     return {
       order_no: row.order_no,
+      exchange_code: row.exchange_code,
       product_public_id: row.product_public_id,
       product_title: row.product_title,
       points_units: row.points,

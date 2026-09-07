@@ -80,6 +80,9 @@ export const ConflictReason = {
   // 当前余额数值 / 真实库存数字（避免给客户端提供余额/库存探测信号）。
   MALL_INSUFFICIENT_BALANCE: 'mall_insufficient_balance', // 积分账户不存在 / 余额不足以兑换该商品（统一按"余额不足"语义，不区分无账户）
   MALL_OUT_OF_STOCK: 'mall_out_of_stock', // 商品库存已耗尽（不泄露真实库存）
+  // P25-P3B1（新增，纯增量）：积分兑换订单核销冲突——订单在 TEAM 内存在但状态不可核销（RESERVED 3/4）。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 内部订单状态含义。
+  MALL_ORDER_NOT_VERIFIABLE: 'mall_order_not_verifiable', // 订单存在但状态不可核销（仅 status ∈ {3,4} 时返回）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];

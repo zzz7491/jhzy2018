@@ -51,6 +51,8 @@ export interface RedeemInput {
   orderNo: string;
   /** 服务端本次 attempt token（写入 mall_orders.verify_code）。 */
   verifyCode: string;
+  /** 服务端生成的公开领取凭证（写入 mall_orders.exchange_code，与 verify_code 职责严格分离）。 */
+  exchangeCode: string;
   /** Unix epoch seconds。 */
   now: number;
 }
@@ -189,14 +191,15 @@ export class MallRedemptionRepository extends BaseRepository {
     if (userId == null) throw userScopeRequired();
     if (teamId == null) throw teamScopeRequired();
 
-    // ---- S1：权威订单 INSERT（order_no = 客户端 ULID，verify_code = 服务端 attempt token）----
-    // bind: ?1 productPublicId, ?2 teamId, ?3 orderNo, ?4 userId, ?5 verifyCode, ?6 now,
-    //       ?7 userId(余额账户), ?8 orderNo(重复单守卫)
+    // ---- S1：权威订单 INSERT（order_no = 客户端 ULID，verify_code = 服务端 attempt token，
+    //      exchange_code = 服务端公开领取凭证；三者一次性原子写入，杜绝无码窗口）----
+    // bind: ?1 productPublicId, ?2 teamId, ?3 orderNo, ?4 userId, ?5 verifyCode, ?6 exchangeCode,
+    //       ?7 now, ?8 userId(余额账户), ?9 orderNo(重复单守卫)
     const s1 = this.db
       .prepare(
         `${TGT_ELIGIBLE_CTE}
          INSERT INTO mall_orders (
-           order_no, user_id, team_id, product_id, product_title, points, status, verify_code, created_at
+           order_no, user_id, team_id, product_id, product_title, points, status, verify_code, exchange_code, created_at
          )
          SELECT
            ?,                                  -- order_no
@@ -207,13 +210,14 @@ export class MallRedemptionRepository extends BaseRepository {
            (SELECT points_price FROM tgt),
            ${MALL_ORDER_STATUS_CREATED},
            ?,                                  -- verify_code（服务端 attempt token）
+           ?,                                  -- exchange_code（服务端公开领取凭证）
            ?                                   -- now
          WHERE EXISTS (SELECT 1 FROM tgt)
            AND (SELECT balance FROM points_accounts WHERE user_id = ?)
                >= (SELECT points_price FROM tgt)
            AND NOT EXISTS (SELECT 1 FROM mall_orders WHERE order_no = ?)`,
       )
-      .bind(p.productPublicId, teamId, p.orderNo, userId, p.verifyCode, p.now, userId, p.orderNo);
+      .bind(p.productPublicId, teamId, p.orderNo, userId, p.verifyCode, p.exchangeCode, p.now, userId, p.orderNo);
 
     // ---- S2：扣分（amount 直接读 attempt order.points，绝不信任客户端 cost）----
     // bind: ?1..?5 CTE, ?6 now
@@ -351,5 +355,32 @@ export class MallRedemptionRepository extends BaseRepository {
       [userId],
     );
     return row ? row.balance : null;
+  }
+
+  /**
+   * 读取【同身份】既有订单的公开领取凭证（纯 SELECT）。
+   * - 仅当 order_no + user_id + team_id + product_public_id 全等时才返回其 exchange_code，
+   *   否则返回 null（跨团队/跨用户/不存在 → 不泄露任何既有订单字段）。
+   * - 不 materialize user_id / team_id / product_id 等内部字段。
+   * - 用于幂等重放返回原 exchange_code；P25 之前的历史订单 exchange_code 可能为 NULL（返回 null，不补码）。
+   */
+  async getExistingExchangeCode(orderNo: string, productPublicId: string): Promise<string | null> {
+    this.ensureTableRead('mall_orders');
+    this.ensureTableRead('mall_products');
+    const userId = this.ctx.auth.userId;
+    const teamId = this.ctx.auth.teamId;
+    if (userId == null) throw userScopeRequired();
+    if (teamId == null) throw teamScopeRequired();
+    const row = await this.first<{ exchange_code: string | null }>(
+      `SELECT o.exchange_code
+         FROM mall_orders o
+         JOIN mall_products p ON p.id = o.product_id
+        WHERE o.order_no = ?
+          AND o.user_id  = ?
+          AND o.team_id  = ?
+          AND p.public_id = ?`,
+      [orderNo, userId, teamId, productPublicId],
+    );
+    return row ? row.exchange_code : null;
   }
 }

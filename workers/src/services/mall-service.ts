@@ -51,8 +51,8 @@ export interface RedeemRequest {
 
 /** 兑换结果（内部稳定结构；route 层再投影为 API 视图，禁止直接暴露内部 id）。 */
 export type RedeemOutcome =
-  | { status: 'created'; orderNo: string }
-  | { status: 'existing'; orderNo: string };
+  | { status: 'created'; orderNo: string; exchangeCode: string }
+  | { status: 'existing'; orderNo: string; exchangeCode: string | null };
 
 export class MallService {
   private readonly db: D1Database;
@@ -81,15 +81,18 @@ export class MallService {
     const pre = await this.repo.getOrderNoState(req.orderNo, req.productPublicId);
     if (pre.taken) {
       if (pre.sameIdentity) {
-        // 同 user + 同 team + 同 product 复用 order_no → 幂等成功，绝不二次执行 batch。
-        return { status: 'existing', orderNo: req.orderNo };
+        // 同 user + 同 team + 同 product 复用 order_no → 幂等成功，绝不二次执行 batch；
+        // 返回数据库既有 exchange_code（绝不重新生成 / 覆盖）。
+        const exchangeCode = await this.repo.getExistingExchangeCode(req.orderNo, req.productPublicId);
+        return { status: 'existing', orderNo: req.orderNo, exchangeCode };
       }
       // 不同 user/team/product 占用了该 order_no → 409 冲突（不泄露既存订单任何信息）。
       throw conflict(ConflictReason.PUBLIC_ID_CONFLICT);
     }
 
-    // 3. 服务端生成本次 attempt token（绝不接受客户端 verifyCode）。
+    // 3. 服务端生成本次 attempt token 与公开领取凭证（绝不接受客户端值）。
     const verifyCode = generateUlid();
+    const exchangeCode = this.generateExchangeCode();
     const now = Math.floor(Date.now() / 1000);
 
     // 4. 一次性 db.batch([S1,S2,S3,S4])（禁止四次独立 run / 两个 batch / 先扣再建）。
@@ -97,6 +100,7 @@ export class MallService {
       productPublicId: req.productPublicId,
       orderNo: req.orderNo,
       verifyCode,
+      exchangeCode,
       now,
     });
 
@@ -105,7 +109,7 @@ export class MallService {
       results = await this.db.batch(statements);
     } catch (e) {
       // 真正的 SQL 错误（FK/约束/语法）→ D1 batch 已整体 rollback；不伪装成成功。
-      // 不依赖 UNIQUE(points_ledger.request_id) 作为正常 retry 路径。
+      // 不依赖 UNIQUE(points_ledger.request_id) 或 exchange_code 冲突做自动重试。
       throw this.classifyDbError(e);
     }
 
@@ -113,7 +117,7 @@ export class MallService {
 
     // 5. 结果不变量处理。
     if (c1 === 1 && c2 === 1 && c3 === 1 && c4 === 1) {
-      return { status: 'created', orderNo: req.orderNo };
+      return { status: 'created', orderNo: req.orderNo, exchangeCode };
     }
     if (c1 === 0 && c2 === 0 && c3 === 0 && c4 === 0) {
       // gate 失败 / 并发输家 / retry 竞态 → 重新只读判定当前状态。
@@ -127,7 +131,10 @@ export class MallService {
   private async handleZeroChanges(req: RedeemRequest): Promise<RedeemOutcome> {
     const post = await this.repo.getOrderNoState(req.orderNo, req.productPublicId);
     if (post.taken) {
-      if (post.sameIdentity) return { status: 'existing', orderNo: req.orderNo };
+      if (post.sameIdentity) {
+        const exchangeCode = await this.repo.getExistingExchangeCode(req.orderNo, req.productPublicId);
+        return { status: 'existing', orderNo: req.orderNo, exchangeCode };
+      }
       throw conflict(ConflictReason.PUBLIC_ID_CONFLICT);
     }
     // order_no 未出现 → 按真实状态分类稳定错误（无 mutation）。
@@ -150,6 +157,22 @@ export class MallService {
     }
     // 兜底：不应到达（gate 已覆盖所有可兑换前提）。
     throw internalError();
+  }
+
+  /**
+   * 服务端生成公开领取凭证 exchange_code（P25-P1-REV1/REV2 冻结参数）。
+   * - 12 位 Crockford Base32（剔除 I/L/O/U），60-bit 熵。
+   * - 随机源：Web Crypto `crypto.getRandomValues`（禁用 Math.random）。
+   * - 因 256 % 32 == 0，逐字节 `byte & 31` 无取模偏置。
+   * - 不从 order_no / user_id / timestamp 派生；DB UNIQUE 索引作最终兜底，碰撞由客户端同 orderNo 重试恢复。
+   */
+  private generateExchangeCode(): string {
+    const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    let code = '';
+    for (let i = 0; i < 12; i++) code += ALPHABET[bytes[i] & 31];
+    return code;
   }
 
   /** 把真实 DB 约束/FK 错误映射为项目 error；已知 domain conflict 映射，未知保持内部错误。 */

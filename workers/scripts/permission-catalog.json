@@ -4,9 +4,9 @@
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
     "generatedAt": "2026-09-06",
-    "permissionsRowCount": 98,
-    "rolePermissionsRowCount": 281,
-    "totalPermissions": 98,
+    "permissionsRowCount": 99,
+    "rolePermissionsRowCount": 284,
+    "totalPermissions": 99,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -1433,7 +1433,7 @@
       "domain": "mall",
       "resource": "order",
       "action": "read",
-      "description": "查看积分兑换订单（本人订单与团队内核销）",
+      "description": "查看本人积分兑换订单（SELF 本人订单读取，团队内核销请使用 mall.order.verify）",
       "scopeType": "TEAM",
       "risk": "LOW",
       "riskLevel": 1,
@@ -1451,6 +1451,18 @@
       "riskLevel": 2,
       "mvp": true,
       "evidence": "mall_orders,points_accounts,points_ledger"
+    },
+    {
+      "code": "mall.order.verify",
+      "domain": "mall",
+      "resource": "order",
+      "action": "verify",
+      "description": "团队内核销积分兑换订单（标记已领取/已核销，仅翻转订单状态，不动积分/库存/身份）",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "mall_orders"
     }
   ],
   "rolePermissions": {
@@ -1552,7 +1564,8 @@
       "participation.assignment.manage",
       "mall.product.read",
       "mall.order.read",
-      "mall.order.create"
+      "mall.order.create",
+      "mall.order.verify"
     ],
     "platform_operator": [
       "activity.category.manage",
@@ -1638,7 +1651,8 @@
       "rbac.role.assign.team",
       "rbac.role.revoke.team",
       "rbac.catalog.view",
-      "participation.assignment.manage"
+      "participation.assignment.manage",
+      "mall.order.verify"
     ],
     "team_admin": [
       "form.definition.manage",
@@ -1690,7 +1704,8 @@
       "audit.security.handle",
       "ai.assist.use",
       "rbac.catalog.view",
-      "participation.assignment.manage"
+      "participation.assignment.manage",
+      "mall.order.verify"
     ],
     "team_auditor": [
       "form.definition.read",
