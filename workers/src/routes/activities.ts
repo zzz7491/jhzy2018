@@ -21,8 +21,9 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
-import { ActivityRepository } from '../repository/activities';
+import { ActivityRepository, type CreateActivityCommand, type ActivityScalarUpdate, type OccurrenceInput } from '../repository/activities';
 import { ActivitySignupService } from '../services/activity-signup-service';
+import { ActivityAdminService } from '../services/activity-admin-service';
 import { ActivityAttendanceService } from '../services/attendance-service';
 import { requirePermission } from '../middleware/rbac';
 import { D1PermissionProvider } from '../services/permission-provider';
@@ -237,5 +238,77 @@ activities.post(
     return ok(c, { attendance: view });
   },
 );
+
+// =========================================================================
+// P31-P1A：活动管理端（team-scoped）—— 创建 / 更新 / 发布。
+// 权限：activity.activity.create / update / publish（D1 裁决）。
+// team_id / created_by / 内部 id 全部服务端派生；隔离由 repo 层双重收口。
+// =========================================================================
+
+/** POST /api/v2/activities —— 团队管理员创建活动（含嵌套 occurrence/position/slot 物化）。 */
+activities.post('/', requirePermission('activity.activity.create'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+  } catch {
+    throw invalidParam('request', 'invalid request body');
+  }
+
+  const cmd: CreateActivityCommand = {
+    title: body.title as string,
+    summary: (body.summary as string) ?? null,
+    start_time: body.start_time as number,
+    end_time: body.end_time as number,
+    signup_deadline: (body.signup_deadline as number) ?? null,
+    quota: body.quota as number,
+    status: body.status as number,
+    max_session_minutes: (body.max_session_minutes as number) ?? null,
+    occurrences: (body.occurrences as OccurrenceInput[]) ?? [],
+  };
+
+  const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const { public_id } = await svc.create(cmd);
+  return ok(c, { activity: { public_id } }, 201);
+});
+
+/**
+ * PUT /api/v2/activities/:id —— 团队管理员更新活动。
+ * v1 仅标量字段；嵌套 occurrence/position/slot 重配置由 service 层显式拒绝。
+ */
+activities.put('/:id', requirePermission('activity.activity.update'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+  } catch {
+    throw invalidParam('request', 'invalid request body');
+  }
+
+  // 透传原始 body 给 service：由 service 层裁决嵌套字段拒绝 + 标量校验（§5 v1 仅标量）。
+  const patch = body as ActivityScalarUpdate;
+
+  const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  await svc.update(publicId, patch);
+  return ok(c, { activity: { public_id: publicId } });
+});
+
+/** POST /api/v2/activities/:id/publish —— 团队管理员发布草稿活动（status 0 → 1）。 */
+activities.post('/:id/publish', requirePermission('activity.activity.publish'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+
+  const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  await svc.publish(publicId);
+  return ok(c, { activity: { public_id: publicId, status: 1 } });
+});
 
 export default activities;

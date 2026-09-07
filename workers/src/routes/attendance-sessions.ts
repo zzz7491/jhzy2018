@@ -22,8 +22,8 @@ import type { Env, AppVars } from '../env';
 import { AttendanceManagementService } from '../services/attendance-management-service';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
-import { authRequired } from '../utils/errors';
-import { requirePositiveIntParam } from '../utils/validation';
+import { authRequired, teamScopeRequired, invalidParam } from '../utils/errors';
+import { requirePositiveIntParam, isUlid, parsePagination } from '../utils/validation';
 
 const sessions = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -92,5 +92,80 @@ sessions.post(
     return ok(c, { session: view });
   },
 );
+
+// =========================================================================
+// P31-P1A：团队考勤 roster（管理员查看，供 review / force-checkout 使用）。
+// GET /api/v2/attendance-sessions —— TEAM_SCOPED；不新增 repository 文件，
+// 查询直接落在本路由（符合 §8「不新增第 5 production file」约束）。
+// 投影只暴露公开/安全字段：session_id（动作键）+ 活动/志愿者 public_id + 名称；
+// 不泄露 numeric user_id / team_id / activity_id / 内部 id。
+// =========================================================================
+sessions.get('/', requirePermission('attendance.record.review'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const tenant = c.get('tenant');
+  const teamId = tenant.teamId;
+  if (teamId == null) throw teamScopeRequired();
+
+  const { page, pageSize, offset } = parsePagination(c.req.query());
+  const activityPublicId = c.req.query('activity_public_id');
+  const statusRaw = c.req.query('status');
+
+  const where: string[] = ['s.team_id = ?', 'a.deleted_at IS NULL'];
+  const params: unknown[] = [teamId];
+  if (activityPublicId) {
+    if (!isUlid(activityPublicId)) throw invalidParam('activity_public_id', 'must be a 26-char ULID');
+    where.push('a.public_id = ?');
+    params.push(activityPublicId);
+  }
+  if (statusRaw !== undefined && statusRaw !== null && statusRaw !== '') {
+    const st = Number(statusRaw);
+    if (!Number.isInteger(st) || st < 0 || st > 4) throw invalidParam('status', 'must be 0..4');
+    where.push('s.status = ?');
+    params.push(st);
+  }
+  const whereSql = where.join(' AND ');
+
+  const listRes = await c.env.DB.prepare(
+    `SELECT s.id AS session_id,
+            a.public_id AS activity_public_id,
+            a.title AS activity_title,
+            u.public_id AS volunteer_public_id,
+            u.nickname AS volunteer_name,
+            s.checkin_at,
+            s.checkout_at,
+            s.status,
+            s.review_status,
+            s.created_at
+       FROM attendance_sessions s
+       JOIN activities a ON a.id = s.activity_id
+       JOIN users u ON u.id = s.user_id
+      WHERE ${whereSql}
+      ORDER BY s.created_at DESC
+      LIMIT ? OFFSET ?`,
+  )
+    .bind(...params, pageSize, offset)
+    .all<Record<string, unknown>>();
+
+  const totalRow = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS total
+       FROM attendance_sessions s
+       JOIN activities a ON a.id = s.activity_id
+      WHERE ${whereSql}`,
+  )
+    .bind(...params)
+    .first<{ total: number }>();
+
+  const total = totalRow?.total ?? 0;
+  return ok(c, {
+    sessions: listRes.results ?? [],
+    pagination: {
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    },
+  });
+});
 
 export default sessions;
