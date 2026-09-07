@@ -1,5 +1,6 @@
 // pages/points/points.js
 const app = getApp();
+import { mallApi } from '../../utils/mallApi';
 
 Page({
   data: {
@@ -29,7 +30,7 @@ Page({
     userInfo: null,
     displayName: '志愿者',
     loading: false,
-    
+
     todayCasual: {
       count: 0,
       max: 5,
@@ -78,9 +79,9 @@ Page({
     const userInfo = wx.getStorageSync('userInfo');
     const token = wx.getStorageSync('access_token');
     const isLoggedIn = !!(userInfo && token);
-    
+
     this.setData({ isLoggedIn: isLoggedIn });
-    
+
     if (!isLoggedIn) {
       wx.showModal({
         title: '需要登录',
@@ -101,12 +102,12 @@ Page({
       });
       return;
     }
-    
-    this.setData({ 
+
+    this.setData({
       userInfo: userInfo,
       displayName: userInfo?.real_name || userInfo?.realname || '志愿者'
     });
-    
+
     this.initDisplayMode();
     this.loadUserPoints();
     this.loadPointsRecords();
@@ -120,10 +121,10 @@ Page({
 
   loadUserPoints() {
     if (!this.data.isLoggedIn) return;
-    
+
     const that = this;
     const userInfo = wx.getStorageSync('userInfo');
-    
+
     wx.request({
       url: wx.$baseUrl + 'user_info.php',
       method: 'GET',
@@ -135,7 +136,7 @@ Page({
           const userData = res.data.data || {};
           const updatedUserInfo = { ...userInfo, ...userData };
           wx.setStorageSync('userInfo', updatedUserInfo);
-          
+
           that.setData({
             pointsData: {
               ...that.data.pointsData,
@@ -152,104 +153,90 @@ Page({
     });
   },
 
+  // 分页拉取积分流水（SELF scope，由后端 auth 决定；不传 user_id/team_id）
   loadPointsRecords() {
     if (!this.data.isLoggedIn) return;
-    
+    this.fetchTransactions(1, false);
+  },
+
+  fetchTransactions(page, append) {
+    if (!this.data.isLoggedIn) return;
     const that = this;
     this.setData({ loading: true });
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/points_query.php',
-      method: 'GET',
-      header: {
-        'Authorization': 'Bearer ' + wx.getStorageSync('access_token')
-      },
-      success(res) {
-        console.log('积分记录响应:', res.data);
-        
-        if (res.data.code === 0) {
-          const data = res.data.data || {};
-          const summary = data.summary || {};
-          const logs = data.recent_logs || [];
-          
-          // 关键：直接使用 data.current_points
-          const currentPoints = data.current_points || 0;
-          const totalPoints = data.total_points || 0;
-          
-          console.log('当前积分:', currentPoints);
-          
-          const formattedRecords = logs.map(record => {
-            const points = parseFloat(record.points) || 0;
-            return {
-              id: record.id,
-              type: record.change_type || 'other',
-              type_text: that.getTypeText(record.change_type),
-              points: points,
-              points_display: points > 0 ? '+' + points.toFixed(2) : points.toFixed(2),
-              description: record.description || '积分变更',
-              time: that.formatTime(record.time || record.created_at),
-              is_income: points > 0,
-              status: 'completed'
-            };
-          });
-          
-          const total_income = formattedRecords
-            .filter(r => r.is_income)
-            .reduce((sum, r) => sum + r.points, 0);
-          const total_expense = formattedRecords
-            .filter(r => !r.is_income)
-            .reduce((sum, r) => sum + Math.abs(r.points), 0);
-          
-          that.setData({
-            allRecords: formattedRecords,
-            filteredRecords: formattedRecords,
-            pointsStats: {
-              total_income: total_income,
-              total_expense: total_expense,
-              income_count: formattedRecords.filter(r => r.is_income).length,
-              expense_count: formattedRecords.filter(r => !r.is_income).length
-            },
-            pointsData: {
-              ...that.data.pointsData,
-              current_points: currentPoints,
-              total_points: totalPoints
-            },
-            pointsSummary: {
-              points_activity: parseFloat(summary.points_activity) || 0,
-              points_casual: parseFloat(summary.points_casual) || 0,
-              points_manual_special: parseFloat(summary.points_manual_special) || 0,
-              points_manual_honor: parseFloat(summary.points_manual_honor) || 0,
-              points_manual_import: parseFloat(summary.points_manual_import) || 0,
-              points_exchange: parseFloat(summary.points_exchange) || 0
-            },
-            todayCasual: {
-              count: data.today?.casual_count || 0,
-              max: data.today?.casual_max || 5,
-              remaining: data.today?.casual_remaining || 5
-            },
-            exchangeLimit: {
-              imported_max_per_year: data.exchange_limit?.imported_max_per_year || 200,
-              imported_exchanged: data.exchange_limit?.imported_exchanged || 0,
-              imported_remaining: data.exchange_limit?.imported_remaining || 200
-            },
-            hasMore: false,
-            loading: false
-          });
-          
-          if (that.data.currentFilter !== 'all') {
-            that.applyFilter();
-          }
-          
-          wx.stopPullDownRefresh();
-        } else {
-          that.setData({ loading: false });
-          wx.stopPullDownRefresh();
+
+    mallApi.getPointsTransactions(page, this.data.pageSize)
+      .then((pg) => {
+        const mapped = pg.items.map((t) => that.mapTransaction(t));
+        const all = append ? that.data.allRecords.concat(mapped) : mapped;
+        const hasMore = page < pg.pagination.total_pages;
+
+        that.setData({
+          page: page,
+          allRecords: all,
+          filteredRecords: all,
+          hasMore: hasMore,
+          loading: false
+        });
+
+        that.recomputeStats();
+
+        if (that.data.currentFilter !== 'all') {
+          that.applyFilter();
         }
-      },
-      fail(err) {
-        console.error('积分记录请求失败:', err);
+
+        wx.stopPullDownRefresh();
+      })
+      .catch((err) => {
+        let msg = '加载失败，请稍后重试';
+        if (err && err.status === 401) msg = '登录已失效，请重新登录';
+        else if (err && err.status === 403) msg = '无权限查看积分记录';
+        else if (err && err.isNetwork) msg = '网络异常，请检查网络连接';
+
         that.setData({ loading: false });
         wx.stopPullDownRefresh();
+        wx.showToast({ title: msg, icon: 'none', duration: 2000 });
+      });
+  },
+
+  // 单条流水 -> view model（仅依赖 v2 公开字段，不暴露内部 numeric id）
+  mapTransaction(t) {
+    const isIncome = t.direction === 1;
+    const srcId = t.source_public_id || '';
+    return {
+      // 稳定 key（不使用内部 numeric id）
+      id: `${t.created_at}-${t.type}-${t.amount_units}-${srcId}`,
+      type: t.type,
+      type_text: this.getTypeText(t.type),
+      source_type: t.source_type,
+      source_public_id: srcId || null,
+      direction: t.direction,
+      amount_units: t.amount_units,
+      // 显示带符号：增加 +N / 扣减 -N（单位由 formatPoints 统一处理）
+      pointsText: (isIncome ? '+' : '-') + mallApi.formatPoints(t.amount_units),
+      is_income: isIncome,
+      time: this.formatEpoch(t.created_at),
+      description: ''
+    };
+  },
+
+  recomputeStats() {
+    const all = this.data.allRecords;
+    let income = 0, expense = 0, incomeCount = 0, expenseCount = 0;
+    for (const r of all) {
+      if (r.is_income) {
+        income += r.amount_units;
+        incomeCount++;
+      } else {
+        expense += r.amount_units;
+        expenseCount++;
+      }
+    }
+    this.setData({
+      pointsStats: {
+        total_income: income,
+        total_expense: expense,
+        income_count: incomeCount,
+        expense_count: expenseCount
       }
     });
   },
@@ -259,14 +246,14 @@ Page({
       wx.stopPullDownRefresh();
       return;
     }
-    
+
     this.setData({
       page: 1,
       allRecords: [],
       filteredRecords: [],
       hasMore: true
     });
-    
+
     Promise.all([
       this.loadUserPoints(),
       this.loadPointsRecords()
@@ -320,7 +307,7 @@ Page({
 • 积分不能转让给他人
 • 违规行为可能扣除积分
 • 如有疑问请联系客服`;
-    
+
     wx.showModal({
       title: '积分规则说明',
       content: rulesContent,
@@ -342,7 +329,7 @@ Page({
     });
     this.applyFilter();
   },
-  
+
   applyFilter() {
     const type = this.data.currentFilter;
     if (type === 'all') {
@@ -356,18 +343,40 @@ Page({
 
   getTypeText(type) {
     const typeMap = {
-      'activity': '活动积分',
-      'casual': '随手公益',
-      'manual': '管理员调整',
+      'service': '志愿服务',
       'exchange': '积分兑换',
-      'other': '其他'
+      'training': '学习培训',
+      'exam': '考试',
+      'manual': '人工调整',
+      'reward': '奖励',
+      'activity': '活动'
     };
-    return typeMap[type] || '积分变更';
+    return typeMap[type] || '其它';
+  },
+
+  formatEpoch(ts) {
+    if (!ts) return '—';
+    try {
+      const d = new Date(ts * 1000);
+      const pad = (n) => (n < 10 ? '0' : '') + n;
+      const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const timePart = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const y = new Date(Date.now() - 86400000);
+      const yStr = `${y.getFullYear()}-${pad(y.getMonth() + 1)}-${pad(y.getDate())}`;
+      if (datePart === todayStr) return `今天 ${timePart}`;
+      if (datePart === yStr) return `昨天 ${timePart}`;
+      return `${datePart} ${timePart}`;
+    } catch (e) {
+      return '—';
+    }
   },
 
   formatTime(timeStr) {
     if (!timeStr) return '';
     try {
+      if (typeof timeStr !== 'string') return String(timeStr);
       if (timeStr.includes('今天') || timeStr.includes('昨天')) return timeStr;
       if (timeStr.includes(' ')) {
         const [datePart, timePart] = timeStr.split(' ');
@@ -384,7 +393,11 @@ Page({
   },
 
   loadMoreRecords() {
-    wx.showToast({ title: '没有更多记录', icon: 'none' });
+    if (!this.data.hasMore || this.data.loading) {
+      wx.showToast({ title: '没有更多记录', icon: 'none' });
+      return;
+    }
+    this.fetchTransactions(this.data.page + 1, true);
   },
 
   switchDisplayMode() {

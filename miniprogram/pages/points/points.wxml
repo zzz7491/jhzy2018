@@ -182,13 +182,14 @@
                 <view class="record-info">
                   <text class="record-type">{{item.type_text}}</text>
                   <text class="record-time">{{formatTime(item.time)}}</text>
+                  <text class="record-source" wx:if="{{item.source_public_id}}">来源: {{item.source_public_id}}</text>
                 </view>
               </view>
               <text class="record-desc" wx:if="{{item.description}}">{{item.description}}</text>
             </view>
             <view class="record-right">
               <text class="record-points {{item.is_income ? 'add' : 'minus'}}">
-                {{item.is_income ? '+' : ''}}{{item.points}}
+                {{item.pointsText}}
               </text>
               <text class="record-status completed">已完成</text>
             </view>
