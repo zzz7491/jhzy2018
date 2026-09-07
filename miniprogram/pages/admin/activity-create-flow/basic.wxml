@@ -1,102 +1,27 @@
 <view class="container">
-  
+
   <scroll-view scroll-y class="form-scroll">
     <view class="form-section">
-      
+
       <view class="section-title">基础信息</view>
       <view class="form-item required">
         <text class="label">活动标题</text>
         <input class="input" placeholder="请输入活动标题" value="{{formData.title}}" data-field="title" bindinput="onInput"/>
       </view>
-      
-      <view class="form-item required">
-        <text class="label">活动分类</text>
-        <picker range="{{categories}}" range-key="name" value="{{categoryIndex}}" bindchange="onCategoryChange" class="picker">
-          <view class="picker-value {{categoryIndex === -1 ? 'placeholder' : ''}}">
-            {{categoryIndex === -1 ? '请选择分类' : categories[categoryIndex].name}}
-          </view>
-        </picker>
-      </view>
 
-      <view class="form-item required">
-        <text class="label">活动封面</text>
-        <view class="image-field">
-          <view wx:if="{{formData.cover_image}}" class="image-preview" bindtap="showImagePickerDialog">
-            <image src="{{formData.cover_image}}" mode="aspectFill"></image>
-            <view class="image-actions">
-              <text>点击更换</text>
-            </view>
-          </view>
-          <view wx:else class="image-placeholder" bindtap="showImagePickerDialog">
-            <text class="icon iconfont icon-camera">+</text>
-            <text class="text">选择照片</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="form-item required">
+      <view class="form-item">
         <text class="label">活动详情描述</text>
         <textarea class="textarea" placeholder="请输入活动详细内容、要求等" value="{{formData.description}}" data-field="description" bindinput="onInput" maxlength="1000"></textarea>
       </view>
 
-      <view class="section-title">活动要求</view>
-      <view class="form-item required" bindtap="chooseLocation">
-        <text class="label">活动地点</text>
-        <view class="location-field">
-          <text class="location-text {{formData.location ? '' : 'placeholder-text'}}">{{formData.location || '点击在地图上选择地点'}}</text>
-          <text class="arrow">></text>
-        </view>
-      </view>
-
-      <view class="form-item">
-        <text class="label">招募人数</text>
-        <input class="input" type="number" placeholder="不填则不限" value="{{formData.max_participants}}" data-field="max_participants" bindinput="onInput"/>
-      </view>
-
-      <view class="form-item">
-        <view class="switch-group" style="display:flex; justify-content:space-between; align-items:center; width: 100%;">
-          <text class="label" style="margin-bottom:0;">自动发放电子证书</text>
-          <switch checked="{{formData.enable_certificate}}" bindchange="onCertificateChange" color="#07c160"/>
-        </view>
-        <text style="font-size: 24rpx; color: #999; margin-top: 16rpx; line-height: 1.4;">开启后，志愿者签退时自动生成服务证书（需服务时长≥2小时）</text>
-      </view>
-
       <view class="section-title">排班与时间</view>
-      <view class="form-item switch-group">
-        <text class="label">是否为周期性活动？</text>
-        <switch checked="{{formData.is_recurring}}" bindchange="toggleRecurring" color="#07c160"/>
-      </view>
 
-      <view class="form-item required" wx:if="{{!formData.is_recurring}}">
+      <view class="form-item required">
         <text class="label">活动日期</text>
         <picker mode="date" value="{{formData.activity_date}}" start="{{currentDate}}" bindchange="onDateChange" class="picker">
           <view class="picker-value">{{formData.activity_date || '请选择'}}</view>
         </picker>
       </view>
-
-      <block wx:if="{{formData.is_recurring}}">
-        <view class="form-row">
-          <view class="form-item half required">
-            <text class="label">开始日期</text>
-            <picker mode="date" value="{{formData.recurrence_start_date}}" start="{{currentDate}}" bindchange="onRecurrenceStartDateChange" class="picker">
-              <view class="picker-value">{{formData.recurrence_start_date || '请选择'}}</view>
-            </picker>
-          </view>
-          <view class="form-item half required">
-            <text class="label">结束日期</text>
-            <picker mode="date" value="{{formData.recurrence_end_date}}" start="{{formData.recurrence_start_date}}" bindchange="onRecurrenceEndDateChange" class="picker">
-              <view class="picker-value">{{formData.recurrence_end_date || '请选择'}}</view>
-            </picker>
-          </view>
-        </view>
-        
-        <view class="form-item required">
-          <text class="label">重复规律</text>
-          <picker range="{{recurrenceOptions}}" value="{{recurrenceIndex}}" bindchange="onRecurrenceChange" class="picker">
-            <view class="picker-value">{{recurrenceOptions[recurrenceIndex]}}</view>
-          </picker>
-        </view>
-      </block>
 
       <view class="form-row">
         <view class="form-item half required">
@@ -113,21 +38,13 @@
         </view>
       </view>
 
-      <view class="section-title">联系方式</view>
       <view class="form-item">
-        <text class="label">招募单位</text>
-        <input class="input" value="{{formData.recruit_unit}}" data-field="recruit_unit" bindinput="onInput"/>
+        <text class="label">招募人数</text>
+        <input class="input" type="number" placeholder="不填则不限" value="{{formData.max_participants}}" data-field="max_participants" bindinput="onInput"/>
       </view>
-      
-      <view class="form-row">
-        <view class="form-item half required">
-          <text class="label">联系人</text>
-          <input class="input" placeholder="姓名" value="{{formData.contact_person}}" data-field="contact_person" bindinput="onInput"/>
-        </view>
-        <view class="form-item half required">
-          <text class="label">联系电话</text>
-          <input class="input" type="number" placeholder="手机号码" value="{{formData.contact_phone}}" data-field="contact_phone" bindinput="onInput"/>
-        </view>
+
+      <view class="form-tip">
+        <text class="tip-text">创建后将自动发布（草稿 → 报名开放）；场次/岗位配置当前版本创建后不可在此修改。</text>
       </view>
 
     </view>
@@ -135,30 +52,8 @@
 
   <view class="submit-section">
     <button class="submit-btn" bindtap="onSubmit" disabled="{{submitting}}">
-      {{submitting ? '提交中...' : '发布活动'}}
+      {{submitting ? '提交中...' : '创建并发布活动'}}
     </button>
-  </view>
-
-  <view class="action-sheet" wx:if="{{showImagePicker}}">
-    <view class="mask" bindtap="hideImagePicker"></view>
-    <view class="sheet-content">
-      <view class="sheet-item" bindtap="chooseFromExisting">从图库选择历史照片</view>
-      <view class="sheet-item" bindtap="uploadNewImage">上传新照片</view>
-      <view class="sheet-cancel" bindtap="hideImagePicker">取消</view>
-    </view>
-  </view>
-
-  <view class="gallery-overlay" wx:if="{{showImageGallery}}" bindtap="closeImageGallery"></view>
-  <view class="gallery-popup {{showImageGallery ? 'show' : ''}}">
-    <view class="gallery-header">
-      <text>点击选择历史图片</text>
-      <text class="gallery-close" bindtap="closeImageGallery">×</text>
-    </view>
-    <scroll-view scroll-y class="gallery-scroll">
-      <view class="gallery-grid">
-        <image wx:for="{{existingImages}}" wx:key="id" src="{{item.image_url || item.url}}" mode="aspectFill" class="gallery-img" data-url="{{item.image_url || item.url}}" bindtap="selectGalleryImage"></image>
-      </view>
-    </scroll-view>
   </view>
 
 </view>

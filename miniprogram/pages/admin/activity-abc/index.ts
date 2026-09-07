@@ -1,12 +1,35 @@
+// pages/admin/activity-abc/index.ts
+// P31-P1B：迁移管理端活动视图到 /api/v2/activities（list / detail / update / publish）。
+// - 列表：GET /api/v2/activities（public_id）
+// - 详情：GET /api/v2/activities/:id
+// - 编辑：PUT /api/v2/activities/:id（v1 仅标量；不重配置 nested occurrence/position/slot）
+// - 发布：POST /api/v2/activities/:id/publish（草稿 0 → 报名开放 1）
+// - 删除：v2 无删除端点 → 保留入口但安全提示，不调用不存在 API / 不回退 PHP。
+
+import adminApi, { type ActivityRow } from '../../../utils/adminApi';
+
+// v2 activities.status: 0=草稿 1=报名开放 2=进行中 3=已结束 4=已取消 5=已下架
+const V2_STATUS_TO_FILTER: Record<number, string> = {
+  0: 'upcoming',
+  1: 'upcoming',
+  2: 'ongoing',
+  3: 'completed',
+  4: 'cancelled',
+  5: 'cancelled',
+};
+
+/** 当前页原始列表缓存（v2 GET /activities 无 status/search filter，客户端仅按页过滤展示）。 */
+let _pageCache: any[] = [];
+
 Page({
   data: {
     loading: true,
-    activityList: [],
+    activityList: [] as any[],
     pagination: {
       current_page: 1,
       per_page: 10,
       total: 0,
-      total_pages: 1
+      total_pages: 1,
     },
     searchKeyword: '',
     filterStatus: '',
@@ -15,14 +38,14 @@ Page({
       { label: '未开始', value: 'upcoming' },
       { label: '进行中', value: 'ongoing' },
       { label: '已结束', value: 'completed' },
-      { label: '已取消', value: 'cancelled' }
+      { label: '已取消', value: 'cancelled' },
     ],
     filterStatusIndex: 0,
-    currentActivity: null,
+    currentActivity: null as any,
     showEditModal: false,
     showDeleteConfirm: false,
     editForm: {
-      id: 0,
+      id: '',
       title: '',
       description: '',
       location: '',
@@ -34,10 +57,11 @@ Page({
       status: 'upcoming',
       category: '普通活动',
       contact_info: '',
-      cover_image: [],
-      enable_certificate: false
+      cover_image: [] as any[],
+      enable_certificate: false,
     },
-    editFormStatusIndex: 0
+    editFormStatusIndex: 0,
+    es: 0,
   },
 
   onLoad() {
@@ -45,121 +69,119 @@ Page({
   },
 
   onShow() {
-    this.loadActivityList();
+    this.loadActivityList(this.data.pagination.current_page);
   },
 
   checkLogin() {
     const adminInfo = wx.getStorageSync('adminInfo');
     const token = wx.getStorageSync('access_token');
-    
+
     if (!adminInfo || !adminInfo.id || !token) {
-      wx.showToast({
-        title: '请先登录',
-        icon: 'error',
-        duration: 2000
-      });
-      
+      wx.showToast({ title: '请先登录', icon: 'error', duration: 2000 });
       setTimeout(() => {
-        wx.redirectTo({
-          url: '/pages/login-unified/index?role=admin'
-        });
+        wx.redirectTo({ url: '/pages/login-unified/index?role=admin' });
       }, 800);
       return false;
     }
-    
+
     if (!['super_admin', 'admin'].includes(adminInfo.role)) {
-      wx.showToast({
-        title: '无管理权限',
-        icon: 'error',
-        duration: 2000
-      });
-      
+      wx.showToast({ title: '无管理权限', icon: 'error', duration: 2000 });
       setTimeout(() => {
         wx.navigateBack();
       }, 800);
       return false;
     }
-    
+
     return true;
   },
 
-  // 加载活动列表
+  /** GET /api/v2/activities —— 本团队活动列表。 */
   loadActivityList(page = 1) {
     if (!this.checkLogin()) return;
-    
+
     this.setData({ loading: true });
-    
-    const token = wx.getStorageSync('access_token');
-    let url = `https://api.jhzyfw.com/api/volunteer_activity_manage.php?page=${page}&limit=${this.data.pagination.per_page}`;
-    
-    if (this.data.searchKeyword) {
-      url += `&search=${encodeURIComponent(this.data.searchKeyword)}`;
-    }
-    
-    if (this.data.filterStatus && this.data.filterStatus !== 'all') {
-      url += `&status=${this.data.filterStatus}`;
-    }
-    
-    wx.request({
-      url: url,
-      method: 'GET',
-      header: { 'Authorization': `Bearer ${token}` },
-      success: (res) => {
-        console.log('活动数据返回:', res.data);
-        
-        if (res.data && res.data.success === true) {
-          const list = res.data.data?.list || [];
-          const total = res.data.data?.total || 0;
-          const total_pages = Math.ceil(total / this.data.pagination.per_page) || 1;
-          
-          this.setData({
-            activityList: list,
-            pagination: {
-              current_page: page,
-              per_page: this.data.pagination.per_page,
-              total: total,
-              total_pages: total_pages
-            }
-          });
-        } else {
-          wx.showToast({
-            title: res.data?.message || '加载失败',
-            icon: 'error'
-          });
-        }
-      },
-      fail: (err) => {
-        console.error('加载失败:', err);
-        wx.showToast({
-          title: '网络错误',
-          icon: 'error'
+    adminApi
+      .listActivities(page, this.data.pagination.per_page)
+      .then((res: any) => {
+        const raw = (res && Array.isArray(res.items) ? res.items : []) as ActivityRow[];
+        _pageCache = raw.map((a) => this.toListView(a));
+        const total = (res && res.pagination && res.pagination.total) || 0;
+        const total_pages = (res && res.pagination && res.pagination.total_pages) || 1;
+        this.setData({
+          activityList: _pageCache,
+          pagination: {
+            current_page: page,
+            per_page: this.data.pagination.per_page,
+            total: total,
+            total_pages: total_pages,
+          },
         });
-      },
-      complete: () => {
+      })
+      .catch((err: any) => {
+        const code = err && err.code;
+        if (code === 'TEAM_SCOPE_REQUIRED') {
+          wx.showModal({
+            title: '请先选择团队',
+            content: '未选择团队，无法查看活动',
+            confirmText: '去选择',
+            cancelText: '取消',
+            success: (r: any) => {
+              if (r.confirm) wx.navigateTo({ url: '/pages/teams/select/select' });
+            },
+          });
+        } else if (code === 'FORBIDDEN' || (err && err.status === 403)) {
+          wx.showToast({ title: '无权限查看活动', icon: 'none' });
+        } else {
+          wx.showToast({ title: (err && err.message) || '加载失败', icon: 'none' });
+        }
+      })
+      .finally(() => {
         this.setData({ loading: false });
-      }
-    });
+      });
   },
 
-  handleSearch(e) {
-    this.setData({
-      searchKeyword: e.detail.value,
-      pagination: { ...this.data.pagination, current_page: 1 }
-    }, () => {
-      this.loadActivityList(1);
-    });
+  /** ActivityRow → 视图（WXML 兼容字段 + public_id 主键）。 */
+  toListView(a: ActivityRow) {
+    const status = V2_STATUS_TO_FILTER[a.status] || 'upcoming';
+    return {
+      id: a.public_id,
+      title: a.title,
+      status: status,
+      activity_date: this.formatDate(a.start_time),
+      start_time: this.formatTime(a.start_time),
+      end_time: this.formatTime(a.end_time),
+      location: '',
+      current_participants: a.signed_count,
+      max_participants: a.quota,
+      points_reward: 0,
+    };
   },
 
-  handleStatusChange(e) {
+  handleSearch(e: any) {
+    this.setData({ searchKeyword: e.detail.value });
+    this.applyClientFilter();
+  },
+
+  handleStatusChange(e: any) {
     const index = e.detail.value;
     const selected = this.data.statusOptions[index];
-    this.setData({
-      filterStatus: selected.value,
-      filterStatusIndex: index,
-      pagination: { ...this.data.pagination, current_page: 1 }
-    }, () => {
-      this.loadActivityList(1);
-    });
+    this.setData({ filterStatus: selected.value, filterStatusIndex: index });
+    this.applyClientFilter();
+  },
+
+  /** v2 GET /activities 无 status filter → 客户端过滤展示（display only，不伪造后端过滤）。 */
+  applyClientFilter() {
+    const keyword = (this.data.searchKeyword || '').trim();
+    const status = this.data.filterStatus;
+    const raw = _pageCache;
+    let list = raw;
+    if (status && status !== 'all') {
+      list = list.filter((a: any) => a.status === status);
+    }
+    if (keyword) {
+      list = list.filter((a: any) => (a.title || '').indexOf(keyword) >= 0);
+    }
+    this.setData({ activityList: list });
   },
 
   loadPrevPage() {
@@ -178,196 +200,144 @@ Page({
     this.loadActivityList(this.data.pagination.current_page);
   },
 
-  goToEdit(e) {
+  /** GET /api/v2/activities/:id → 回填编辑表单。 */
+  loadActivityDetail(publicId: string) {
+    adminApi
+      .getActivity(publicId)
+      .then((res: any) => {
+        if (!res || !res.activity) throw new Error('empty');
+        const a: ActivityRow = res.activity;
+        const status = V2_STATUS_TO_FILTER[a.status] || 'upcoming';
+        const statusIndex = this.data.statusOptions.findIndex((o) => o.value === status) || 0;
+        this.setData({
+          currentActivity: a,
+          showEditModal: true,
+          editFormStatusIndex: statusIndex,
+          editForm: {
+            id: a.public_id,
+            title: a.title,
+            description: a.summary || '',
+            location: '',
+            activity_date: this.formatDate(a.start_time),
+            start_time: this.formatTime(a.start_time),
+            end_time: this.formatTime(a.end_time),
+            max_participants: a.quota,
+            points_reward: 0,
+            status: status,
+            category: '普通活动',
+            contact_info: '',
+            cover_image: [],
+            enable_certificate: false,
+          },
+        });
+      })
+      .catch((err: any) => {
+        wx.showToast({ title: (err && err.message) || '加载活动详情失败', icon: 'none' });
+      });
+  },
+
+  goToEdit(e: any) {
     const id = e.currentTarget.dataset.id;
     this.loadActivityDetail(id);
   },
 
-  loadActivityDetail(id) {
-    const token = wx.getStorageSync('access_token');
-    
-    wx.request({
-      url: `https://api.jhzyfw.com/api/activity_manage.php?id=${id}`,
-      method: 'GET',
-      header: { 'Authorization': `Bearer ${token}` },
-      success: (res) => {
-        if (res.data.code === 0) {
-          const activity = res.data.data;
-          const statusIndex = this.data.statusOptions.findIndex(
-            opt => opt.value === activity.status
-          ) || 0;
-          
-          this.setData({
-            currentActivity: activity,
-            showEditModal: true,
-            editFormStatusIndex: statusIndex,
-            editForm: {
-              id: activity.id,
-              title: activity.title,
-              description: activity.description,
-              location: activity.location,
-              activity_date: activity.activity_date,
-              start_time: activity.start_time,
-              end_time: activity.end_time,
-              max_participants: activity.max_participants,
-              points_reward: activity.points_reward,
-              status: activity.status,
-              category: activity.category || '普通活动',
-              contact_info: activity.contact_info || '',
-              cover_image: activity.cover_image || [],
-              enable_certificate: activity.enable_certificate === 1 || activity.enable_certificate === true
-            }
-          });
-        } else {
-          wx.showToast({
-            title: '加载活动详情失败',
-            icon: 'error'
-          });
-        }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'error'
-        });
-      }
-    });
+  onCertificateChange(e: any) {
+    this.setData({ 'editForm.enable_certificate': e.detail.value });
   },
 
-  onCertificateChange(e) {
-    this.setData({
-      'editForm.enable_certificate': e.detail.value
-    });
-  },
-
-  handleEditInput(e) {
+  handleEditInput(e: any) {
     const field = e.currentTarget.dataset.field;
     const value = e.detail.value;
-    this.setData({
-      [`editForm.${field}`]: value
-    });
+    this.setData({ [`editForm.${field}`]: value });
   },
 
-  handleStatusPickerChange(e) {
+  handleStatusPickerChange(e: any) {
     const index = e.detail.value;
     const selected = this.data.statusOptions[index];
-    this.setData({
-      'editForm.status': selected.value,
-      editFormStatusIndex: index
-    });
+    this.setData({ 'editForm.status': selected.value, editFormStatusIndex: index });
   },
 
-  getStatusLabel(status) {
+  getStatusLabel(status: string) {
     if (!status || status === 'all') return '全部状态';
-    const option = this.data.statusOptions.find(s => s.value === status);
+    const option = this.data.statusOptions.find((s) => s.value === status);
     return option ? option.label : '全部状态';
   },
 
-  getStatusText(status) {
-    const map = {
-      'upcoming': '未开始',
-      'ongoing': '进行中', 
-      'completed': '已结束',
-      'cancelled': '已取消'
+  getStatusText(status: string) {
+    const map: Record<string, string> = {
+      upcoming: '未开始',
+      ongoing: '进行中',
+      completed: '已结束',
+      cancelled: '已取消',
     };
     return map[status] || status;
   },
 
+  /** PUT /api/v2/activities/:id —— v1 仅标量；nested occurrence/position/slot 重配置在服务端显式拒绝。 */
   saveActivityEdit() {
-    const token = wx.getStorageSync('access_token');
     const form = this.data.editForm;
-    
+
     if (!form.title.trim()) {
       wx.showToast({ title: '请输入活动标题', icon: 'error' });
       return;
     }
-    
     if (!form.activity_date) {
       wx.showToast({ title: '请选择活动日期', icon: 'error' });
       return;
     }
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/activity_manage.php',
-      method: 'PUT',
-      header: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      data: form,
-      success: (res) => {
-        if (res.data.code === 0) {
-          wx.showToast({
-            title: '修改成功',
-            icon: 'success'
-          });
-          this.setData({ showEditModal: false });
-          this.loadActivityList(this.data.pagination.current_page);
+
+    const startTime = this.toEpoch(form.activity_date, form.start_time);
+    const endTime = this.toEpoch(form.activity_date, form.end_time);
+    if (startTime >= endTime) {
+      wx.showToast({ title: '结束时间必须晚于开始时间', icon: 'error' });
+      return;
+    }
+
+    const patch: any = {
+      title: form.title.trim(),
+      summary: form.description ? form.description.trim() : null,
+      start_time: startTime,
+      end_time: endTime,
+      quota: Number(form.max_participants) || 0,
+    };
+
+    adminApi
+      .updateActivity(form.id, patch)
+      .then(() => {
+        wx.showToast({ title: '修改成功', icon: 'success' });
+        this.setData({ showEditModal: false });
+        this.loadActivityList(this.data.pagination.current_page);
+      })
+      .catch((err: any) => {
+        const code = err && err.code;
+        if (code === 'INVALID_PARAM' || (err && err.status === 400)) {
+          wx.showToast({ title: '仅支持基础字段修改（版本/场次/岗位不可在此调整）', icon: 'none' });
         } else {
-          wx.showToast({
-            title: res.data.message || '修改失败',
-            icon: 'error'
-          });
+          wx.showToast({ title: (err && err.message) || '修改失败', icon: 'none' });
         }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'error'
-        });
-      }
-    });
+      });
   },
 
   closeEditModal() {
     this.setData({ showEditModal: false });
   },
 
-  showDeleteDialog(e) {
+  showDeleteDialog(e: any) {
     const id = e.currentTarget.dataset.id;
-    const activity = this.data.activityList.find(item => item.id === id);
-    
+    const activity = this.data.activityList.find((item: any) => item.id === id);
     if (activity) {
-      this.setData({
-        currentActivity: activity,
-        showDeleteConfirm: true
-      });
+      this.setData({ currentActivity: activity, showDeleteConfirm: true });
     }
   },
 
+  /** v2 无删除端点（P31-P1A 冻结范围：create/update/publish）。安全提示，不调用不存在 API。 */
   confirmDelete() {
-    const token = wx.getStorageSync('access_token');
-    const id = this.data.currentActivity.id;
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/activity_manage.php',
-      method: 'DELETE',
-      header: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      data: { id: id },
-      success: (res) => {
-        if (res.data.code === 0) {
-          wx.showToast({
-            title: '删除成功',
-            icon: 'success'
-          });
-          this.setData({ showDeleteConfirm: false });
-          this.loadActivityList(this.data.pagination.current_page);
-        } else {
-          wx.showToast({
-            title: res.data.message || '删除失败',
-            icon: 'error'
-          });
-        }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'error'
-        });
-      }
+    this.setData({ showDeleteConfirm: false });
+    wx.showModal({
+      title: '当前版本不支持删除',
+      content: 'v2 后端未提供活动删除接口，请在网页管理端处理。',
+      showCancel: false,
+      confirmText: '知道了',
     });
   },
 
@@ -375,39 +345,52 @@ Page({
     this.setData({ showDeleteConfirm: false });
   },
 
-  // 【修改】查看报名列表 - 替换原来的查看详情
-  goToDetail(e) {
+  /** 查看报名 —— 报名入口（session 列表）。 */
+  goToDetail(e: any) {
     const id = e.currentTarget.dataset.id;
     const title = e.currentTarget.dataset.title || '';
-    
     wx.navigateTo({
-      url: `/pages/admin/activity-signups/activity-signups?id=${id}&title=${encodeURIComponent(title)}`
+      url: `/pages/admin/activity-signups/activity-signups?id=${id}&title=${encodeURIComponent(title)}`,
     });
   },
 
   goToCreate() {
-    wx.navigateTo({
-      url: '/pages/admin/activity-create-flow/basic'
-    });
+    wx.navigateTo({ url: '/pages/admin/activity-create-flow/basic' });
   },
 
-  // 复制活动的跳转逻辑
-  copyActivity(e) {
+  copyActivity(e: any) {
     const id = e.currentTarget.dataset.id;
-    wx.showToast({
-      title: '正在准备模板...',
-      icon: 'loading',
-      duration: 800
-    });
-    
+    wx.showToast({ title: '正在准备模板...', icon: 'loading', duration: 800 });
     setTimeout(() => {
-      wx.navigateTo({
-        url: `/pages/admin/activity-create-flow/basic?copy_id=${id}`
-      });
+      wx.navigateTo({ url: `/pages/admin/activity-create-flow/basic?copy_id=${id}` });
     }, 500);
   },
 
   goBack() {
     wx.navigateBack();
-  }
+  },
+
+  // ===== helpers =====
+  toEpoch(dateStr: string, timeStr: string): number {
+    if (!timeStr) timeStr = '00:00';
+    const s = `${dateStr} ${timeStr}:00`.replace(/-/g, '/');
+    const t = new Date(s).getTime();
+    return isNaN(t) ? 0 : Math.floor(t / 1000);
+  },
+
+  formatDate(epoch: number) {
+    if (!epoch) return '';
+    const d = new Date(epoch * 1000);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  },
+
+  formatTime(epoch: number) {
+    if (!epoch) return '';
+    const d = new Date(epoch * 1000);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
 });
