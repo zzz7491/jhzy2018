@@ -21,6 +21,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext, RoleCode } from '../types/auth';
 import { generateSessionToken, generateUlid, sha256Hex } from '../utils/crypto';
+import { isUlid } from '../utils/validation';
 import { SESSION_TTL_MINIPROGRAM_DEFAULT_SECONDS } from '../config/session-ttl';
 
 /**
@@ -145,8 +146,21 @@ export class SessionService {
     }));
 
     // 5) 团队上下文选择（请求头 ∈ 作用域集合才生效；绝不从 Session 本身绕过 Tenant Scope）
-    const teamHeaderRaw = opts.teamHeader != null ? Number(opts.teamHeader) : NaN;
-    const teamHeader = Number.isInteger(teamHeaderRaw) && teamHeaderRaw > 0 ? teamHeaderRaw : null;
+    //    P30 FIX: 接受 public_id ULID（前端 activeTeamPublicId）+ 向后兼容 numeric teams.id。
+    //    ULID 路径：查 teams 表解析成 numeric id；不自动授权，后续 user_roles 校验不变。
+    let teamHeader: number | null = null;
+    if (opts.teamHeader != null && opts.teamHeader !== '') {
+      if (isUlid(opts.teamHeader)) {
+        const teamRow = await this.db
+          .prepare(`SELECT id FROM teams WHERE public_id = ? AND deleted_at IS NULL`)
+          .bind(opts.teamHeader)
+          .first<{ id: number }>();
+        teamHeader = teamRow?.id ?? null;
+      } else {
+        const n = Number(opts.teamHeader);
+        teamHeader = Number.isInteger(n) && n > 0 ? n : null;
+      }
+    }
 
     let auth: AuthContext;
     if (teamHeader != null) {
