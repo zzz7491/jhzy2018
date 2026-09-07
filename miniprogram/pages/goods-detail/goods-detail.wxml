@@ -2,40 +2,34 @@
 <view class="container">
   <!-- 商品图片轮播 -->
   <view class="goods-swiper-section">
-    <swiper 
-      class="goods-swiper" 
-      indicator-dots="{{true}}" 
-      indicator-color="rgba(255,255,255,0.5)" 
+    <swiper
+      class="goods-swiper"
+      indicator-dots="{{true}}"
+      indicator-color="rgba(255,255,255,0.5)"
       indicator-active-color="#FF6B35"
-      autoplay="{{false}}" 
-      interval="5000" 
+      autoplay="{{false}}"
+      interval="5000"
       duration="500"
       circular="{{true}}"
     >
       <swiper-item wx:for="{{goodsImages}}" wx:key="index">
-        <image 
-          class="goods-image" 
-          src="{{item}}" 
-          mode="aspectFill" 
-          bindtap="previewImage" 
+        <image
+          class="goods-image"
+          src="{{item}}"
+          mode="aspectFill"
+          bindtap="previewImage"
           data-index="{{index}}"
         />
       </swiper-item>
     </swiper>
-    
+
     <!-- 商品标签 -->
     <view class="goods-tags">
-      <view class="goods-tag stock" wx:if="{{goodsData.stock <= 10 && goodsData.stock > 0}}">
-        仅剩{{goodsData.stock}}件
+      <view class="goods-tag stock" wx:if="{{goodsData.inStock}}">
+        可兑换
       </view>
-      <view class="goods-tag sold-out" wx:if="{{goodsData.stock <= 0}}">
+      <view class="goods-tag sold-out" wx:if="{{!goodsData.inStock}}">
         已兑完
-      </view>
-      <view class="goods-tag type" wx:if="{{goodsData.type === 'physical'}}">
-        实物商品
-      </view>
-      <view class="goods-tag type virtual" wx:if="{{goodsData.type === 'virtual'}}">
-        电子商品
       </view>
     </view>
   </view>
@@ -53,25 +47,21 @@
         </view>
       </view>
     </view>
-    
+
     <!-- 商品描述 -->
     <view class="goods-description" wx:if="{{goodsData.description}}">
       <text class="description-text">{{goodsData.description}}</text>
     </view>
-    
+
     <!-- 商品详情 -->
     <view class="goods-details">
       <view class="detail-item">
         <text class="detail-label">库存状态：</text>
-        <text class="detail-value available">{{goodsData.stock > 0 ? goodsData.stock + '件可兑换' : '已兑完'}}</text>
+        <text class="detail-value available">{{goodsData.inStock ? '可兑换' : '已兑完'}}</text>
       </view>
       <view class="detail-item">
         <text class="detail-label">上架时间：</text>
         <text class="detail-value">{{goodsData.create_time}}</text>
-      </view>
-      <view class="detail-item">
-        <text class="detail-label">商品类型：</text>
-        <text class="detail-value">{{goodsData.type === 'physical' ? '实物商品（需联系领取）' : goodsData.type === 'virtual' ? '电子商品（在线兑换）' : '服务类商品'}}</text>
       </view>
     </view>
   </view>
@@ -126,16 +116,16 @@
         <text class="btn-text">联系客服</text>
       </button>
     </view>
-    
+
     <view class="action-right">
-      <button 
-        class="action-btn exchange {{goodsData.stock <= 0 ? 'sold-out' : userPoints < goodsData.points_cost ? 'insufficient' : ''}}"
+      <button
+        class="action-btn exchange {{!goodsData.inStock ? 'sold-out' : userPoints < goodsData.points_cost ? 'insufficient' : ''}}"
         bindtap="exchangeGoods"
-        disabled="{{goodsData.stock <= 0 || userPoints < goodsData.points_cost}}"
+        disabled="{{!goodsData.inStock || userPoints < goodsData.points_cost}}"
       >
         <text class="exchange-icon">🛒</text>
         <text class="exchange-text">
-          {{goodsData.stock <= 0 ? '已兑完' : 
+          {{!goodsData.inStock ? '已兑完' :
             userPoints < goodsData.points_cost ? '积分不足' : '立即兑换'}}
         </text>
       </button>
@@ -150,7 +140,7 @@
         <text class="modal-title">确认兑换</text>
         <text class="modal-close" bindtap="closeExchangeModal">✕</text>
       </view>
-      
+
       <scroll-view class="modal-body" scroll-y>
         <view class="modal-goods-info">
           <image class="modal-goods-image" src="{{goodsImages[0] || '/images/default-goods.png'}}"></image>
@@ -162,7 +152,7 @@
             </view>
           </view>
         </view>
-        
+
         <view class="modal-points-change">
           <view class="points-change-item">
             <text class="change-label">当前积分：</text>
@@ -177,7 +167,7 @@
             <text class="change-value remaining">{{userPoints - goodsData.points_cost}}</text>
           </view>
         </view>
-        
+
         <view class="modal-notice">
           <view class="notice-header">
             <text class="notice-icon">⚠️</text>
@@ -193,7 +183,7 @@
           </view>
         </view>
       </scroll-view>
-      
+
       <view class="modal-footer">
         <button class="modal-btn cancel" bindtap="closeExchangeModal">再想想</button>
         <button class="modal-btn confirm" bindtap="confirmExchange">确认兑换</button>
@@ -209,16 +199,16 @@
         <view class="success-icon">✅</view>
         <text class="success-title">兑换成功！</text>
       </view>
-      
+
       <view class="success-message">
         <text>{{successMessage}}</text>
       </view>
-      
-      <view class="success-details" wx:if="{{exchangeCode}}">
+
+      <view class="success-details" wx:if="{{formattedExchangeCode}}">
         <view class="detail-item">
-          <text class="detail-label">兑换码：</text>
+          <text class="detail-label">领取码：</text>
           <view class="code-section">
-            <text class="code-value">{{exchangeCode}}</text>
+            <text class="code-value">{{formattedExchangeCode}}</text>
             <button class="copy-btn" bindtap="copyExchangeCode">
               <text class="copy-icon">📋</text>
               复制
@@ -234,10 +224,28 @@
           <text class="detail-value">{{goodsData.name}}</text>
         </view>
       </view>
-      
+
       <view class="success-actions">
         <button class="success-btn record" bindtap="viewExchangeRecords">查看兑换记录</button>
         <button class="success-btn close" bindtap="closeSuccessModal">完成</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 网络异常重试弹窗 -->
+  <view class="retry-modal" wx:if="{{showRetryModal}}">
+    <view class="modal-mask" bindtap="cancelRetry"></view>
+    <view class="success-content">
+      <view class="success-header">
+        <view class="success-icon">⚠️</view>
+        <text class="success-title">网络异常</text>
+      </view>
+      <view class="success-message">
+        <text>{{retryMessage}}</text>
+      </view>
+      <view class="success-actions">
+        <button class="success-btn record" bindtap="retryExchange">重试本次兑换</button>
+        <button class="success-btn close" bindtap="cancelRetry">取消</button>
       </view>
     </view>
   </view>

@@ -1,6 +1,7 @@
 ﻿// pages/mall/mall.js - 志愿服务积分激励版（清理版）
 const app = getApp();
 import jhzyRequest from '../../utils/request';
+import { mallApi, formatExchangeCode, generateOrderNo } from '../../utils/mallApi';
 
 Page({
   data: {
@@ -22,6 +23,13 @@ Page({
     showLoginModal: false,
     showExchangeModal: false,
     selectedGoods: {},
+
+    // P26-P1B：兑换闭环状态
+    pendingOrderNo: '',            // 仅存页面内存，按次 attempt，不按 (user,product) 长期绑定
+    successExchangeCode: '',       // raw 12 位领取码（复制用）
+    successExchangeCodeDisplay: '', // 分组显示 XXXX-XXXX-XXXX
+    showSuccessModal: false,
+    showRetryModal: false,
     
     // 返回按钮控制
     showBackButton: false
@@ -219,90 +227,62 @@ Page({
     }
   },
 
-  // 加载激励物品
-  async loadGoods() {
+  // 加载激励物品（P26-P1B：切换到 v2 /products，字段来自真实 v2 投影）
+  async loadGoods(isRefresh = false) {
     try {
-      const params = {
-        page: this.data.page,
-        limit: 10
-      };
-      
-      // 注意：后端不支持category_id参数，所以不传递，改为前端筛选
-      
-      const res = await jhzyRequest.get('exchange_goods.php', params);
-      
-      console.log('激励物品API响应:', res);
-      
-      // 处理API响应
-      let goodsData = [];
-      
-      if (res.code === 0 && res.data && res.data.products && Array.isArray(res.data.products)) {
-        goodsData = res.data.products;
-        console.log('成功解析商品数据:', goodsData.length);
-      }
-      
-      if (goodsData.length > 0) {
-        console.log('原始商品数据详情:', JSON.stringify(goodsData, null, 2));
-        
-        // 格式化商品数据
-        let newGoods = goodsData.map(item => ({
-          id: item.product_id || 0,
-          name: item.product_name || '志愿服务激励物品',
-          description: item.description || '用志愿服务积分兑换爱心物品',
-          image: item.image_url || '/images/default-goods.png',
-          points_required: item.points_required || 0,
-          stock: item.stock || 0,
-          source: item.source || '',
-          category_id: item.category_id || 0,
-          is_hot: item.is_hot || false,
-          status: item.status || 'available'
+      const pageSize = 10;
+      const res = await mallApi.getProducts(this.data.page, pageSize);
+
+      if (res && res.items) {
+        const goodsData = res.items;
+        const pagination = res.pagination || { page: this.data.page, total_pages: 1 };
+
+        let newGoods = goodsData.map((item: any) => ({
+          id: item.public_id || '',
+          publicId: item.public_id || '',
+          name: item.title || '志愿服务激励物品',
+          description: item.detail || '用志愿服务积分兑换爱心物品',
+          image: '/images/default-goods.png',
+          points_required: item.points_price_units || 0,
+          stock: item.in_stock ? 1 : 0,
+          inStock: !!item.in_stock,
+          source: '',
+          category_id: 0,
+          is_hot: false,
+          status: item.in_stock ? 'available' : 'sold_out'
         }));
-        
-        // 前端分类筛选（因为后端不支持category_id参数）
-        if (this.data.activeCategory > 0) {
-          newGoods = newGoods.filter(item => item.category_id === this.data.activeCategory);
-        }
-        
-        const combinedGoods = this.data.page === 1 
-          ? newGoods 
+
+        const combinedGoods = (this.data.page === 1 || isRefresh)
+          ? newGoods
           : [...this.data.goodsList, ...newGoods];
-        
+
         this.setData({
           goodsList: combinedGoods,
-          hasMore: newGoods.length >= 10,
+          hasMore: this.data.page < (pagination.total_pages || 1),
           loading: false
         });
-        
-        console.log('成功加载商品数据，数量:', combinedGoods.length);
-        
+
       } else {
-        console.log('暂无可用商品数据');
         this.setData({
-          goodsList: [],
           hasMore: false,
           loading: false
         });
-        
-        wx.showToast({
-          title: '暂无可用商品',
-          icon: 'none',
-          duration: 2000
-        });
+
+        // 如果是第一页就没数据，清空列表
+        if (this.data.page === 1) {
+          this.setData({ goodsList: [] });
+        }
       }
-      
+
     } catch (error) {
-      console.error('加载激励物品异常:', error);
       this.setData({
-        goodsList: [],
         hasMore: false,
         loading: false
       });
-      
-      wx.showToast({
-        title: '加载失败，请稍后重试',
-        icon: 'none',
-        duration: 2000
-      });
+
+      if (this.data.page === 1) {
+        wx.showToast({ title: '加载失败，请重试', icon: 'none' });
+      }
     }
   },
 
@@ -334,14 +314,16 @@ Page({
     
     if (this.data.activeCategory === category) return;
     
+    // 切换分类时，重置所有分页状态
     this.setData({
       activeCategory: category,
       page: 1,
       goodsList: [],
+      hasMore: true,
       loading: true
     });
-    
-    this.loadGoods();
+
+    this.loadGoods(true);
   },
 
   // 查看物品详情
@@ -353,12 +335,12 @@ Page({
     
     if (!this.data.isLoggedIn) {
       // 使用统一的弹窗方法
-      app.showLoginRegisterModal('查看物品详情', `/pages/goods-detail/goods-detail`, { id: goodsId });
+      app.showLoginRegisterModal('查看物品详情', `/pages/goods-detail/goods-detail`, { product_public_id: goodsId });
       return;
     }
     
     wx.navigateTo({
-      url: `/pages/goods-detail/goods-detail?id=${goodsId}`
+      url: `/pages/goods-detail/goods-detail?product_public_id=${goodsId}`
     });
   },
 
@@ -399,101 +381,98 @@ Page({
     return '立即兑换';
   },
 
-  // 确认兑换（修复版）
+  // 确认兑换请求（P26-P1B：v2 POST /orders，order_no 生命周期与 P1A 一致）
   async confirmExchange() {
-    if (!this.data.isLoggedIn || !this.data.selectedGoods.id) return;
-    
+    if (!this.data.isLoggedIn || !this.data.selectedGoods.publicId) return;
+
     const goodsItem = this.data.selectedGoods;
-    
+
+    // 重试复用同一 order_no；新主动兑换生成新码（不按 user,product 长期绑定）
+    let orderNo = this.data.pendingOrderNo;
+    if (!orderNo) {
+      orderNo = generateOrderNo();
+      this.setData({ pendingOrderNo: orderNo });
+    }
+
     try {
-      wx.showLoading({
-        title: '兑换中...',
-        mask: true
-      });
-      
-      const token = wx.getStorageSync('access_token');
-      const res = await jhzyRequest.post('exchange.php', {
-        goods_id: goodsItem.id  // 只传 goods_id，不传 user_id（后端从token获取）
-      });
-      
+      wx.showLoading({ title: '兑换中...', mask: true });
+
+      const res: any = await mallApi.createOrder(goodsItem.publicId, orderNo);
       wx.hideLoading();
-      
-      console.log('兑换API响应:', res);
-      
-      // 修复：正确获取后端返回的 message 字段
-      let success = false;
-      let message = '兑换结果未知';
-      
-      if (res.code === 200) {
-        success = true;
-        // 优先取 data.message，其次取 res.message
-        message = res.data?.message || res.message || '兑换成功！请凭兑换码联系管理员领取物品';
-      } else {
-        // 失败时同样正确获取错误信息
-        message = res.data?.message || res.message || '兑换失败，请稍后重试';
-        console.log('兑换失败详情:', res);
-      }
-      
-      if (success) {
-        // 兑换成功，更新数据
-        const newPoints = this.data.userPoints - goodsItem.points_required;
-        
-        // 更新用户信息中的积分
-        const userInfo = wx.getStorageSync('userInfo');
-        if (userInfo) {
-          userInfo.current_points = newPoints;
-          wx.setStorageSync('userInfo', userInfo);
+
+      // 成功（201 created / 200 existing 均返回 exchangeCode）
+      const rawCode = (res && res.exchangeCode) || '';
+      this.setData({
+        pendingOrderNo: '',
+        showExchangeModal: false,
+        successExchangeCode: rawCode,
+        successExchangeCodeDisplay: formatExchangeCode(rawCode),
+        showSuccessModal: true,
+        selectedGoods: {}
+      });
+
+      // 积分以服务端为准，刷新一次
+      this.loadUserPoints();
+
+      // 乐观更新本地库存显示
+      const updatedGoodsList = this.data.goodsList.map(item => {
+        if (item.publicId === goodsItem.publicId) {
+          return { ...item, stock: 0, inStock: false };
         }
-        
-        // 更新商品库存
-        const updatedGoodsList = this.data.goodsList.map(item => {
-          if (item.id === goodsItem.id) {
-            return {
-              ...item,
-              stock: Math.max(0, item.stock - 1)
-            };
-          }
-          return item;
-        });
-        
-        this.setData({
-          userPoints: newPoints,
-          goodsList: updatedGoodsList,
-          showExchangeModal: false,
-          selectedGoods: {}
-        });
-        
-        wx.showToast({
-          title: '兑换成功！请查看兑换记录',
-          icon: 'success',
-          duration: 2000
-        });
-        
-      } else {
-        wx.showToast({
-          title: message,
-          icon: 'none',
-          duration: 3000  // 延长显示时间，让老年人看清楚
-        });
-      }
-      
-    } catch (error) {
-      wx.hideLoading();
-      console.error('兑换失败:', error);
-      
-      wx.showToast({
-        title: '网络错误，请重试',
-        icon: 'none',
-        duration: 3000
+        return item;
       });
+      this.setData({ goodsList: updatedGoodsList });
+
+    } catch (err: any) {
+      wx.hideLoading();
+      if (err && err.isNetwork) {
+        // 网络结果未知：保留 pendingOrderNo，提供“重试本次兑换”
+        this.setData({ showRetryModal: true });
+        wx.showToast({ title: '网络异常，兑换结果未知', icon: 'none', duration: 2000 });
+      } else {
+        // 明确 4xx / 业务错误：清除 pending
+        this.setData({ pendingOrderNo: '' });
+        const message = (err && err.message) ? err.message : '兑换失败，请稍后重试';
+        wx.showToast({ title: message, icon: 'none', duration: 3000 });
+      }
     }
   },
 
-  // 取消兑换
+  // 关闭兑换确认弹窗（仅 UI 操作，不发起任何后端请求）
   cancelExchange() {
     this.setData({
       showExchangeModal: false,
       selectedGoods: {}
+    });
+  },
+
+  // 重试本次兑换（复用同一 order_no）
+  retryExchange() {
+    this.setData({ showRetryModal: false });
+    this.confirmExchange();
+  },
+
+  // 取消重试：放弃本次 attempt，清除 pending
+  closeRetryModal() {
+    this.setData({ showRetryModal: false, pendingOrderNo: '' });
+  },
+
+  // 复制 raw 12 位领取码
+  copyExchangeCode() {
+    const raw = this.data.successExchangeCode || '';
+    if (!raw) return;
+    wx.setClipboardData({
+      data: raw,
+      success: () => wx.showToast({ title: '领取码已复制', icon: 'none' })
+    });
+  },
+
+  // 关闭兑换成功弹窗
+  closeSuccessModal() {
+    this.setData({
+      showSuccessModal: false,
+      successExchangeCode: '',
+      successExchangeCodeDisplay: ''
     });
   },
 

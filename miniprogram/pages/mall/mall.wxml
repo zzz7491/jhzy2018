@@ -93,8 +93,8 @@
           <view class="goods-image-container">
             <image class="goods-image" src="{{item.image || '/images/default-goods.png'}}" mode="aspectFill"></image>
             <!-- 库存状态 -->
-            <view class="stock-badge {{item.stock <= 0 ? 'out-of-stock' : 'in-stock'}}">
-              {{item.stock <= 0 ? '已兑完' : '剩' + item.stock + '件'}}
+            <view class="stock-badge {{item.inStock ? 'in-stock' : 'out-of-stock'}}">
+              {{item.inStock ? '有库存' : '已兑完'}}
             </view>
             <!-- 热门标签 -->
             <view class="hot-badge" wx:if="{{item.is_hot}}">
@@ -163,4 +163,39 @@
 
   <!-- 底部安全区域 -->
   <view class="safe-bottom"></view>
+
+  <!-- P26-P1B：兑换确认弹窗 -->
+  <view wx:if="{{showExchangeModal}}" style="position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;">
+    <view style="width:80%;background:#fff;border-radius:24rpx;padding:48rpx 40rpx;box-sizing:border-box;">
+      <text style="display:block;font-size:34rpx;font-weight:600;text-align:center;margin-bottom:24rpx;">确认兑换</text>
+      <text style="display:block;font-size:28rpx;color:#333;text-align:center;margin-bottom:8rpx;">{{selectedGoods.name}}</text>
+      <text style="display:block;font-size:26rpx;color:#888;text-align:center;margin-bottom:32rpx;">消耗 {{selectedGoods.pointsRequired}} 积分</text>
+      <button bindtap="confirmExchange" style="background:#07c160;color:#fff;border-radius:40rpx;font-size:30rpx;margin-bottom:16rpx;">确认兑换</button>
+      <button bindtap="cancelExchange" style="background:#f2f2f2;color:#666;border-radius:40rpx;font-size:30rpx;">取消</button>
+    </view>
+  </view>
+
+  <!-- P26-P1B：兑换成功弹窗 -->
+  <view wx:if="{{showSuccessModal}}" style="position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;">
+    <view style="width:80%;background:#fff;border-radius:24rpx;padding:48rpx 40rpx;box-sizing:border-box;text-align:center;">
+      <text style="display:block;font-size:56rpx;margin-bottom:16rpx;">✅</text>
+      <text style="display:block;font-size:34rpx;font-weight:600;margin-bottom:24rpx;">兑换成功</text>
+      <text style="display:block;font-size:24rpx;color:#888;margin-bottom:8rpx;">领取码</text>
+      <text style="display:block;font-size:40rpx;font-weight:700;letter-spacing:4rpx;color:#07c160;margin-bottom:32rpx;">{{successExchangeCodeDisplay}}</text>
+      <button bindtap="copyExchangeCode" style="background:#07c160;color:#fff;border-radius:40rpx;font-size:30rpx;margin-bottom:16rpx;">复制领取码</button>
+      <button bindtap="goToExchangeRecords" style="background:#e8f5ee;color:#07c160;border-radius:40rpx;font-size:30rpx;margin-bottom:16rpx;">查看兑换记录</button>
+      <button bindtap="closeSuccessModal" style="background:#f2f2f2;color:#666;border-radius:40rpx;font-size:30rpx;">关闭</button>
+    </view>
+  </view>
+
+  <!-- P26-P1B：网络异常重试弹窗 -->
+  <view wx:if="{{showRetryModal}}" style="position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;">
+    <view style="width:80%;background:#fff;border-radius:24rpx;padding:48rpx 40rpx;box-sizing:border-box;text-align:center;">
+      <text style="display:block;font-size:56rpx;margin-bottom:16rpx;">⚠️</text>
+      <text style="display:block;font-size:34rpx;font-weight:600;margin-bottom:16rpx;">网络异常</text>
+      <text style="display:block;font-size:26rpx;color:#888;margin-bottom:32rpx;">兑换结果未知，是否重试本次兑换？</text>
+      <button bindtap="retryExchange" style="background:#07c160;color:#fff;border-radius:40rpx;font-size:30rpx;margin-bottom:16rpx;">重试本次兑换</button>
+      <button bindtap="closeRetryModal" style="background:#f2f2f2;color:#666;border-radius:40rpx;font-size:30rpx;">取消</button>
+    </view>
+  </view>
 </view>
