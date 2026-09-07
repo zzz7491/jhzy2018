@@ -92,7 +92,8 @@ Page({
     return null;
   },
 
-  loadUserPoints() {
+  // 加载用户积分（P27：迁移到 v2 SELF /points/account，以服务端 balance_units 为唯一事实源）
+  async loadUserPoints() {
     const userInfo = wx.getStorageSync('userInfo');
     if (userInfo && userInfo.current_points !== undefined) {
       this.setData({ userPoints: userInfo.current_points || 0 });
@@ -100,27 +101,22 @@ Page({
     }
     const token = wx.getStorageSync('access_token');
     if (!token) return;
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/points.php',
-      method: 'POST',
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      data: {},
-      success: (res: any) => {
-        if (res.data.code === 0 && res.data.data) {
-          const points = res.data.data.points || 0;
-          this.setData({ userPoints: points });
-          const info = wx.getStorageSync('userInfo');
-          if (info) {
-            info.current_points = points;
-            wx.setStorageSync('userInfo', info);
-          }
-        }
-      },
-      fail: () => {}
-    });
+    try {
+      const account = await mallApi.getPointsAccount();
+      const balance = (account && typeof account.balance_units === 'number') ? account.balance_units : 0;
+      this.setData({ userPoints: balance });
+      const info = wx.getStorageSync('userInfo');
+      if (info) {
+        info.current_points = balance;
+        wx.setStorageSync('userInfo', info);
+      }
+    } catch (err) {
+      // 降级容错：沿用本地 userInfo.current_points 缓存
+      const info = wx.getStorageSync('userInfo');
+      if (info && info.current_points !== undefined) {
+        this.setData({ userPoints: info.current_points || 0 });
+      }
+    }
   },
 
   previewImage(e: any) {
@@ -165,21 +161,16 @@ Page({
       const out = await mallApi.createOrder(this.data.productPublicId, orderNo);
       wx.hideLoading();
       const raw = out.exchangeCode || '';
-      const newPoints = Math.max(0, this.data.userPoints - this.data.goodsData.points_cost);
       this.setData({
         pendingOrderNo: '', // 201/200 成功 → 清除
         showSuccessModal: true,
         exchangeCode: raw,
         formattedExchangeCode: mallApi.formatExchangeCode(raw),
         successMessage: '兑换成功！请保存领取码，凭码到管理员处领取。',
-        currentTime: this.formatTime(Date.now()),
-        userPoints: newPoints
+        currentTime: this.formatTime(Date.now())
       });
-      const userInfo = wx.getStorageSync('userInfo');
-      if (userInfo) {
-        userInfo.current_points = newPoints;
-        wx.setStorageSync('userInfo', userInfo);
-      }
+      // 积分以服务端为准，刷新一次（覆盖本地值，避免二次扣减/不一致）
+      this.loadUserPoints();
     } catch (err) {
       wx.hideLoading();
       const e: any = err;

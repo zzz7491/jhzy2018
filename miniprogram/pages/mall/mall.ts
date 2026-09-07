@@ -1,7 +1,7 @@
 ﻿// pages/mall/mall.js - 志愿服务积分激励版（清理版）
 const app = getApp();
 import jhzyRequest from '../../utils/request';
-import { mallApi, formatExchangeCode, generateOrderNo } from '../../utils/mallApi';
+import { mallApi, formatExchangeCode, formatPoints, generateOrderNo } from '../../utils/mallApi';
 
 Page({
   data: {
@@ -195,34 +195,21 @@ Page({
         this.setData({ userPoints: 0 });
         return;
       }
-      
-      // 从接口获取最新积分
-      const res = await jhzyRequest.get('points_query.php');
-      console.log('获取积分响应:', res);
-      
-      if (res.code === 0 && res.data) {
-        const points = res.data.current_points || 0;
-        this.setData({ userPoints: points });
-        
-        // 同时更新本地存储
-        const userInfo = wx.getStorageSync('userInfo');
-        if (userInfo) {
-          userInfo.current_points = points;
-          wx.setStorageSync('userInfo', userInfo);
-        }
-      } else {
-        // 降级使用本地存储
-        const userInfo = wx.getStorageSync('userInfo');
-        if (userInfo && userInfo.current_points !== undefined) {
-          this.setData({ userPoints: userInfo.current_points || 0 });
-        }
+
+      const account = await mallApi.getPointsAccount();
+      const balance = (account && typeof account.balance_units === 'number') ? account.balance_units : 0;
+      this.setData({ userPoints: Number(formatPoints(balance)) });
+
+      const userInfo = wx.getStorageSync('userInfo');
+      if (userInfo) {
+        userInfo.current_points = balance;
+        wx.setStorageSync('userInfo', userInfo);
       }
     } catch (error) {
-      console.error('加载用户积分失败:', error);
-      // 降级使用本地存储
+      // 降级容错：沿用本地 userInfo.current_points 缓存
       const userInfo = wx.getStorageSync('userInfo');
       if (userInfo && userInfo.current_points !== undefined) {
-        this.setData({ userPoints: userInfo.current_points || 0 });
+        this.setData({ userPoints: Number(formatPoints(userInfo.current_points)) });
       }
     }
   },

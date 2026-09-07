@@ -4,6 +4,8 @@
 // 不修改 legacy utils/request.js；Bearer 从本地存储读取（与 request.js 同范式）。
 
 const MALL_API_BASE = 'https://api.jhzyfw.com/api/v2/mall';
+// P27：个人积分账户/流水 SELF 端点（与 /mall 同主域、同 v2 前缀，仅 path 段不同）
+const POINTS_API_BASE = 'https://api.jhzyfw.com/api/v2/points';
 
 // Crockford Base32（排除 I L O U），用于 ULID / 领取码
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -69,6 +71,27 @@ export interface VerifyResult {
   order: TeamOrderView;
 }
 
+// P27：个人积分账户投影（SELF，整数 units；缺失账户返回全零）
+export interface PointsAccountSelfView {
+  balance_units: number;
+  total_earned_units: number;
+  total_spent_units: number;
+  total_debits_units: number;
+  updated_at: number | null;
+}
+
+// P27：个人积分流水单条投影（SELF，整数 units；内部 id 不暴露）
+export interface PointsTransactionSelfView {
+  direction: number;
+  amount_units: number;
+  balance_after_units: number;
+  type: string;
+  source_type: string | null;
+  source_public_id: string | null;
+  remark: string | null;
+  created_at: number;
+}
+
 function getToken(): string {
   return wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
 }
@@ -84,14 +107,14 @@ function buildError(status: number, body: any, isNetwork: boolean): MallApiError
   };
 }
 
-function request<T>(method: string, path: string, data?: any): Promise<T> {
+function request<T>(method: string, path: string, data?: any, base: string = MALL_API_BASE): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const token = getToken();
     const header: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) header['Authorization'] = `Bearer ${token}`;
 
     wx.request({
-      url: MALL_API_BASE + path,
+      url: base + path,
       method: method,
       data,
       header,
@@ -150,12 +173,27 @@ export const mallApi = {
     });
   },
 
+  // P27：当前登录用户积分账户（SELF，permission points.account.read）
+  getPointsAccount(): Promise<PointsAccountSelfView> {
+    return request<PointsAccountSelfView>('GET', '/account', undefined, POINTS_API_BASE);
+  },
+
+  // P27：当前登录用户积分流水（SELF，分页，permission points.account.read）
+  getPointsTransactions(page = 1, pageSize = 20): Promise<Paginated<PointsTransactionSelfView>> {
+    return request<Paginated<PointsTransactionSelfView>>('GET', `/transactions?page=${page}&page_size=${pageSize}`, undefined, POINTS_API_BASE);
+  },
+
   formatExchangeCode(raw: string | null | undefined): string {
     return formatExchangeCode(raw);
   },
 
   generateOrderNo(): string {
     return generateOrderNo();
+  },
+
+  // P27：积分展示统一 formatter（后端返回整数 units；预留改动点，未来若需 display points 转换仅改此处）
+  formatPoints(units?: number | null): string {
+    return formatPoints(units);
   },
 };
 
@@ -165,6 +203,14 @@ export function formatExchangeCode(raw: string | null | undefined): string {
   const clean = String(raw).toUpperCase().replace(/[^0-9A-Z]/g, '');
   if (clean.length !== 12) return String(raw);
   return clean.replace(/(.{4})(?=.)/g, '$1-');
+}
+
+// 积分展示统一 formatter（P27）：后端返回整数 units，UI 统一以 units 原值展示为积分。
+// 三处（账户 balance / 商品 points_price_units / 订单 points_units）均经此函数，禁止各自除/乘 100。
+export function formatPoints(units?: number | null): string {
+  const n = Number(units);
+  if (!isFinite(n) || n < 0) return '0';
+  return String(Math.round(n));
 }
 
 // 26 位 Crockford ULID：10 位时间戳 + 16 位随机（服务端以此作为幂等键）
