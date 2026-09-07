@@ -1,19 +1,43 @@
 /**
- * GET /api/v2/teams/:id —— 团队详情（S2-5 最小只读）。
+ * /api/v2/teams —— 团队端点（S2-5 最小只读 + P30-P1A 团队上下文后端）。
  *
- * teams 为 PLATFORM_GLOBAL（S2-3 矩阵）：已认证即可读，不强制 team 上下文。
- * :id 为 ULID public_id，先经 validation 层校验再进 Repository。
+ * teams 为 PLATFORM_GLOBAL（S2-3 矩阵）：已认证即可读单团详情，不强制 team 上下文。
+ * :id / :teamId 均为 ULID public_id（与 S2-5 冻结契约一致；新 join 沿用同一 public contract）。
+ *
+ * P30-P1A 新增（MINIMAL TEAM CONTEXT BACKEND ONLY）：
+ * - GET  /api/v2/teams/mine          —— 已登录用户「真正拥有 TEAM 作用域」的团队列表（SELF，不要求 X-Team-Id）。
+ * - POST /api/v2/teams/:teamId/join —— 本人加入团队（SELF；服务端固定 member + volunteer scope；幂等）。
+ *
+ * 纪律（用户 §R1 / §七 / §十三）：
+ * - 客户端不得提交 user_id / role_id / role / team_member_id / team_role_code / scope_team_id；
+ *   违反一律 400（最小信任面）。
+ * - 加入固定为 team_members.team_role_code='member' + user_roles role='volunteer'(scope_team_id=目标团)；
+ *   绝不授予 owner / admin / team_admin / team_owner / platform_super_admin。
+ * - 响应投影只暴露 public_id / name，不泄露 numeric team id / role id / user_roles id / team_members id。
  */
 
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
 import { TeamRepository } from '../repository/teams';
 import { ok } from '../utils/response';
-import { authRequired } from '../utils/errors';
+import { authRequired, invalidParam } from '../utils/errors';
 import { requireUlidParam } from '../utils/validation';
 
 const teams = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
+/** GET /api/v2/teams/mine —— 当前用户拥有 TEAM 作用域的团队（SELF，不要求 X-Team-Id）。 */
+teams.get('/mine', async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated || auth.userId == null) throw authRequired();
+
+  const repo = new TeamRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const rows = await repo.listMine(auth.userId);
+  // 投影：只暴露 public_id / name（不泄露 numeric team id 等内部字段）。
+  const teamsOut = rows.map((t) => ({ public_id: t.public_id, name: t.name }));
+  return ok(c, { teams: teamsOut });
+});
+
+/** GET /api/v2/teams/:id —— 团队详情（S2-5 最小只读）。 */
 teams.get('/:id', async (c) => {
   const auth = c.get('auth');
   if (!auth.authenticated) throw authRequired();
@@ -23,6 +47,41 @@ teams.get('/:id', async (c) => {
   const team = await repo.findByPublicId(publicId);
 
   return ok(c, { team });
+});
+
+/**
+ * POST /api/v2/teams/:teamId/join —— 本人加入团队。
+ * - SELF：auth.userId 由服务端派生（R1 铁律），客户端 body 不得携带身份/角色字段。
+ * - 服务端固定：team_members.team_role_code='member' + user_roles role='volunteer'(scope_team_id=目标团)。
+ * - 幂等：重复 join 不新增 membership / scope 行，返回 { status: 'existing' }。
+ * - 原子：team_members 写入 + user_roles scope 写入在同一 D1 batch（事务）内完成。
+ */
+teams.post('/:teamId/join', async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated || auth.userId == null) throw authRequired();
+
+  // 拒绝客户端携带任何身份/角色/作用域字段（R1 铁律 + §七 最小信任面）。
+  const FORBIDDEN_BODY_KEYS = [
+    'user_id',
+    'role_id',
+    'role',
+    'team_member_id',
+    'team_role_code',
+    'scope_team_id',
+  ];
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    for (const k of FORBIDDEN_BODY_KEYS) {
+      if (k in body) throw invalidParam(k, 'must not be provided by client');
+    }
+  }
+
+  const publicId = requireUlidParam(c.req.param('teamId'), 'teamId');
+  const repo = new TeamRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const team = await repo.findByPublicId(publicId); // 不存在 → 404（不泄露存在性）
+  const { status } = await repo.joinTeam(team.id, auth.userId);
+
+  return ok(c, { status, team: { public_id: team.public_id, name: team.name } }, 200);
 });
 
 export default teams;
