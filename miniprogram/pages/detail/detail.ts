@@ -2,6 +2,7 @@
 
 // 引入订阅消息工具
 const subscribe = require('../../utils/subscribe')
+import activityApi from '../../utils/activityApi';
 
 Page({
   data: {
@@ -83,51 +84,11 @@ Page({
     }
   },
 
-  // 检查是否有进行中的签到
+  // 是否有进行中的签到：由报名审核状态推导（v2 无独立 SELF 签到状态 GET）。
   checkActiveCheckin() {
-    const activityId = this.data.activityId;
-    if (!activityId || !this.data.isLoggedIn) return;
-
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/attendance_active.php',
-      method: 'GET',
-      header: {
-        'Authorization': `Bearer ${this.data.token}`
-      },
-      data: { activity_id: activityId },
-      success: (res) => {
-        console.log('活动签到状态:', res.data);
-        if (res.data && res.data.success) {
-          const active = res.data.data;
-          if (active && active.length > 0) {
-            this.setData({
-              isCheckinActive: true,
-              activeCheckinId: active[0].id
-            });
-            this.updateButtonByStatus();
-          } else {
-            this.setData({
-              isCheckinActive: false,
-              activeCheckinId: null
-            });
-            this.updateButtonByStatus();
-          }
-        } else {
-          this.setData({
-            isCheckinActive: false,
-            activeCheckinId: null
-          });
-          this.updateButtonByStatus();
-        }
-      },
-      fail: (err) => {
-        console.error('检查签到状态失败:', err);
-        this.setData({
-          isCheckinActive: false,
-          activeCheckinId: null
-        });
-      }
-    });
+    const { signupStatus } = this.data;
+    this.setData({ isCheckinActive: signupStatus === 2 });
+    this.updateButtonByStatus();
   },
 
   // 根据状态更新按钮
@@ -156,64 +117,65 @@ Page({
     this.setData({ buttonText, buttonBgColor });
   },
 
-  // 加载活动详情
+  // 加载活动详情（v2：GET /activities/:id）
   loadActivityDetail() {
     const activityId = this.data.activityId;
     if (!activityId) return;
 
     this.setData({ loading: true, errorMsg: '' });
 
-    wx.request({
-      url: `https://api.jhzyfw.com/api/activity_detail_enhanced.php?id=${activityId}`,
-      method: 'GET',
-      header: {
-        'Authorization': this.data.token ? `Bearer ${this.data.token}` : ''
-      },
-      success: (res) => {
-        console.log('活动详情响应:', res.data);
+    activityApi
+      .getActivity(activityId)
+      .then((res) => {
+        const a: any = (res && res.activity) || {};
+        const activity: any = {
+          ...a,
+          public_id: a.public_id,
+          title: a.title || '',
+          start_time: a.start_time || '',
+          end_time: a.end_time || '',
+          summary: a.summary || '',
+          quota: a.quota || 0,
+          signed_count: a.signed_count || 0,
+          status: a.status,
+          current_participants: a.signed_count || 0,
+          max_participants: a.quota || 0,
+          points_reward: 0,
+          description: a.summary || '',
+          cover_image: '',
+          address: '待定',
+          signin_radius: 300,
+        };
+        activity.display_time = this.formatDisplayTime(activity.start_time, activity.end_time);
 
-        if (res.data && res.data.success) {
-          const activity = res.data.data || {};
+        const maxParticipants = activity.max_participants || 0;
+        const currentParticipants = activity.current_participants || 0;
+        const remainingSlots = Math.max(0, maxParticipants - currentParticipants);
 
-          console.log('activity对象:', activity);
-          
-          this.processActivityData(activity);
-          this.processRecurrenceInfo(activity);
-          
-          const currentParticipants = activity.current_participants || 0;
-          const maxParticipants = activity.max_participants || 0;
-          const remainingSlots = Math.max(0, maxParticipants - currentParticipants);
-          
-          this.setData({
-            activity,
-            contactPerson: activity.contact_person || '',
-            contactPhone: activity.contact_phone || '',
-            activityStatus: {
-              isFull: maxParticipants > 0 && remainingSlots <= 0,
-              remainingSlots,
-              totalParticipants: currentParticipants
-            },
-            loading: false
-          });
-
-          if (this.data.isLoggedIn) {
-            this.checkSignupStatus();
-          }
-        } else {
-          this.setData({
-            errorMsg: res.data?.message || '加载失败',
-            loading: false
-          });
-        }
-      },
-      fail: (err) => {
-        console.error('加载活动详情失败:', err);
         this.setData({
-          errorMsg: '网络错误',
-          loading: false
+          activity,
+          contactPerson: '',
+          contactPhone: '',
+          activityStatus: {
+            isFull: maxParticipants > 0 && remainingSlots <= 0,
+            remainingSlots,
+            totalParticipants: currentParticipants,
+          },
+          loading: false,
         });
-      }
-    });
+
+        if (this.data.isLoggedIn) {
+          this.checkSignupStatus();
+        }
+      })
+      .catch((err: any) => {
+        console.error('加载活动详情失败:', err);
+        let msg = '网络错误';
+        if (err && err.code === 'TEAM_SCOPE_REQUIRED') msg = '请先在「我的团队」中选择团队';
+        else if (err && err.status === 404) msg = '活动不存在';
+        else if (err && err.message) msg = err.message;
+        this.setData({ errorMsg: msg, loading: false });
+      });
   },
 
   // 处理活动数据
@@ -347,36 +309,29 @@ Page({
     }
   },
 
-  // 检查报名状态
+  // 检查报名状态（v2：GET /activities/:id/signups/me）
   checkSignupStatus() {
     const activityId = this.data.activityId;
     if (!activityId || !this.data.isLoggedIn) return;
 
-    wx.request({
-      url: `https://api.jhzyfw.com/api/check_signup_status.php`,
-      method: 'GET',
-      header: {
-        'Authorization': `Bearer ${this.data.token}`
-      },
-      data: { activity_id: activityId },
-      success: (res) => {
-        console.log('报名状态响应:', res.data);
-        if (res.data && res.data.success) {
-          const status = res.data.status || 0;
-          const hasJoined = status > 0;
-          
-          this.setData({
-            hasJoined,
-            signupStatus: status
-          });
-          
-          this.updateButtonByStatus();
+    activityApi
+      .getSignupMe(activityId)
+      .then((res) => {
+        const outer = (res && res.signup) || null;
+        // SignupReadView: { activity_public_id, user_public_id, signup:{ review_status, status, ... } }
+        const inner = outer && outer.signup ? outer.signup : outer;
+        let status = 0;
+        if (inner && inner.status === 1) {
+          // status=1(REGISTERED)；review_status=1(APPROVED) 才可签到
+          status = inner.review_status === 1 ? 2 : 1;
         }
-      },
-      fail: (err) => {
-        console.error('检查报名状态失败:', err);
-      }
-    });
+        this.setData({ hasJoined: status > 0, signupStatus: status });
+        this.updateButtonByStatus();
+      })
+      .catch(() => {
+        // 未报名或无权限查看：保持未报名态，绝不回退 legacy PHP
+        this.setData({ hasJoined: false, signupStatus: 0 });
+      });
   },
 
   // 获取报名状态文本
@@ -391,22 +346,15 @@ Page({
 
   // 主按钮点击处理
   handleMainButtonClick() {
-    const { signupStatus, isCheckinActive } = this.data;
-    
-    if (isCheckinActive) {
-      this.goToTimerPage();
-    } else if (signupStatus === 2) {
-      this.goToCheckinPage();
+    const { signupStatus } = this.data;
+
+    if (signupStatus === 2) {
+      // 已通过审核：进入「参与准备 → 签到」闭环
+      this.proceedToCheckin();
     } else if (signupStatus === 1) {
-      wx.showToast({
-        title: '您的报名正在审核中',
-        icon: 'none'
-      });
+      wx.showToast({ title: '您的报名正在审核中', icon: 'none' });
     } else if (signupStatus === 3) {
-      wx.showToast({
-        title: '您已参与此活动',
-        icon: 'none'
-      });
+      wx.showToast({ title: '您已参与此活动', icon: 'none' });
     } else {
       this.handleJoinClick();
     }
@@ -474,100 +422,98 @@ Page({
     });
   },
 
-  // 处理报名 - 发送通知给管理员
+  // 处理报名（v2：POST /activities/:id/signups）
   processJoin() {
+    if (this.data.hasJoined) {
+      wx.showToast({ title: this.getSignupStatusText(this.data.signupStatus), icon: 'none' });
+      return;
+    }
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({ url: '/pages/profile/login/login' });
+      return;
+    }
+    if (this.data.activityStatus.isFull) {
+      wx.showToast({ title: '活动名额已满', icon: 'none' });
+      return;
+    }
+
     const activityId = this.data.activityId;
+    wx.showLoading({ title: '报名中...', mask: true });
 
-    wx.showLoading({
-      title: '报名中...',
-      mask: true
-    });
-
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/activity_signup_simple.php',
-      method: 'POST',
-      header: {
-        'Authorization': `Bearer ${this.data.token}`,
-        'Content-Type': 'application/json'
-      },
-      data: {
-        activity_id: activityId
-      },
-      success: (res) => {
+    activityApi
+      .signup(activityId)
+      .then(() => {
         wx.hideLoading();
+        this.setData({ hasJoined: true, signupStatus: 2 });
+        this.updateButtonByStatus();
 
-        if (res.data && res.data.code === 0) {
-          this.setData({
-            hasJoined: true,
-            signupStatus: 1
-          });
+        subscribe.subscribeAfterSignup().catch(() => {});
+        wx.showToast({ title: '报名成功', icon: 'success', duration: 1500 });
+
+        // 报名成功后进入「参与准备 → 签到」闭环
+        this.proceedToCheckin();
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        const code = err && err.code ? String(err.code).toUpperCase() : '';
+        if (code === 'SIGNUP_ALREADY_EXISTS' || code === 'CONFLICT') {
+          this.setData({ hasJoined: true, signupStatus: 2 });
           this.updateButtonByStatus();
-
-          // 报名成功后提示订阅消息
-          subscribe.subscribeAfterSignup().catch(err => {
-            console.log('用户未订阅或订阅失败', err);
-          });
-
-          // 发送订阅消息给管理员（有新报名待审核）
-          wx.request({
-            url: 'https://api.jhzyfw.com/api/get_admin_openid.php',
-            method: 'GET',
-            header: { 'Authorization': `Bearer ${this.data.token}` },
-            success: (adminRes) => {
-              if (adminRes.data.success && adminRes.data.openid && this.data.activity) {
-                // 获取志愿者姓名
-                const volunteerName = this.data.userInfo?.real_name || '志愿者';
-                wx.request({
-                  url: 'https://api.jhzyfw.com/api/independent_send.php',
-                  method: 'POST',
-                  data: {
-                    openid: adminRes.data.openid,
-                    type: 'signup',
-                    data: {
-                      thing4: { value: this.data.activity.title || '志愿活动' },
-                      thing6: { value: this.data.activity.location || '活动地点' },
-                      thing10: { value: `${volunteerName} 报名，待审核` },
-                      thing11: { value: this.data.activity.location || '活动地点' },
-                      thing18: { value: '嘉禾志愿' }
-                    }
-                  }
-                });
-              }
-            }
-          });
-
-          wx.showToast({
-            title: '报名成功，等待审核',
-            icon: 'success',
-            duration: 2000
-          });
-
-          setTimeout(() => {
-            this.loadActivityDetail();
-          }, 500);
-
-        } else if (res.data && res.data.code === -400) {
-          this.checkSignupStatus();
-          wx.showToast({
-            title: res.data.msg || '您已报名此活动',
-            icon: 'none'
-          });
-        } else {
-          wx.showToast({
-            title: res.data?.msg || '报名失败',
-            icon: 'none'
-          });
+          this.proceedToCheckin();
+          return;
         }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error('报名失败:', err);
-        wx.showToast({
-          title: '网络错误',
-          icon: 'none'
-        });
-      }
-    });
+        if (code === 'ACTIVITY_SIGNUP_CLOSED') {
+          wx.showToast({ title: '活动报名已关闭', icon: 'none' });
+          return;
+        }
+        wx.showToast({ title: (err && err.message) || '报名失败', icon: 'none' });
+      });
+  },
+
+  /**
+   * 参与准备（v2）：GET setup → 找到可确定性物化的 occurrence → POST ensure 拿到 participation_public_id，
+   * 然后跳转签到页（/pages/sign/sign）完成签到 / 签退闭环。
+   * 若活动尚未通过审核 / 需人工排班（无 can_ensure 的 occurrence），则仅提示，不强制跳转。
+   */
+  proceedToCheckin() {
+    const activityId = this.data.activityId;
+    const activity = this.data.activity || ({} as any);
+
+    activityApi
+      .getParticipationSetup(activityId)
+      .then((setup) => {
+        const occurrences = (setup && setup.occurrences) || [];
+        const occ = occurrences.find((o: any) => o.can_ensure === true);
+        if (!occ) {
+          wx.showToast({
+            title: '报名已提交，审核/排班后可在「签到」页签到',
+            icon: 'none',
+            duration: 2000,
+          });
+          return Promise.resolve(null);
+        }
+        return activityApi
+          .ensureParticipation(activityId, occ.public_id)
+          .then((res) => {
+            const ppid = res && res.participation && res.participation.public_id;
+            if (!ppid) {
+              wx.showToast({ title: '报名已提交，可在「签到」页签到', icon: 'none', duration: 2000 });
+              return null;
+            }
+            const title = encodeURIComponent(activity.title || '志愿活动');
+            const points = activity.points_reward || 10;
+            const radius = activity.signin_radius || 300;
+            const status = activity.status === 1 || activity.status === 2 ? 'ongoing' : 'ended';
+            wx.navigateTo({
+              url: `/pages/sign/sign?activityId=${activityId}&participationId=${ppid}&activityName=${title}&points=${points}&radius=${radius}&status=${status}`,
+            });
+            return ppid;
+          });
+      })
+      .catch((err: any) => {
+        console.error('参与准备失败', err);
+        wx.showToast({ title: '报名已提交，稍后可在「签到」页签到', icon: 'none', duration: 2000 });
+      });
   },
 
   // ========== 保险购买功能 ==========

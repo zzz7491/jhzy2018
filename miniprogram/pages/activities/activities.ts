@@ -1,4 +1,6 @@
 ﻿// pages/activities/activities.js
+import activityApi from '../../utils/activityApi';
+
 const API_BASE = 'https://api.jhzyfw.com/api';
 
 Page({
@@ -114,116 +116,84 @@ Page({
   },
 
   loadCategories() {
-    wx.request({
-      url: `${API_BASE}/get_activity_categories.php`,
-      method: 'GET',
-      success: (res) => {
-        if (res.data && res.data.success) {
-          const categories = res.data.data || [];
-          this.setData({
-            categories: [{ id: 'all', name: '全部' }, ...categories]
-          });
-        } else {
-          this.setData({ categories: [{ id: 'all', name: '全部' }] });
-        }
-      }
-    });
+    // v2 暂未提供分类端点；保留「全部」单选，不回退 legacy PHP。
+    this.setData({ categories: [{ id: 'all', name: '全部' }] });
   },
 
   loadActivities() {
     if (this.data.loading) return Promise.resolve();
     this.setData({ loading: true });
-    
-    return new Promise((resolve) => {
-      const params = {
-        action: 'list',
-        page: this.data.page,
-        limit: this.data.limit
-      };
-      
-      if (this.data.activeCategory !== 'all') {
-        params.category = this.data.activeCategory;
-      }
-      
-      const queryString = Object.keys(params)
-        .map(key => `${key}=${encodeURIComponent(params[key])}`)
-        .join('&');
-      
-      wx.request({
-        url: `${API_BASE}/activities.php?${queryString}`,
-        method: 'GET',
-        header: {
-          'Authorization': this.data.isLoggedIn ? `Bearer ${wx.getStorageSync('access_token')}` : ''
-        },
-        success: (res) => {
-          if (res.statusCode === 200) {
-            let activitiesList = [];
-            let total = 0;
-            
-            if (res.data && res.data.code === 0 && res.data.data) {
-              activitiesList = res.data.data.list || [];
-              total = res.data.data.total || 0;
-            } 
-            else if (res.data && res.data.success && res.data.data) {
-              activitiesList = res.data.data.list || res.data.data.activities || [];
-              total = res.data.data.total || 0;
-            }
-            
-            // 格式化活动数据
-            const formattedActivities = activitiesList.map(activity => this.formatActivityData(activity));
-            
-            // 前端状态筛选（因为后端不支持status参数）
-            let filteredActivities = formattedActivities;
-            if (this.data.status === 'upcoming') {
-              filteredActivities = formattedActivities.filter(activity => !activity.isEnded);
-            } else if (this.data.status === 'ended') {
-              filteredActivities = formattedActivities.filter(activity => activity.isEnded);
-            }
-            
-            const newActivities = this.data.page === 1 ? filteredActivities : [...this.data.activities, ...filteredActivities];
-            
-            this.setData({
-              activities: newActivities,
-              hasMore: newActivities.length < total,
-              page: this.data.page + 1,
-              loading: false
-            }, () => {
-              this.updateActivitiesSignupStatus();
-            });
-          } else {
-            this.setData({ loading: false });
-          }
-          resolve();
-        },
-        fail: () => {
-          this.setData({ loading: false });
-          resolve();
+
+    const page = this.data.page;
+    const limit = this.data.limit;
+
+    return activityApi
+      .getActivities(page, limit)
+      .then((res) => {
+        const list = (res && res.items) || [];
+        const total = (res && res.pagination && res.pagination.total) || 0;
+
+        const formatted = list.map((a) => this.formatActivityData(a));
+
+        let filtered = formatted;
+        if (this.data.status === 'upcoming') {
+          filtered = formatted.filter((a) => !a.isEnded);
+        } else if (this.data.status === 'ended') {
+          filtered = formatted.filter((a) => a.isEnded);
+        }
+
+        const newActivities = page === 1 ? filtered : this.data.activities.concat(filtered);
+
+        this.setData(
+          {
+            activities: newActivities,
+            hasMore: newActivities.length < total,
+            page: page + 1,
+            loading: false,
+          },
+          () => {
+            this.updateActivitiesSignupStatus();
+          },
+        );
+      })
+      .catch((err: any) => {
+        this.setData({ loading: false });
+        if (err && err.code === 'TEAM_SCOPE_REQUIRED') {
+          wx.showToast({ title: '请先在「我的团队」选择团队', icon: 'none' });
+          this.setData({ activities: [], hasMore: false });
+        } else {
+          wx.showToast({
+            title: (err && err.message) || '加载失败',
+            icon: 'none'
+          });
         }
       });
-    });
   },
 
-  formatActivityData(activity) {
+  formatActivityData(activity: any) {
     const now = new Date();
     const endTime = activity.end_time || activity.endTime;
     let isEnded = false;
-    
+
     if (endTime) {
       try {
-        const formattedEndTime = endTime.replace(/-/g, '/');
-        const endDate = new Date(formattedEndTime);
+        const endDate = new Date(String(endTime).replace(/-/g, '/'));
         isEnded = now > endDate;
       } catch (error) {
-        isEnded = activity.status === 'ended' || activity.status === 'finished';
+        isEnded = activity.status === 3 || activity.status === 4 || activity.status === 5;
       }
+    } else {
+      isEnded = activity.status === 3 || activity.status === 4 || activity.status === 5;
     }
-    
+
     return {
       ...activity,
-      isEnded: isEnded,
+      id: activity.public_id || activity.id,
+      description: activity.summary || activity.description || '',
+      isEnded,
       hasJoined: false,
       displayStatus: isEnded ? '已结束' : '立即报名',
-      displayTime: this.formatDisplayTime(activity.start_time, activity.end_time)
+      displayTime: this.formatDisplayTime(activity.start_time, activity.end_time),
     };
   },
 
@@ -299,32 +269,9 @@ Page({
     wx.navigateTo({ url: `/pages/detail/detail?id=${id}` });
   },
 
-  toggleFavorite(e) {
-    if (!this.checkLoginStatus()) {
-      this.showLoginModal();
-      return;
-    }
-    const id = e.currentTarget.dataset.id;
-    const index = e.currentTarget.dataset.index;
-    const userInfo = wx.getStorageSync('userInfo');
-    const activity = this.data.activities[index];
-    const isFavorite = activity.is_favorite;
-    
-    wx.request({
-      url: `${API_BASE}/activities/${id}/favorite`,
-      method: isFavorite ? 'DELETE' : 'POST',
-      header: {
-        'Authorization': `Bearer ${userInfo.token}`,
-        'Content-Type': 'application/json'
-      },
-      success: (res) => {
-        if (res.statusCode === 200 && res.data.success) {
-          const activities = [...this.data.activities];
-          activities[index].is_favorite = !isFavorite;
-          this.setData({ activities });
-        }
-      }
-    });
+  toggleFavorite() {
+    // v2 收藏端点尚未接入；不回退 legacy PHP，给出明确提示。
+    wx.showToast({ title: '收藏功能即将上线', icon: 'none' });
   },
 
   onShareAppMessage() {

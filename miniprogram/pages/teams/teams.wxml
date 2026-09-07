@@ -40,7 +40,7 @@
               wx:for="{{teams}}" 
               wx:key="id" 
               data-id="{{item.id}}" 
-              bindtap="goToTeamDetail">
+              bindtap="onSelectTeam">
           <image class="team-avatar" src="{{item.avatar}}"></image>
           <view class="team-info">
             <view class="team-name-row">

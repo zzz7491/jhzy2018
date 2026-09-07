@@ -1,6 +1,6 @@
 const app = getApp();
-import jhzyRequest from '../../utils/request';
 import checkinService from '../../services/checkinService';
+import activityApi from '../../utils/activityApi';
 
 Page({
   data: {
@@ -470,47 +470,32 @@ Page({
     }
   },
 
-  // 加载用户数据
+  // 加载成长数据（v2：积分账户 + 本人服务记录）
   async loadUserData() {
     try {
-      const res = await jhzyRequest.get('user_profile.php');
-      
-      if (res.code === 0) {
-        const userData = res.data;
-        
-        // 修正返回的头像URL - 添加类型检查
-        if (userData.avatar && typeof userData.avatar === 'string' && !userData.avatar.startsWith('http')) {
-          if (userData.avatar.startsWith('/')) {
-            userData.avatar = 'https://api.jhzyfw.com/api' + userData.avatar;
-          } else {
-            userData.avatar = 'https://api.jhzyfw.com/api/' + userData.avatar;
-          }
-        }
-        
-        this.setData({
-          stats: {
-            currentPoints: userData.total_points || 0,
-            totalActivities: userData.activity_count || 0,
-            totalHours: userData.total_hours || 0
-          },
-          userInfo: {
-            ...this.data.userInfo,
-            ...userData,
-            rank: userData.rank || '1'
-          }
-        });
-        
-        const cachedUserInfo = wx.getStorageSync('userInfo');
-        wx.setStorageSync('userInfo', {
-          ...cachedUserInfo,
-          ...userData,
-          rank: userData.rank || '1'
-        });
-        
-        this.calculateMembershipDuration();
-      }
+      const [acct, recs] = await Promise.all([
+        activityApi.getPointsAccount(),
+        activityApi.getServiceRecordsMine(),
+      ]);
+
+      const records = (recs && recs.records) || [];
+      const totalMinutes = records.reduce(
+        (sum: number, r: any) => sum + Number(r.effective_minutes || r.minutes || 0),
+        0,
+      );
+      const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
+
+      this.setData({
+        stats: {
+          currentPoints: (acct && acct.balance_units) || 0,
+          totalActivities: records.length,
+          totalHours,
+        },
+      });
+
+      this.calculateMembershipDuration();
     } catch (error) {
-      console.error('加载用户数据失败:', error);
+      console.error('加载成长数据失败:', error);
     }
   },
 

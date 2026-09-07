@@ -1,4 +1,6 @@
 // teams.ts
+import activityApi from '../../utils/activityApi';
+
 Page({
   data: {
     teams: [],
@@ -41,78 +43,81 @@ Page({
   },
 
   loadTeams() {
-    const token = wx.getStorageSync('access_token');
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/my_groups.php',
-      method: 'GET',
-      data: { token: token },
-      success: (res) => {
-        if (res.data && res.data.code === 0) {
-          this.setData({
-            teams: res.data.data || [],
-            loading: false
-          });
-        } else {
-          wx.showToast({
-            title: res.data?.msg || '加载失败',
-            icon: 'none'
-          });
-          this.setData({ loading: false });
-        }
-      },
-      fail: () => {
+    wx.showLoading({ title: '加载中...' });
+    activityApi
+      .getTeamsMine()
+      .then((res) => {
+        const teams = ((res && res.teams) || []).map((t) => ({
+          id: t.public_id,
+          name: t.name,
+          role: '成员',
+          members: 0,
+          activity_count: 0,
+          avatar: '',
+        }));
+        wx.hideLoading();
+        this.setData({ teams, loading: false });
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
         wx.showToast({
-          title: '网络错误',
+          title: (err && err.message) || '加载失败',
           icon: 'none'
         });
         this.setData({ loading: false });
-      }
-    });
+      });
   },
 
   loadTeamActivities() {
-    const token = wx.getStorageSync('access_token');
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/team_activities.php',
-      method: 'GET',
-      data: { token: token },
-      success: (res) => {
-        if (res.data && res.data.code === 0) {
-          this.setData({
-            activities: res.data.data || [],
-            loading: false
-          });
+    wx.showLoading({ title: '加载中...' });
+    activityApi
+      .getActivities(1, 20)
+      .then((res) => {
+        const list = (res && res.items) || [];
+        const activities = list.map((a) => {
+          const start = a.start_time ? new Date(String(a.start_time).replace(/-/g, '/')) : null;
+          const isEnded = a.status === 3 || a.status === 4 || a.status === 5;
+          const date = start ? `${start.getMonth() + 1}月${start.getDate()}日` : '';
+          return {
+            id: a.public_id,
+            title: a.title || '志愿活动',
+            team: '本团队',
+            date,
+            status: isEnded ? '已结束' : '进行中',
+          };
+        });
+        wx.hideLoading();
+        this.setData({ activities, loading: false });
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        if (err && err.code === 'TEAM_SCOPE_REQUIRED') {
+          wx.showToast({ title: '请先选择团队', icon: 'none' });
         } else {
           wx.showToast({
-            title: res.data?.msg || '加载失败',
+            title: (err && err.message) || '加载失败',
             icon: 'none'
           });
-          this.setData({ loading: false });
         }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'none'
-        });
         this.setData({ loading: false });
-      }
-    });
+      });
   },
 
-  goToTeamDetail(e) {
+  // 选择团队：写入团队上下文（供 activityApi 注入 X-Team-Id），并刷新本团队活动。
+  // 此即核心闭环「选择团队」动作；加入团队由 /pages/teams/select 完成。
+  onSelectTeam(e: any) {
     const id = e.currentTarget.dataset.id;
-    wx.navigateTo({
-      url: `/pages/teams/detail?id=${id}`
-    });
+    if (!id) return;
+    wx.setStorageSync('activeTeamPublicId', id);
+    this.setData({ activeTeamId: id });
+    wx.showToast({ title: '已切换团队', icon: 'success', duration: 1200 });
+    this.loadTeamActivities();
   },
 
-  goToActivityDetail(e) {
+  goToActivityDetail(e: any) {
     const id = e.currentTarget.dataset.id;
     wx.navigateTo({
-      url: `/pages/activities/detail?id=${id}`
+      url: `/pages/detail/detail?id=${id}`
     });
   },
 
