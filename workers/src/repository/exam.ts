@@ -297,6 +297,20 @@ export class ExamRepository extends BaseRepository {
     );
   }
 
+  /**
+   * 志愿者考试发现（P32-P3A）：按 course_id 取「当前团队下、已发布(active, status=1)」的试卷。
+   * 一课可能多卷（exam_papers.course_id 无唯一约束），确定性取「最近创建」的 active paper。
+   * 找不到 → null（前端据此显示「不可考 / 暂无考试」而非 500）。
+   * 只返回 public_id 与状态判定，绝不暴露 numeric paper id，不含题目/答案。
+   */
+  async findActivePaperByCourseId(teamId: number, courseId: number): Promise<ExamPaperRow | null> {
+    this.ensureTableRead('exam_papers');
+    return this.first<ExamPaperRow>(
+      `SELECT * FROM exam_papers WHERE team_id = ? AND course_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [teamId, courseId],
+    );
+  }
+
   async countUserAttempts(userId: number, paperId: number): Promise<number> {
     this.ensureTableRead('exam_sessions');
     const r = await this.first<{ n: number }>(

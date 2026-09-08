@@ -1,0 +1,62 @@
+<view class="exam-take">
+  <view class="header">
+    <text class="back-btn" bindtap="goBack">← 返回</text>
+    <text class="title">培训结业考试</text>
+  </view>
+
+  <!-- 团队上下文缺失 -->
+  <view wx:if="{{teamMissing}}" class="state-box">
+    <text class="state-icon">👥</text>
+    <text class="state-text">请先选择团队后参加考试</text>
+    <button class="primary-btn" bindtap="goToSelectTeam">去选择团队</button>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:elif="{{loading}}" class="state-box">
+    <view class="loading"></view>
+    <text class="state-text">考试加载中...</text>
+  </view>
+
+  <!-- 错误 -->
+  <view wx:elif="{{errorMsg}}" class="state-box">
+    <text class="state-icon">⚠️</text>
+    <text class="state-text">{{errorMsg}}</text>
+    <button class="primary-btn" bindtap="goBack">返回</button>
+  </view>
+
+  <!-- 考试进行中 -->
+  <view wx:elif="{{attempt}}" class="exam-body">
+    <view class="exam-meta">
+      <text>共 {{attempt.questions.length}} 题</text>
+      <text>已答 {{answeredCount}}/{{attempt.questions.length}}</text>
+      <text>合格线 {{attempt.pass_score}} 分</text>
+    </view>
+
+    <scroll-view class="questions" scroll-y>
+      <view class="question-card" wx:for="{{attempt.questions}}" wx:key="question_public_id">
+        <view class="q-title">
+          <text class="q-no">{{item.order}}.</text>
+          <text class="q-stem">{{item.stem}}</text>
+        </view>
+        <view
+          class="option {{answers[item.question_public_id] == opt.key ? 'selected' : ''}}"
+          wx:for="{{item.options}}"
+          wx:for-item="opt"
+          wx:key="key"
+          data-qid="{{item.question_public_id}}"
+          data-key="{{opt.key}}"
+          bindtap="selectOption"
+        >
+          <text class="opt-key">{{opt.key}}</text>
+          <text class="opt-text">{{opt.text}}</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="submit-bar">
+      <button class="primary-btn {{submitting ? 'disabled' : ''}}" bindtap="submit" disabled="{{submitting}}">
+        {{submitting ? '提交中...' : '交卷'}}
+      </button>
+    </view>
+  </view>
+</view>

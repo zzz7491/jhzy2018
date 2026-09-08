@@ -1,57 +1,54 @@
-// pages/training/training.js
-const app = getApp();
+import { trainingApi, hasTeamContext, type CourseView, type MyProgressItem } from '../../utils/trainingApi';
 
+// pages/training/training.ts（P32-P3）
+// 志愿者端学习培训列表：对接 /api/v2/training，绝不调用 legacy PHP。
 Page({
   data: {
     isLoggedIn: false,
     isSeniorMode: false,
-    userInfo: null,
-    
-    // 培训数据
+    userInfo: null as any,
+
+    // 团队上下文
+    teamMissing: false,
+
+    // 课程数据
     categories: [
       { id: 0, name: '全部' },
       { id: 1, name: '必修课程' },
       { id: 2, name: '选修课程' }
     ],
     activeCategory: 0,
-    difficultyList: [
-      { id: 0, name: '全部难度' },
-      { id: 1, name: '初级' },
-      { id: 2, name: '中级' },
-      { id: 3, name: '高级' }
-    ],
-    activeDifficulty: 0,
-    courses: [],
-    hotCourses: [],
-    currentCourse: null,
-    
+    courses: [] as CourseView[],
+    filteredCourses: [] as CourseView[],
+    currentCourse: null as CourseView | null,
+
     // 搜索和分页
     searchValue: '',
     page: 1,
-    pageSize: 10,
+    pageSize: 20,
     hasMore: true,
     loading: false,
-    
-    // 用户信息
+
+    // 学习统计（服务端 my-progress 聚合）
     userPoints: 0,
     requiredCompleted: false,
     electiveCompleted: false,
+    examEligible: false,
+    // paperPublicId 由后端课程数据权威下发（P32-P3A）；不再依赖任何本地 storage key。
+    examPaperPublicId: '' as string,
     learningStats: {
       enrolledCount: 0,
       completedCount: 0,
-      inProgressCount: 0,
-      totalHours: 0
+      inProgressCount: 0
     },
-    
-    // 模态框控制
+
+    // 模态框
     showCourseDetail: false,
-    
-    // 震动反馈
+
     vibrationEnabled: true
   },
 
-  onLoad(options) {
-    console.log('培训学习页面加载');
+  onLoad() {
     this.initVibration();
     this.checkLoginStatus();
     this.initDisplayMode();
@@ -59,11 +56,8 @@ Page({
   },
 
   onShow() {
-    console.log('培训学习页面显示');
     if (this.data.isLoggedIn) {
-      this.loadUserPoints();
-      this.loadLearningStats();
-      this.checkCourseCompletion();
+      this.loadMyProgress();
     }
   },
 
@@ -88,7 +82,7 @@ Page({
     }
   },
 
-  vibrate(type = 'light') {
+  vibrate(_type = 'light') {
     if (!this.data.vibrationEnabled) return;
     if (wx.vibrateShort) {
       wx.vibrateShort({ type: 'medium' });
@@ -106,12 +100,10 @@ Page({
       const token = wx.getStorageSync('access_token');
       const isLoggedIn = wx.getStorageSync('isLoggedIn');
       const isValidLogin = isLoggedIn && token && userInfo && userInfo.id;
-      
       this.setData({
         userInfo: userInfo || null,
         isLoggedIn: !!isValidLogin
       });
-      
       return !!isValidLogin;
     } catch (error) {
       console.error('检查登录状态失败:', error);
@@ -122,108 +114,66 @@ Page({
 
   loadData() {
     this.loadCourses(true);
-    this.loadHotCourses();
+    if (this.data.isLoggedIn) {
+      this.loadMyProgress();
+    }
   },
 
   refreshData() {
     this.setData({ page: 1, courses: [], hasMore: true });
     this.loadCourses(true);
     if (this.data.isLoggedIn) {
-      this.loadUserPoints();
-      this.loadLearningStats();
-      this.checkCourseCompletion();
+      this.loadMyProgress();
     }
     setTimeout(() => {
       wx.stopPullDownRefresh();
     }, 500);
   },
 
-  loadHotCourses() {
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/courses.php',
-      method: 'GET',
-      data: { token: token, limit: 5 },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          this.setData({ hotCourses: res.data.data.slice(0, 5) });
-        }
-      },
-      fail: (err) => {
-        console.error('加载热门课程失败:', err);
-      }
-    });
+  // 团队上下文检查：未选团队时提示
+  ensureTeam(): boolean {
+    if (!hasTeamContext()) {
+      this.setData({ teamMissing: true });
+      return false;
+    }
+    this.setData({ teamMissing: false });
+    return true;
   },
 
-  loadCourses(refresh = false) {
-    if (this.data.loading) return Promise.resolve();
-    
+  async loadCourses(refresh = false) {
+    if (this.data.loading) return;
     if (refresh) {
       this.setData({ page: 1, courses: [], hasMore: true });
     }
-    
     this.setData({ loading: true });
-    
-    const token = wx.getStorageSync('access_token');
-    const params = {
-      token: token,
-      page: this.data.page,
-      limit: this.data.pageSize
-    };
-    
-    // 分类筛选
-    if (this.data.activeCategory === 1) {
-      params.is_required = 1;
-    } else if (this.data.activeCategory === 2) {
-      params.is_required = 0;
-    }
-    
-    // 难度筛选
-    if (this.data.activeDifficulty > 0) {
-      params.difficulty = this.data.activeDifficulty;
-    }
-    
-    // 搜索
-    if (this.data.searchValue) {
-      params.search = this.data.searchValue;
-    }
-    
-    return new Promise((resolve) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/training/courses.php',
-        method: 'GET',
-        data: params,
-        success: (res) => {
-          if (res.data.code === 0 && res.data.data) {
-            let newCourses = res.data.data;
-            
-            if (this.data.isLoggedIn) {
-              newCourses = newCourses.map(course => ({
-                ...course,
-                is_enrolled: course.is_enrolled || false,
-                is_completed: course.is_completed || false
-              }));
-            }
-            
-            const courses = this.data.page === 1 ? newCourses : [...this.data.courses, ...newCourses];
-            
-            this.setData({
-              courses: courses,
-              hasMore: newCourses.length >= this.data.pageSize,
-              loading: false
-            });
-          } else {
-            this.setData({ loading: false });
-          }
-          resolve();
-        },
-        fail: (err) => {
-          console.error('加载课程失败:', err);
-          this.setData({ loading: false });
-          resolve();
-        }
+    try {
+      const res = await trainingApi.listCourses(this.data.page, this.data.pageSize);
+      const items = res.items || [];
+      const merged = this.data.page === 1 ? items : [...this.data.courses, ...items];
+      // 志愿者考试发现（P32-P3A）：从后端课程数据推导可参加的 exam paper。
+      // 一律以后端下发的 exam.paper_public_id 为准，绝不读取任何本地 storage key。
+      const entry = this.deriveExamEntry(merged);
+      this.setData({
+        courses: merged,
+        hasMore: items.length >= this.data.pageSize,
+        loading: false,
+        examEligible: entry.examEligible,
+        examPaperPublicId: entry.examPaperPublicId
       });
-    });
+      this.applyClientFilter();
+    } catch (err: any) {
+      this.setData({ loading: false });
+      this.handleApiError(err, '加载课程失败');
+    }
+  },
+
+  /** 从课程列表推导可参加的考试 paper（后端权威；取首个 eligible 且有 paper_public_id 的课程）。 */
+  deriveExamEntry(courses: CourseView[]): { examEligible: boolean; examPaperPublicId: string } {
+    const eligible = courses.find((c) => c.exam && c.exam.paper_public_id && c.exam.eligible);
+    return {
+      examEligible: !!eligible,
+      examPaperPublicId: eligible?.exam?.paper_public_id || ''
+    };
   },
 
   loadMoreCourses() {
@@ -232,58 +182,43 @@ Page({
     this.loadCourses();
   },
 
-  loadUserPoints() {
-    const token = wx.getStorageSync('access_token');
-    if (!token) return;
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/points_query.php',
-      method: 'GET',
-      data: { token: token },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          this.setData({ userPoints: res.data.data.current_points || 0 });
-        }
-      }
-    });
+  // 客户端筛洗（必修/选修 + 标题搜索）—— 后端返回本团队全部课程
+  applyClientFilter() {
+    let list = this.data.courses;
+    if (this.data.activeCategory === 1) {
+      list = list.filter((c) => c.required === 1);
+    } else if (this.data.activeCategory === 2) {
+      list = list.filter((c) => c.required === 0);
+    }
+    const kw = this.data.searchValue.trim();
+    if (kw) {
+      list = list.filter((c) => (c.title || '').includes(kw));
+    }
+    this.setData({ filteredCourses: list });
   },
 
-  loadLearningStats() {
-    const token = wx.getStorageSync('access_token');
-    if (!token) return;
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/user_stats.php',
-      method: 'GET',
-      data: { token: token },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          this.setData({ learningStats: res.data.data });
-        }
-      }
-    });
-  },
-
-  checkCourseCompletion() {
-    const token = wx.getStorageSync('access_token');
-    if (!token) return;
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/check_completion.php',
-      method: 'GET',
-      data: { token: token },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          this.setData({
-            requiredCompleted: res.data.data.required_completed,
-            electiveCompleted: res.data.data.elective_completed
-          });
-        }
-      },
-      fail: (err) => {
-        console.error('检查课程完成状态失败:', err);
-      }
-    });
+  async loadMyProgress() {
+    try {
+      const res = await trainingApi.myProgress();
+      const items: MyProgressItem[] = res.items || [];
+      const required = items.filter((i) => i.required === 1);
+      const elective = items.filter((i) => i.required === 0);
+      const requiredCompleted = required.length > 0 && required.every((i) => i.completed);
+      const electiveCompleted = elective.length > 0 && elective.some((i) => i.completed);
+      const completedCount = items.filter((i) => i.completed).length;
+      const inProgressCount = items.filter((i) => !i.completed).length;
+      this.setData({
+        learningStats: {
+          enrolledCount: items.length,
+          completedCount,
+          inProgressCount
+        },
+        requiredCompleted,
+        electiveCompleted
+      });
+    } catch (err: any) {
+      this.handleApiError(err, '加载学习进度失败');
+    }
   },
 
   goBack() {
@@ -304,7 +239,11 @@ Page({
     wx.navigateTo({ url: '/pages/login-unified/index' });
   },
 
-  onSearchInput(e) {
+  goToSelectTeam() {
+    wx.navigateTo({ url: '/pages/teams/select/select' });
+  },
+
+  onSearchInput(e: any) {
     this.setData({ searchValue: e.detail.value });
   },
 
@@ -319,33 +258,16 @@ Page({
     this.loadCourses(true);
   },
 
-  onCategoryChange(e) {
+  onCategoryChange(e: any) {
     const categoryId = e.currentTarget.dataset.id;
     this.vibrate('light');
-    this.setData({
-      activeCategory: categoryId,
-      page: 1,
-      courses: [],
-      hasMore: true
-    });
-    this.loadCourses(true);
+    this.setData({ activeCategory: categoryId });
+    this.applyClientFilter();
   },
 
-  onDifficultyChange(e) {
-    const difficultyId = e.currentTarget.dataset.id;
-    this.vibrate('light');
-    this.setData({
-      activeDifficulty: difficultyId,
-      page: 1,
-      courses: [],
-      hasMore: true
-    });
-    this.loadCourses(true);
-  },
-
-  goToCourseDetail(e) {
-    const courseId = e.currentTarget.dataset.id;
-    const course = this.data.courses.find(c => c.id == courseId) || this.data.hotCourses.find(c => c.id == courseId);
+  goToCourseDetail(e: any) {
+    const publicId = e.currentTarget.dataset.publicId;
+    const course = this.data.courses.find((c) => c.public_id === publicId) || null;
     if (course) {
       this.vibrate('light');
       this.setData({ currentCourse: course, showCourseDetail: true });
@@ -356,124 +278,68 @@ Page({
     this.setData({ showCourseDetail: false });
   },
 
-  handleCourseAction(e) {
-    const course = e.currentTarget.dataset.course || this.data.currentCourse;
+  handleCourseAction(e: any) {
+    const course: CourseView = e.currentTarget.dataset.course || this.data.currentCourse;
     if (!course) return;
-    
     this.vibrate('light');
-    
     if (!this.data.isLoggedIn) {
       wx.navigateTo({ url: '/pages/login-unified/index' });
       return;
     }
-    
-    if (course.is_completed) {
+    if (!this.ensureTeam()) {
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      setTimeout(() => this.goToSelectTeam(), 800);
+      return;
+    }
+    if (course.completed) {
       wx.showToast({ title: '已完成', icon: 'none' });
       return;
     }
-    
-    if (course.is_enrolled) {
-      wx.navigateTo({ url: `/pages/training/chapter/chapter?course_id=${course.id}` });
+    if (course.enrolled) {
+      wx.navigateTo({ url: `/pages/training/chapter/chapter?coursePublicId=${course.public_id}` });
     } else {
       wx.showLoading({ title: '报名中...' });
-      this.enrollCourse(course.id);
+      this.enrollCourse(course);
     }
   },
 
-  enrollCourse(courseId) {
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/enroll.php',
-      method: 'POST',
-      header: { 'Content-Type': 'application/json' },
-      data: { token: token, course_id: courseId },
-      success: (res) => {
-        wx.hideLoading();
-        if (res.data.code === 0) {
-          wx.showToast({ title: '报名成功', icon: 'success' });
-          this.refreshData();
-        } else {
-          wx.showToast({ title: res.data.msg || '报名失败', icon: 'none' });
-        }
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: '网络错误', icon: 'none' });
-      }
-    });
+  async enrollCourse(course: CourseView) {
+    try {
+      await trainingApi.enroll(course.public_id);
+      wx.hideLoading();
+      wx.showToast({ title: '报名成功', icon: 'success' });
+      this.setData({ page: 1, courses: [], hasMore: true });
+      this.loadCourses(true);
+      this.loadMyProgress();
+    } catch (err: any) {
+      wx.hideLoading();
+      this.handleApiError(err, '报名失败');
+    }
   },
 
-  // 去考试 - 检查是否已有证书 -> 若无证书则获取当前有效场次并跳转
   goToExamCenter() {
     this.vibrate('light');
-    if (!this.data.requiredCompleted || !this.data.electiveCompleted) {
+    if (!this.data.isLoggedIn) {
+      wx.navigateTo({ url: '/pages/login-unified/index' });
+      return;
+    }
+    if (!this.ensureTeam()) {
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      setTimeout(() => this.goToSelectTeam(), 800);
+      return;
+    }
+    // paperPublicId 完全来自后端课程数据（P32-P3A），不再读取任何本地 storage key。
+    const paperPublicId = this.data.examPaperPublicId;
+    if (!paperPublicId) {
+      wx.showToast({ title: '暂无可参加的考试，请先完成课程', icon: 'none' });
+      return;
+    }
+    if (!this.data.examEligible) {
       wx.showToast({ title: '请先完成所有课程', icon: 'none' });
       return;
     }
-    
-    const token = wx.getStorageSync('access_token');
-    if (!token) {
-      wx.showToast({ title: '请先登录', icon: 'none' });
-      return;
-    }
-    
-    wx.showLoading({ title: '检查中...', mask: true });
-    
-    // 第一步：检查是否已有培训证书
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/check_training_certificate.php',
-      method: 'GET',
-      data: { token: token },
-      success: (certRes) => {
-        if (certRes.data.code === 0 && certRes.data.data) {
-          if (certRes.data.data.has_certificate === true) {
-            wx.hideLoading();
-            wx.showModal({
-              title: '提示',
-              content: '您已取得培训证书，无需重复考试',
-              showCancel: false,
-              confirmText: '知道了'
-            });
-            return;
-          }
-          
-          // 第二步：无证书，获取当前有效考试场次
-          this.getActiveExamSession();
-        } else {
-          wx.hideLoading();
-          wx.showToast({ title: certRes.data.msg || '检查证书失败', icon: 'none' });
-        }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error('检查证书失败:', err);
-        wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
-      }
-    });
-  },
-  
-  // 获取当前有效考试场次并跳转
-  getActiveExamSession() {
-    wx.request({
-      url: 'https://api.jhzyfw.com/exam/api_get_active_session.php',
-      method: 'GET',
-      success: (res) => {
-        wx.hideLoading();
-        if (res.data.code === 0 && res.data.data && res.data.data.session_id) {
-          const sessionId = res.data.data.session_id;
-          const examUrl = `https://exam.jhzyfw.com/?session=${sessionId}`;
-          wx.navigateTo({ 
-            url: '/pages/webview/webview?url=' + encodeURIComponent(examUrl)
-          });
-        } else {
-          wx.showToast({ title: '当前暂无有效考试场次', icon: 'none' });
-        }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error('获取考试场次失败:', err);
-        wx.showToast({ title: '获取考试场次失败，请稍后重试', icon: 'none' });
-      }
+    wx.navigateTo({
+      url: `/pages/exam/take/take?paperPublicId=${paperPublicId}`
     });
   },
 
@@ -506,8 +372,29 @@ Page({
   },
 
   viewMoreHotCourses() {
-    this.setData({ activeCategory: 0, page: 1, courses: [], hasMore: true });
-    this.loadCourses(true);
+    this.setData({ activeCategory: 0 });
+    this.applyClientFilter();
+  },
+
+  handleApiError(err: any, fallback: string) {
+    if (!err) {
+      wx.showToast({ title: fallback, icon: 'none' });
+      return;
+    }
+    if (err.isNetwork) {
+      wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
+      return;
+    }
+    if (err.status === 401) {
+      wx.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
+      return;
+    }
+    if (err.code === 'TEAM_SCOPE_REQUIRED' || err.status === 403) {
+      this.setData({ teamMissing: true });
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      return;
+    }
+    wx.showToast({ title: err.message || fallback, icon: 'none' });
   },
 
   onShareAppMessage() {

@@ -1,58 +1,53 @@
-// pages/training/chapter/chapter.js
-const app = getApp();
+import { trainingApi, hasTeamContext, type LessonView } from '../../../utils/trainingApi';
 
+// pages/training/chapter/chapter.ts（P32-P3）
+// 课程详情 + 章节学习：对接 /api/v2/training，使用 coursePublicId + lessonPublicId，绝不调用 legacy PHP。
 Page({
   data: {
-    courseId: null,
+    coursePublicId: '' as string,
     courseTitle: '',
-    chapters: [],
-    currentChapter: null,
-    currentChapterIndex: 0,
+    lessons: [] as LessonView[],
+    currentLesson: null as (LessonView & { content?: string; lesson_type?: string; duration_min?: number }) | null,
+    currentLessonIndex: 0,
     loading: true,
-    startTime: null,
-    timer: null,
-    remainingSeconds: 0,
-    canNext: false,
-    signatureImage: null,
-    signatureUploaded: false
+    teamMissing: false,
+    // P32-P3A：后端下发的课程关联考试（含 paper_public_id）；用于结课后引导考试。
+    courseExam: null as any,
+    startTime: 0,
+    elapsedSeconds: 0,
+    timer: null as any
   },
 
-  onLoad(options) {
-    if (options.course_id) {
-      this.setData({ courseId: options.course_id });
-      this.loadCourseDetail();
+  onLoad(options: any) {
+    if (options.coursePublicId) {
+      this.setData({ coursePublicId: options.coursePublicId });
+      this.loadCourse();
+    } else {
+      wx.showToast({ title: '缺少课程参数', icon: 'none' });
+      setTimeout(() => wx.navigateBack(), 1200);
     }
   },
 
   onShow() {
-    this.setData({ startTime: Date.now() });
+    this.setData({ startTime: Date.now(), elapsedSeconds: 0 });
     this.startTimer();
   },
 
   onHide() {
     this.stopTimer();
-    this.recordProgress();
+    this.recordProgress(false);
   },
 
   onUnload() {
     this.stopTimer();
-    this.recordProgress();
+    this.recordProgress(false);
   },
 
   startTimer() {
     if (this.data.timer) return;
-    
-    const minDuration = this.data.currentChapter?.min_duration || 0;
-    this.setData({ remainingSeconds: minDuration, canNext: false });
-    
     this.data.timer = setInterval(() => {
-      let remaining = this.data.remainingSeconds;
-      if (remaining > 0) {
-        this.setData({ remainingSeconds: remaining - 1 });
-      } else if (remaining === 0 && !this.data.canNext) {
-        this.setData({ canNext: true });
-        this.stopTimer();
-      }
+      const elapsed = Math.floor((Date.now() - this.data.startTime) / 1000);
+      this.setData({ elapsedSeconds: elapsed });
     }, 1000);
   },
 
@@ -63,197 +58,139 @@ Page({
     }
   },
 
-  loadCourseDetail() {
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/course_detail.php',
-      method: 'GET',
-      data: {
-        token: token,
-        course_id: this.data.courseId
-      },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          const course = res.data.data;
-          this.setData({
-            courseTitle: course.title,
-            chapters: course.chapters || [],
-            loading: false
-          });
-          
-          const firstUncompleted = this.data.chapters.find(c => !c.is_completed);
-          if (firstUncompleted) {
-            const index = this.data.chapters.findIndex(c => c.id === firstUncompleted.id);
-            this.loadChapter(firstUncompleted.id, index);
-          } else if (this.data.chapters.length > 0) {
-            this.loadChapter(this.data.chapters[0].id, 0);
-          }
-        } else {
-          wx.showToast({ title: '加载失败', icon: 'none' });
-          setTimeout(() => wx.navigateBack(), 1500);
-        }
-      },
-      fail: () => {
-        wx.showToast({ title: '网络错误', icon: 'none' });
-        this.setData({ loading: false });
-      }
-    });
+  ensureTeam(): boolean {
+    if (!hasTeamContext()) {
+      this.setData({ teamMissing: true });
+      return false;
+    }
+    this.setData({ teamMissing: false });
+    return true;
   },
 
-  loadChapter(chapterId, index) {
+  async loadCourse() {
+    if (!this.ensureTeam()) {
+      this.setData({ loading: false });
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      return;
+    }
+    this.setData({ loading: true });
+    try {
+      const res = await trainingApi.getCourse(this.data.coursePublicId);
+      const lessons: LessonView[] = res.lessons || [];
+      this.setData({ courseTitle: res.course.title, lessons, courseExam: (res.course as any).exam || null, loading: false });
+      const firstUncompleted = lessons.find((l) => !l.completed);
+      const idx = firstUncompleted ? lessons.findIndex((l) => l.public_id === firstUncompleted.public_id) : lessons.length > 0 ? 0 : -1;
+      if (idx >= 0) {
+        this.loadLesson(lessons[idx].public_id, idx);
+      }
+    } catch (err: any) {
+      this.setData({ loading: false });
+      this.handleApiError(err, '加载课程失败');
+      setTimeout(() => wx.navigateBack(), 1500);
+    }
+  },
+
+  async loadLesson(lessonPublicId: string, index: number) {
+    try {
+      const lesson = await trainingApi.getLesson(this.data.coursePublicId, lessonPublicId);
+      this.setData({
+        currentLesson: lesson as any,
+        currentLessonIndex: index,
+        startTime: Date.now(),
+        elapsedSeconds: 0
+      });
+    } catch (err: any) {
+      this.handleApiError(err, '加载章节失败');
+    }
+  },
+
+  selectLesson(e: any) {
+    const publicId = e.currentTarget.dataset.publicId;
+    const index = e.currentTarget.dataset.index;
+    this.recordProgress(false);
+    this.loadLesson(publicId, index);
+  },
+
+  async recordProgress(completed: boolean) {
+    if (!this.data.currentLesson || !this.data.coursePublicId) return;
+    if (!hasTeamContext()) return;
+    const learnedSeconds = Math.floor((Date.now() - this.data.startTime) / 1000);
+    try {
+      await trainingApi.reportProgress(this.data.coursePublicId, this.data.currentLesson.public_id, {
+        learned_seconds: Math.max(0, learnedSeconds),
+        completed
+      });
+    } catch (err: any) {
+      // 进度上报失败不阻断用户；记录日志即可
+      console.error('进度上报失败:', err);
+    }
+  },
+
+  async completeAndNext() {
+    if (!this.data.currentLesson) return;
     this.stopTimer();
-    
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/chapter.php',
-      method: 'GET',
-      data: {
-        token: token,
-        chapter_id: chapterId
-      },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data) {
-          this.setData({
-            currentChapter: res.data.data,
-            currentChapterIndex: index,
-            startTime: Date.now()
-          });
-          
-          if (res.data.data.title === '志愿者宣誓') {
-            this.checkSignatureStatus();
-          }
-          
-          if (res.data.data.is_completed) {
-            this.setData({ canNext: true, remainingSeconds: 0 });
-          } else {
-            this.startTimer();
-          }
-        }
-      },
-      fail: (err) => {
-        console.error('加载章节失败:', err);
-      }
-    });
-  },
-
-  checkSignatureStatus() {
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/check_signature.php',
-      method: 'GET',
-      data: {
-        token: token,
-        course_id: this.data.courseId,
-        chapter_id: this.data.currentChapter.id
-      },
-      success: (res) => {
-        if (res.data.code === 0 && res.data.data && res.data.data.has_signature) {
-          this.setData({ signatureUploaded: true, canNext: true });
-        }
-      }
-    });
-  },
-
-  chooseSignature() {
-    const that = this;
-    wx.chooseImage({
-      count: 1,
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera'],
-      success(res) {
-        const tempFilePath = res.tempFilePaths[0];
-        that.setData({ signatureImage: tempFilePath, signatureUploaded: false });
-        that.uploadSignature(tempFilePath);
-      }
-    });
-  },
-
-  uploadSignature(filePath) {
-    const that = this;
-    const token = wx.getStorageSync('access_token');
-    const chapterId = this.data.currentChapter.id;
-    
-    wx.uploadFile({
-      url: 'https://api.jhzyfw.com/api/training/upload_signature.php',
-      filePath: filePath,
-      name: 'signature',
-      formData: {
-        token: token,
-        chapter_id: chapterId,
-        course_id: this.data.courseId
-      },
-      success(res) {
-        const data = JSON.parse(res.data);
-        if (data.code === 0) {
-          that.setData({ signatureUploaded: true });
-          that.recordProgress();
-          wx.showToast({ title: '签名上传成功', icon: 'success' });
-        } else {
-          wx.showToast({ title: data.msg || '上传失败', icon: 'none' });
-        }
-      },
-      fail() {
-        wx.showToast({ title: '上传失败，请重试', icon: 'none' });
-      }
-    });
-  },
-
-  recordProgress() {
-    if (!this.data.currentChapter || !this.data.startTime) return;
-    
-    const duration = Math.floor((Date.now() - this.data.startTime) / 1000);
-    const minDuration = this.data.currentChapter.min_duration || 0;
-    const recordDuration = Math.min(duration, minDuration + 10);
-    
-    const token = wx.getStorageSync('access_token');
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/training/progress.php',
-      method: 'POST',
-      header: { 'Content-Type': 'application/json' },
-      data: {
-        token: token,
-        chapter_id: this.data.currentChapter.id,
-        duration_spent: recordDuration
-      }
-    });
-  },
-
-  goToNextChapter() {
-    if (this.data.currentChapter.title === '志愿者宣誓' && !this.data.signatureUploaded) {
-      wx.showToast({ title: '请先上传手写签名', icon: 'none' });
-      return;
-    }
-    
-    if (!this.data.canNext) {
-      const remaining = this.data.remainingSeconds;
-      wx.showToast({ 
-        title: `请继续学习 ${remaining} 秒`, 
-        icon: 'none',
-        duration: 2000
-      });
-      return;
-    }
-    
-    this.recordProgress();
-    
-    const nextIndex = this.data.currentChapterIndex + 1;
-    if (nextIndex < this.data.chapters.length) {
-      const nextChapter = this.data.chapters[nextIndex];
-      this.loadChapter(nextChapter.id, nextIndex);
+    await this.recordProgress(true);
+    const nextIndex = this.data.currentLessonIndex + 1;
+    if (nextIndex < this.data.lessons.length) {
+      const next = this.data.lessons[nextIndex];
+      this.loadLesson(next.public_id, nextIndex);
     } else {
-      wx.showModal({
-        title: '恭喜',
-        content: '您已完成本课程所有章节！',
-        showCancel: false,
-        success: () => {
-          wx.navigateBack();
-        }
-      });
+      const exam = this.data.courseExam;
+      if (exam && exam.eligible && exam.paper_public_id) {
+        // 本课程完成后、后端确认存在可参加的考试 → 引导进入内部考试页（paper 来自后端，不依赖 storage）。
+        wx.showModal({
+          title: '恭喜',
+          content: '您已完成本课程所有章节，是否前往参加考试？',
+          confirmText: '去考试',
+          cancelText: '稍后',
+          success: (r: any) => {
+            if (r.confirm) {
+              wx.redirectTo({ url: `/pages/exam/take/take?paperPublicId=${exam.paper_public_id}` });
+            } else {
+              wx.navigateBack();
+            }
+          }
+        });
+      } else {
+        wx.showModal({
+          title: '恭喜',
+          content: '您已完成本课程所有章节！',
+          showCancel: false,
+          success: () => {
+            wx.navigateBack();
+          }
+        });
+      }
     }
+  },
+
+  goToSelectTeam() {
+    wx.navigateTo({ url: '/pages/teams/select/select' });
   },
 
   goBack() {
-    this.recordProgress();
+    this.recordProgress(false);
     wx.navigateBack();
+  },
+
+  handleApiError(err: any, fallback: string) {
+    if (!err) {
+      wx.showToast({ title: fallback, icon: 'none' });
+      return;
+    }
+    if (err.isNetwork) {
+      wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
+      return;
+    }
+    if (err.status === 401) {
+      wx.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
+      return;
+    }
+    if (err.code === 'TEAM_SCOPE_REQUIRED' || err.status === 403) {
+      this.setData({ teamMissing: true });
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      return;
+    }
+    wx.showToast({ title: err.message || fallback, icon: 'none' });
   }
 });

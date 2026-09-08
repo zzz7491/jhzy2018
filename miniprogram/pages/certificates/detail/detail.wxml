@@ -1,67 +1,57 @@
 <view class="container">
-  <view wx:if="{{loading}}" class="loading">
-    <text>加载中...</text>
+  <!-- 团队上下文缺失 -->
+  <view wx:if="{{teamMissing}}" class="state-box">
+    <text class="state-icon">👥</text>
+    <text class="state-text">请先选择团队</text>
+    <button class="primary-btn" bindtap="goToSelectTeam">去选择团队</button>
   </view>
 
-  <scroll-view wx:else class="content" scroll-y>
-    <!-- 证书卡片 -->
+  <view wx:elif="{{loading}}" class="state-box">
+    <view class="loading"></view>
+    <text class="state-text">加载中...</text>
+  </view>
+
+  <view wx:elif="{{errorMsg}}" class="state-box">
+    <text class="state-icon">⚠️</text>
+    <text class="state-text">{{errorMsg}}</text>
+  </view>
+
+  <scroll-view wx:elif="{{certificate}}" class="content" scroll-y>
     <view class="cert-card">
       <view class="cert-header">
-        <text class="cert-name">{{certificate.certificate_name}}</text>
-        <text class="cert-type" wx:if="{{certificate.certificate_type === 'service'}}">志愿服务</text>
-        <text class="cert-type" wx:elif="{{certificate.certificate_type === 'training'}}">培训证书</text>
-        <text class="cert-type" wx:else>其他证书</text>
+        <text class="cert-name">{{certificate.cert_type === 'training' ? '培训证书' : certificate.cert_type}}</text>
+        <text class="cert-status {{certificate.status === 1 ? 'valid' : 'invalid'}}">{{certificate.status === 1 ? '有效' : '已失效'}}</text>
       </view>
 
       <view class="cert-number">
         <text class="label">证书编号</text>
-        <text class="value">{{certificate.certificate_no}}</text>
+        <text class="value">{{certificate.cert_no}}</text>
       </view>
 
       <view class="cert-info">
-        <view class="info-item">
-          <text class="label">姓名</text>
-          <text class="value">{{certificate.volunteer_name || certificate.owner_name || certificate.name}}</text>
+        <view class="info-item" wx:if="{{certificate.holder_name}}">
+          <text class="label">持证人</text>
+          <text class="value">{{certificate.holder_name}}</text>
         </view>
-        <view class="info-item" wx:if="{{certificate.id_card}}">
-          <text class="label">身份证号</text>
-          <text class="value">{{certificate.id_card}}</text>
-        </view>
-        <view class="info-item">
-          <text class="label">颁发日期</text>
-          <text class="value">{{certificate.issue_date}}</text>
-        </view>
-        <view class="info-item" wx:if="{{certificate.expire_date}}">
-          <text class="label">有效期至</text>
-          <text class="value">{{certificate.expire_date}}</text>
-        </view>
-        <view class="info-item">
+        <view class="info-item" wx:if="{{certificate.issuer_name}}">
           <text class="label">颁发机构</text>
-          <text class="value">{{certificate.issuer || '嘉兴市嘉禾志愿服务中心'}}</text>
+          <text class="value">{{certificate.issuer_name}}</text>
         </view>
-        <view class="info-item" wx:if="{{certificate.score}}">
-          <text class="label">成绩</text>
-          <text class="value">{{certificate.score}}分</text>
+        <view class="info-item" wx:if="{{certificate.issuedAtText}}">
+          <text class="label">颁发时间</text>
+          <text class="value">{{certificate.issuedAtText}}</text>
+        </view>
+        <view class="info-item" wx:if="{{certificate.course_public_id}}">
+          <text class="label">关联课程</text>
+          <text class="value">{{certificate.course_public_id}}</text>
+        </view>
+        <view class="info-item" wx:if="{{certificate.activity_public_id}}">
+          <text class="label">关联活动</text>
+          <text class="value">{{certificate.activity_public_id}}</text>
         </view>
       </view>
 
-      <view class="activity-info" wx:if="{{certificate.activity_name}}">
-        <text class="activity-label">关联活动</text>
-        <text class="activity-name">{{certificate.activity_name}}</text>
-      </view>
-    </view>
-
-    <!-- 操作按钮 -->
-    <view class="action-buttons">
-      <view class="action-btn" bindtap="previewPDF" wx:if="{{certificate.pdf_url}}">
-        <text class="btn-icon">📄</text>
-        <text>查看证书</text>
-      </view>
-    </view>
-
-    <!-- 来源信息 -->
-    <view class="source-info" wx:if="{{certificate.source_db}}">
-      <text class="source-text">数据来源: {{certificate.source_db}}</text>
+      <view class="note">本证书由嘉禾志愿服务平台颁发，可通过证书编号验真。</view>
     </view>
   </scroll-view>
 </view>

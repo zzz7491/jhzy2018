@@ -56,7 +56,9 @@
     "pages/admin/exchange-manage/index",
     "pages/training/chapter/chapter",
     "pages/admin/activity-signups/activity-signups",
-    "pages/admin/training-certificates/index"
+    "pages/admin/training-certificates/index",
+    "pages/exam/take/take",
+    "pages/exam/result/result"
   ],
   "tabBar": {
     "color": "#999999",

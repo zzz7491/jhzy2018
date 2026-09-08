@@ -1,120 +1,95 @@
+import { trainingApi, hasTeamContext, type CertificateView } from '../../../utils/trainingApi';
+
+// pages/certificates/detail/detail.ts（P32-P3）
+// 证书详情：对接 /api/v2/certificates/:certificatePublicId。仅展示安全字段，绝不展示 id_card / numeric id / verify_code / PDF。
 Page({
   data: {
-    certificate: null,
+    certificate: null as (CertificateView & { issuedAtText?: string }) | null,
     loading: true,
-    id: null
+    teamMissing: false,
+    errorMsg: '' as string
   },
 
-  onLoad(options) {
-    if (options.id) {
-      this.setData({ id: options.id });
-      this.loadDetail(options.id);
-    }
-  },
-
-  loadDetail(id) {
-    const token = wx.getStorageSync('access_token') || wx.getStorageSync('token');
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/certificate_detail.php?token=' + token + '&id=' + id,
-      method: 'GET',
-      success: (res) => {
-        if (res.data && res.data.code === 0) {
-          this.setData({
-            certificate: res.data.data,
-            loading: false
-          });
-        } else {
-          wx.showToast({
-            title: res.data?.msg || '加载失败',
-            icon: 'none'
-          });
-          setTimeout(() => {
-            wx.navigateBack();
-          }, 1500);
-        }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'none'
-        });
-        this.setData({ loading: false });
-      }
-    });
-  },
-
-  // 预览PDF（强化装甲版）
-  previewPDF() {
-    let pdfUrl = this.data.certificate?.pdf_url || this.data.certificate?.certificate_url;
-    
-    if (!pdfUrl) {
-      wx.showToast({
-        title: '暂无证书文件',
-        icon: 'none'
-      });
+  onLoad(options: any) {
+    const publicId = options.certificatePublicId || options.id || '';
+    if (!publicId) {
+      this.setData({ loading: false, errorMsg: '缺少证书参数' });
       return;
     }
-    
-    // 1. 修复可能存在的相对路径或不规范路径
-    if (pdfUrl.startsWith('/')) {
-      pdfUrl = 'https://api.jhzyfw.com' + pdfUrl;
-    } else if (!pdfUrl.startsWith('http')) {
-      pdfUrl = 'https://api.jhzyfw.com/' + pdfUrl;
-    }
-    // 强制使用 https
-    pdfUrl = pdfUrl.replace(/^http:/, 'https:');
-    
-    wx.showLoading({ title: '获取证书中...' });
-    
-    wx.downloadFile({
-      url: pdfUrl,
-      success: (res) => {
-        wx.hideLoading();
-        // 2. 检查下载状态
-        if (res.statusCode === 200) {
-          wx.openDocument({
-            filePath: res.tempFilePath,
-            fileType: 'pdf', // 【关键补丁】：强制告诉微信这是PDF，防止因为假文件崩溃
-            showMenu: true,  // 允许用户转发或保存
-            success: () => {
-              console.log('打开文档成功');
-            },
-            fail: (err) => {
-              console.error('打开文档失败:', err);
-              // 【人性化提示】：如果还是打不开，大概率是旧服务器遗失的文件
-              wx.showModal({
-                title: '无法打开',
-                content: '这份早期的证书文件可能已在服务器迁移中遗失，或者文件已损坏。',
-                showCancel: false
-              });
-            }
-          });
-        } else {
-          wx.showToast({
-            title: '证书不存在(404)',
-            icon: 'error'
-          });
-        }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error('下载失败:', err);
-        wx.showToast({
-          title: '下载失败',
-          icon: 'none'
-        });
-      }
-    });
+    this.loadDetail(publicId);
   },
 
-  // 右上角分享
-  onShareAppMessage() {
-    const cert = this.data.certificate;
-    return {
-      title: cert?.certificate_name || cert?.activity_title || '我的志愿服务证书',
-      path: 'pages/certificates/detail/detail?id=' + this.data.id,
-      imageUrl: '/images/share-cert.png'
-    };
+  onPullDownRefresh() {
+    const publicId = this.data.certificate?.public_id;
+    if (publicId) this.loadDetail(publicId);
+    wx.stopPullDownRefresh();
+  },
+
+  ensureTeam(): boolean {
+    if (!hasTeamContext()) {
+      this.setData({ teamMissing: true, loading: false });
+      return false;
+    }
+    this.setData({ teamMissing: false });
+    return true;
+  },
+
+  async loadDetail(publicId: string) {
+    if (!this.ensureTeam()) {
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      return;
+    }
+    this.setData({ loading: true, errorMsg: '' });
+    try {
+      const res = await trainingApi.getCertificate(publicId);
+      const cert = res.certificate;
+      this.setData({
+        certificate: {
+          ...cert,
+          issuedAtText: formatDate(cert.issued_at)
+        },
+        loading: false
+      });
+    } catch (err: any) {
+      this.setData({ loading: false });
+      this.handleApiError(err, '加载证书详情失败');
+    }
+  },
+
+  goToSelectTeam() {
+    wx.navigateTo({ url: '/pages/teams/select/select' });
+  },
+
+  // PDF 不在 P32 范围内；后端当前未提供 PDF 服务，故不提供下载。
+  handleApiError(err: any, fallback: string) {
+    if (!err) {
+      wx.showToast({ title: fallback, icon: 'none' });
+      return;
+    }
+    if (err.isNetwork) {
+      wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
+      return;
+    }
+    if (err.status === 401) {
+      wx.showToast({ title: '登录已过期，请重新登录', icon: 'none' });
+      return;
+    }
+    if (err.code === 'TEAM_SCOPE_REQUIRED' || err.status === 403) {
+      this.setData({ teamMissing: true });
+      wx.showToast({ title: '请先选择团队', icon: 'none' });
+      return;
+    }
+    if (err.status === 404) {
+      this.setData({ errorMsg: '证书不存在或暂无查看权限' });
+      return;
+    }
+    wx.showToast({ title: err.message || fallback, icon: 'none' });
   }
 });
+
+function formatDate(sec: number): string {
+  if (!sec) return '';
+  const d = new Date(sec * 1000);
+  const p = (n: number) => (n < 10 ? '0' + n : '' + n);
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}

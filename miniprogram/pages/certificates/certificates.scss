@@ -53,3 +53,95 @@
   background: #e6f7e6;
   color: #52c41a;
 }
+
+/* P32-P3 新增样式 */
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 40rpx;
+}
+
+.state-icon {
+  font-size: 80rpx;
+  margin-bottom: 24rpx;
+}
+
+.state-text {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+}
+
+.state-sub {
+  font-size: 24rpx;
+  color: #999;
+  margin-bottom: 32rpx;
+}
+
+.primary-btn {
+  background: #ff6b35;
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  padding: 12rpx 48rpx;
+}
+
+.cert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.cert-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  position: relative;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.cert-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.cert-type {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.cert-status {
+  font-size: 24rpx;
+  color: #999;
+  background: #f0f0f0;
+  padding: 6rpx 20rpx;
+  border-radius: 30rpx;
+}
+
+.cert-status.valid {
+  background: #e6f7e6;
+  color: #52c41a;
+}
+
+.cert-status.invalid {
+  background: #fdeaea;
+  color: #e64340;
+}
+
+.cert-no, .cert-name, .cert-issuer, .cert-date {
+  font-size: 28rpx;
+  color: #555;
+  margin-bottom: 8rpx;
+}
+
+.cert-arrow {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #ff6b35;
+  text-align: right;
+}

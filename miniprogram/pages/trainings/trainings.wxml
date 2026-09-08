@@ -1,28 +1,45 @@
 <view class="container">
-  <view wx:if="{{loading}}" class="loading">
-    <text>加载中...</text>
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="state-box">
+    <view class="loading"></view>
+    <text class="state-text">加载中...</text>
   </view>
 
-  <!-- 未参加过考试 -->
-  <view wx:elif="{{!hasExam}}" class="empty">
-    <text>您还未参加培训考试</text>
-    <button class="exam-btn" bindtap="goToExam" type="primary">我要考试</button>
+  <!-- 未登录 -->
+  <view wx:elif="{{!isLoggedIn}}" class="state-box">
+    <text class="state-icon">🔑</text>
+    <text class="state-text">请先登录</text>
+    <button class="primary-btn" bindtap="goToLogin">去登录</button>
   </view>
 
-  <!-- 参加过考试但未合格 -->
-  <view wx:elif="{{hasExam && !isPassed}}" class="fail">
-    <text>您的考试成绩未达到合格线</text>
-    <button class="exam-btn" bindtap="goToExam" type="default">重新考试</button>
+  <!-- 未选择团队 -->
+  <view wx:elif="{{teamMissing}}" class="state-box">
+    <text class="state-icon">👥</text>
+    <text class="state-text">请先选择团队</text>
+    <button class="primary-btn" bindtap="goToSelectTeam">去选择团队</button>
   </view>
 
-  <!-- 考试合格，显示证书 -->
-  <view wx:elif="{{hasExam && isPassed}}" class="success">
-    <view class="cert-card">
-      <view class="cert-icon">✅</view>
-      <view class="cert-title">培训考试合格</view>
-      <view class="cert-code">证书编号：{{certificate.cert_code}}</view>
-      <view class="cert-date">颁发时间：{{certificate.issued_at}}</view>
-      <button class="view-cert-btn" bindtap="viewCertificate" type="primary">查看证书</button>
-    </view>
+  <!-- 已合格：展示证书 -->
+  <view wx:elif="{{certificate}}" class="cert-card">
+    <view class="cert-icon">✅</view>
+    <view class="cert-title">培训考试合格</view>
+    <view class="cert-code">证书编号：{{certificate.cert_no}}</view>
+    <button class="view-cert-btn" bindtap="viewCertificate" type="primary">查看证书</button>
+    <button class="ghost-btn" bindtap="goToLearning">进入培训</button>
+  </view>
+
+  <!-- 未合格：考试入口 -->
+  <view wx:else class="exam-entry">
+    <view class="entry-icon">📝</view>
+    <view class="entry-title">志愿者培训考试</view>
+    <block wx:if="{{examEligible}}">
+      <view class="entry-tip ok">您已完成全部课程，可以参加考试</view>
+      <button class="exam-btn" bindtap="goToExam" type="primary">我要考试</button>
+    </block>
+    <block wx:else>
+      <view class="entry-tip warn">请先完成必修与至少一门选修课程</view>
+      <button class="exam-btn" bindtap="goToLearning" type="default">去学习</button>
+    </block>
+    <button class="ghost-btn" bindtap="goToCertificates">我的证书</button>
   </view>
 </view>

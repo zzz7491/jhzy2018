@@ -12,6 +12,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import { TrainingRepository, type CourseInput, type LessonInput } from '../repository/training';
+import { ExamRepository } from '../repository/exam';
 import { invalidParam, authRequired, teamScopeRequired, notFound } from '../utils/errors';
 
 export interface TrainingServiceDeps {
@@ -22,9 +23,11 @@ export interface TrainingServiceDeps {
 
 export class TrainingService {
   private readonly repo: TrainingRepository;
+  private readonly examRepo: ExamRepository;
 
   constructor(deps: TrainingServiceDeps) {
     this.repo = new TrainingRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
+    this.examRepo = new ExamRepository({ db: deps.db, ctx: { auth: deps.auth, tenant: deps.tenant } });
   }
 
   private requireActor(): { userId: number; teamId: number } {
@@ -278,6 +281,12 @@ export class TrainingService {
     const { teamId, userId } = this.requireActor();
     const lessons = await this.repo.countActiveLessons(teamId, course.id);
     const enrollment = await this.repo.findEnrollment(userId, course.id);
+    const completed = (enrollment?.status ?? 0) === 3 || enrollment?.completed_at != null;
+    // 志愿者考试发现（P32-P3A）：返回当前课程关联的、已发布(active)的志愿考试 paper。
+    // 一课可能多卷，确定性取「最近创建的 active paper」；无则 exam=null（前端显示不可考）。
+    // eligibility 由后端权威判定：用户已完成本课程（enrollment 完成）才视为可考。
+    const paper = await this.examRepo.findActivePaperByCourseId(teamId, course.id);
+    const exam = paper ? { paper_public_id: paper.public_id, eligible: completed } : null;
     return {
       public_id: course.public_id,
       title: course.title,
@@ -289,7 +298,8 @@ export class TrainingService {
       lesson_count: lessons,
       enrolled: !!enrollment,
       progress: enrollment?.progress ?? null,
-      completed: (enrollment?.status ?? 0) === 3,
+      completed,
+      exam,
       created_at: course.created_at,
     };
   }

@@ -1,0 +1,47 @@
+<view class="exam-result">
+  <view class="header">
+    <text class="title">考试成绩</text>
+  </view>
+
+  <view wx:if="{{teamMissing}}" class="state-box">
+    <text class="state-icon">👥</text>
+    <text class="state-text">请先选择团队</text>
+    <button class="primary-btn" bindtap="goToSelectTeam">去选择团队</button>
+  </view>
+
+  <view wx:elif="{{loading}}" class="state-box">
+    <view class="loading"></view>
+    <text class="state-text">结果加载中...</text>
+  </view>
+
+  <view wx:elif="{{errorMsg}}" class="state-box">
+    <text class="state-icon">⚠️</text>
+    <text class="state-text">{{errorMsg}}</text>
+    <button class="primary-btn" bindtap="goToCertificates">我的证书</button>
+  </view>
+
+  <view wx:elif="{{result}}" class="result-body">
+    <view class="score-card {{passed ? 'pass' : 'fail'}}">
+      <view class="score-num">{{result.score}}</view>
+      <view class="score-label">得分（合格线 {{result.pass_score}}）</view>
+      <view class="pass-badge">{{passed ? '✅ 通过' : '❌ 未通过'}}</view>
+    </view>
+
+    <view wx:if="{{hasCertificate && result.certificate}}" class="cert-box">
+      <view class="cert-row">
+        <text class="cert-label">证书编号</text>
+        <text class="cert-value">{{result.certificate.cert_no}}</text>
+      </view>
+      <button class="primary-btn" bindtap="viewCertificate">查看证书</button>
+    </view>
+
+    <view wx:if="{{!passed}}" class="retry-box">
+      <button class="primary-btn retry" bindtap="retryExam">重新考试</button>
+      <view class="retry-tip">未达合格线，可再次参加培训考试</view>
+    </view>
+
+    <view class="footer-actions">
+      <button class="ghost-btn" bindtap="goToCertificates">我的证书</button>
+    </view>
+  </view>
+</view>

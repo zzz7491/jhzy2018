@@ -1,17 +1,38 @@
 <view class="container">
-  <view wx:if="{{loading}}" class="loading">
-    <text>加载中...</text>
+  <view wx:if="{{teamMissing}}" class="state-box">
+    <text class="state-icon">👥</text>
+    <text class="state-text">请先选择团队</text>
+    <button class="primary-btn" bindtap="goToSelectTeam">去选择团队</button>
   </view>
 
-  <view wx:elif="{{certificates.length === 0}}" class="empty">
-    <text>暂无证书</text>
+  <view wx:elif="{{loading}}" class="state-box">
+    <view class="loading"></view>
+    <text class="state-text">加载中...</text>
   </view>
 
-  <view wx:else class="certificate-list">
-    <view class="certificate-card" wx:for="{{certificates}}" wx:key="id" data-id="{{item.id}}" bindtap="goToDetail">
-      <view class="certificate-name">{{item.certificate_name || item.name}}</view>
-      <view class="certificate-date">颁发日期：{{item.issue_date}}</view>
-      <view class="certificate-status {{item.status === 1 || item.status === 'active' ? 'active' : ''}}">已颁发</view>
+  <view wx:elif="{{certificates.length === 0}}" class="state-box">
+    <text class="state-icon">🏅</text>
+    <text class="state-text">暂无证书</text>
+    <text class="state-sub">完成培训并通过考试后即可获得证书</text>
+  </view>
+
+  <view wx:else class="cert-list">
+    <view
+      class="cert-card"
+      wx:for="{{certificates}}"
+      wx:key="public_id"
+      data-public-id="{{item.public_id}}"
+      bindtap="goToDetail"
+    >
+      <view class="cert-top">
+        <text class="cert-type">{{item.cert_type === 'training' ? '培训证书' : item.cert_type}}</text>
+        <text class="cert-status {{item.status === 1 ? 'valid' : 'invalid'}}">{{item.status === 1 ? '有效' : '已失效'}}</text>
+      </view>
+      <view class="cert-no">证书编号：{{item.cert_no}}</view>
+      <view class="cert-name" wx:if="{{item.holder_name}}">持证人：{{item.holder_name}}</view>
+      <view class="cert-issuer" wx:if="{{item.issuer_name}}">颁发机构：{{item.issuer_name}}</view>
+      <view class="cert-date">颁发时间：{{item.issuedAtText}}</view>
+      <view class="cert-arrow">查看详情 ›</view>
     </view>
   </view>
 </view>

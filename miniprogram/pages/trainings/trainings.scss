@@ -4,57 +4,132 @@
   padding: 20rpx;
 }
 
-.loading, .empty {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 500rpx;
-  color: #999;
+.loading {
+  width: 48rpx;
+  height: 48rpx;
+  border: 4rpx solid #eee;
+  border-top-color: #FF6B35;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto;
 }
 
-.training-list {
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.state-box {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 20rpx;
-}
-
-.training-card {
+  padding: 80rpx 40rpx;
   background: #fff;
   border-radius: 16rpx;
-  padding: 30rpx;
   box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
 }
 
-.training-name {
-  font-size: 32rpx;
+.state-icon {
+  font-size: 64rpx;
+}
+
+.state-text {
+  font-size: 30rpx;
+  color: #666;
+}
+
+.primary-btn {
+  margin-top: 10rpx;
+  background: #FF6B35;
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  padding: 0 60rpx;
+}
+
+.ghost-btn {
+  margin-top: 20rpx;
+  background: #fff;
+  color: #FF6B35;
+  border: 2rpx solid #FF6B35;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  padding: 0 50rpx;
+}
+
+.cert-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+  padding: 60rpx 40rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.cert-icon {
+  font-size: 80rpx;
+}
+
+.cert-title {
+  font-size: 36rpx;
   font-weight: bold;
   color: #333;
-  margin-bottom: 20rpx;
 }
 
-.training-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.training-date {
+.cert-code {
   font-size: 28rpx;
   color: #666;
 }
 
-.training-status {
-  font-size: 24rpx;
-  padding: 6rpx 20rpx;
-  border-radius: 30rpx;
+.view-cert-btn {
+  margin-top: 10rpx;
+  background: #FF6B35;
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  padding: 0 60rpx;
 }
 
-.training-status.completed {
-  background: #e6f7e6;
+.exam-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+  padding: 70rpx 40rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
+}
+
+.entry-icon {
+  font-size: 80rpx;
+}
+
+.entry-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.entry-tip {
+  font-size: 28rpx;
+  text-align: center;
+}
+
+.entry-tip.ok {
   color: #52c41a;
 }
 
-.training-status.ongoing {
-  background: #fff7e6;
+.entry-tip.warn {
   color: #fa8c16;
+}
+
+.exam-btn {
+  margin-top: 10rpx;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  padding: 0 60rpx;
 }
