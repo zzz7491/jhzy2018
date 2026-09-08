@@ -58,7 +58,13 @@
     "pages/admin/activity-signups/activity-signups",
     "pages/admin/training-certificates/index",
     "pages/exam/take/take",
-    "pages/exam/result/result"
+    "pages/exam/result/result",
+    "pages/admin/training/index",
+    "pages/admin/training/edit",
+    "pages/admin/training/lesson",
+    "pages/admin/exam/questions",
+    "pages/admin/exam/papers",
+    "pages/admin/exam/results"
   ],
   "tabBar": {
     "color": "#999999",

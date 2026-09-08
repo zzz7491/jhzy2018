@@ -145,6 +145,22 @@ exams.put('/admin/questions/:questionPublicId', requirePermission('exam.question
   return ok(c, { updated });
 });
 
+/** GET /exams/admin/sessions —— 本团队考试结果/会话列表（exam.paper.manage）。 */
+exams.get('/admin/sessions', requirePermission('exam.paper.manage'), async (c) => {
+  const repo = buildRepo(c);
+  const teamId = repo['ctx'].tenant.teamId;
+  if (teamId == null) throw teamScopeRequired();
+  const pagination = parsePagination(c.req.query());
+  const [rows, total] = await Promise.all([
+    repo.listSessionsByTeam(teamId, pagination.page, pagination.pageSize),
+    repo.countSessionsByTeam(teamId),
+  ]);
+  return ok(c, {
+    sessions: rows,
+    pagination: { page: pagination.page, page_size: pagination.pageSize, total },
+  });
+});
+
 function requireTeamScopeError(): Error {
   return teamScopeRequired();
 }

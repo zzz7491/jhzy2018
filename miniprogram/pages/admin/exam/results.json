@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "考试结果",
+  "usingComponents": {},
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f5f5f5"
+}

@@ -1,0 +1,48 @@
+<view class="page">
+  <view class="section">
+    <text class="section-title">{{mode === 'edit' ? '编辑章节' : '新建章节'}}</text>
+
+    <view class="field">
+      <text class="label">章节标题</text>
+      <input class="input" placeholder="请输入章节标题" value="{{title}}" bindinput="onTitleInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">类型</text>
+      <picker mode="selector" range="{{typeLabels}}" value="{{typeIndex}}" bindchange="onTypeChange">
+        <view class="picker">{{typeLabels[typeIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">内容 / 链接</text>
+      <textarea class="textarea" placeholder="视频/图文/文档链接或正文（可选）" value="{{content}}" bindinput="onContentInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">时长(分钟)</text>
+      <input class="input small" type="number" value="{{durationMin}}" bindinput="onDurationInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">排序</text>
+      <input class="input small" type="number" value="{{sort}}" bindinput="onSortInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">免费试看</text>
+      <switch checked="{{isFree === 1}}" bindchange="onFreeSwitch" />
+    </view>
+
+    <view class="field row">
+      <text class="label">状态</text>
+      <picker mode="selector" range="{{statusOptions}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker">{{statusOptions[statusIndex]}}</view>
+      </picker>
+    </view>
+
+    <button class="save-btn" loading="{{saving}}" bindtap="onSave">
+      {{mode === 'edit' ? '保存' : '创建章节'}}
+    </button>
+  </view>
+</view>

@@ -1,0 +1,81 @@
+<!-- 列表模式 -->
+<view class="page" wx:if="{{mode === 'list'}}">
+  <view class="header">
+    <text class="title">题库管理</text>
+    <button class="add-btn" bindtap="onAddQuestion">+ 新建题目</button>
+  </view>
+
+  <view class="list" wx:if="{{list.length > 0}}">
+    <view class="card" wx:for="{{list}}" wx:key="public_id" bindtap="onTapQuestion" data-id="{{item.public_id}}">
+      <view class="card-main">
+        <text class="card-title">{{item.stem}}</text>
+        <text class="card-sub">{{item.question_type}} · {{item.options.length}}选项 · {{item.difficulty}}星</text>
+      </view>
+      <text class="card-arrow">›</text>
+    </view>
+  </view>
+
+  <view class="empty" wx:elif="{{!loading}}"><text>暂无题目</text></view>
+  <view class="loading" wx:if="{{loading}}"><text>加载中…</text></view>
+  <view class="nomore" wx:if="{{!hasMore && list.length > 0}}"><text>没有更多了</text></view>
+</view>
+
+<!-- 编辑模式 -->
+<view class="page" wx:else>
+  <view class="section">
+    <text class="section-title">{{mode === 'edit' ? '编辑题目' : '新建题目'}}</text>
+
+    <view class="field">
+      <text class="label">题干</text>
+      <textarea class="textarea" placeholder="请输入题干" value="{{stem}}" bindinput="onStemInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">题型</text>
+      <picker mode="selector" range="{{['单选','多选','判断']}}" value="{{typeIndex}}" bindchange="onTypeChange">
+        <view class="picker">{{['单选','多选','判断'][typeIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <text class="label">选项</text>
+      <view class="option" wx:for="{{options}}" wx:key="key">
+        <text class="opt-key">{{item.key}}</text>
+        <input class="opt-input" placeholder="选项内容" value="{{item.text}}" data-idx="{{index}}" bindinput="onOptionTextInput" />
+        <text class="opt-del" data-idx="{{index}}" bindtap="onRemoveOption">✕</text>
+      </view>
+      <text class="add-opt" bindtap="onAddOption">+ 添加选项</text>
+    </view>
+
+    <view class="field row">
+      <text class="label">正确答案(选项键)</text>
+      <input class="input small" placeholder="如 A 或 A,B" value="{{answer}}" bindinput="onAnswerInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">难度(1-5)</text>
+      <input class="input small" type="number" value="{{difficulty}}" bindinput="onDifficultyInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">标签</text>
+      <input class="input" placeholder="逗号分隔，可选" value="{{tags}}" bindinput="onTagsInput" />
+    </view>
+
+    <view class="field">
+      <text class="label">解析</text>
+      <textarea class="textarea" placeholder="答案解析（可选）" value="{{analysis}}" bindinput="onAnalysisInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">状态</text>
+      <picker mode="selector" range="{{['已发布','草稿']}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker">{{['已发布','草稿'][statusIndex]}}</view>
+      </picker>
+    </view>
+
+    <button class="save-btn" loading="{{saving}}" bindtap="onSave">
+      {{mode === 'edit' ? '保存' : '创建题目'}}
+    </button>
+  </view>
+</view>

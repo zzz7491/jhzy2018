@@ -1,0 +1,60 @@
+<view class="page">
+  <view class="section">
+    <text class="section-title">{{mode === 'edit' ? '编辑课程' : '新建课程'}}</text>
+
+    <view class="field">
+      <text class="label">课程标题</text>
+      <input class="input" placeholder="请输入课程标题" value="{{title}}" bindinput="onTitleInput" />
+    </view>
+
+    <view class="field">
+      <text class="label">简介</text>
+      <textarea class="textarea" placeholder="课程简介（可选）" value="{{summary}}" bindinput="onSummaryInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">必修课程</text>
+      <switch checked="{{required === 1}}" bindchange="onRequiredSwitch" />
+    </view>
+
+    <view class="field row">
+      <text class="label">要求时长(分钟)</text>
+      <input class="input small" type="number" value="{{requiredMinutes}}" bindinput="onMinutesInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">排序</text>
+      <input class="input small" type="number" value="{{sort}}" bindinput="onSortInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">状态</text>
+      <picker mode="selector" range="{{statusOptions}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker">{{statusOptions[statusIndex]}}</view>
+      </picker>
+    </view>
+
+    <button class="save-btn" loading="{{saving}}" bindtap="onSave">
+      {{mode === 'edit' ? '保存' : '创建课程'}}
+    </button>
+  </view>
+
+  <view class="section" wx:if="{{mode === 'edit'}}">
+    <view class="section-head">
+      <text class="section-title">章节管理</text>
+      <text class="add-link" bindtap="onAddLesson">+ 新增章节</text>
+    </view>
+
+    <view class="lesson" wx:for="{{lessons}}" wx:key="public_id" bindtap="onEditLesson" data-id="{{item.public_id}}">
+      <view class="lesson-main">
+        <text class="lesson-title">{{item.title}}</text>
+        <text class="lesson-sub">{{item.lesson_type}} · {{item.duration_min}}分钟</text>
+      </view>
+      <text class="lesson-arrow">›</text>
+    </view>
+
+    <view class="empty" wx:if="{{lessons.length === 0}}">
+      <text>暂无章节</text>
+    </view>
+  </view>
+</view>

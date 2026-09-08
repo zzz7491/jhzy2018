@@ -209,6 +209,38 @@
         <text class="quick-subtitle">查看考核通过名单</text>
       </view>
 
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/training/index">
+        <view class="quick-icon" style="background-color: #e3f2fd;">
+          <text class="icon">📚</text>
+        </view>
+        <text class="quick-title">培训课程</text>
+        <text class="quick-subtitle">课程/章节管理</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/exam/questions">
+        <view class="quick-icon" style="background-color: #fff3e0;">
+          <text class="icon">❓</text>
+        </view>
+        <text class="quick-title">题库管理</text>
+        <text class="quick-subtitle">题目增删改</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/exam/papers">
+        <view class="quick-icon" style="background-color: #f3e5f5;">
+          <text class="icon">📝</text>
+        </view>
+        <text class="quick-title">试卷管理</text>
+        <text class="quick-subtitle">抽题/合格线</text>
+      </view>
+
+      <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/exam/results">
+        <view class="quick-icon" style="background-color: #e0f7fa;">
+          <text class="icon">📊</text>
+        </view>
+        <text class="quick-title">考试结果</text>
+        <text class="quick-subtitle">成绩/合格情况</text>
+      </view>
+
       <view class="quick-card" bindtap="goToExchangeManage">
         <view class="quick-icon" style="background-color: #e6f7ff;">
           <text class="icon">📦</text>

@@ -4,8 +4,9 @@
 // 复用与 activityApi 相同的 contract：Bearer / X-Team-Id / success envelope / backend error / network error。
 //
 // TEAM context：管理端同样使用 activeTeamPublicId（public_id ULID，不暴露 numeric team id）。
-// 仅实现 P31 页面实际用到的方法；不建"万能 admin client"。
-// 严禁加入 training / certificate / community / AI / BI / mall / points-admin。
+// 仅实现页面实际用到的方法；不建"万能 admin client"。
+// P32-P4 放开：training（课程/章节）、exam（题库/试卷/结果）、certificate（培训证书列表）管理端方法。
+// 仍严禁加入 community / AI / BI / mall / points-admin。
 
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
@@ -120,6 +121,143 @@ export interface Pagination {
   page_size: number;
   total: number;
   total_pages: number;
+}
+
+// ===== P32-P4 培训/考试/证书管理类型 =====
+
+export interface CourseAdminRow {
+  public_id: string;
+  title: string;
+  summary: string | null;
+  required: number;
+  required_minutes: number;
+  cover_url: string | null;
+  status: number;
+  lesson_count: number;
+  enrolled: boolean;
+  progress: number | null;
+  completed: boolean;
+  created_at: number;
+}
+
+export interface LessonAdminRow {
+  public_id: string;
+  title: string;
+  lesson_type: string;
+  content: string | null;
+  duration_min: number;
+  sort: number;
+  is_free: number;
+  status?: number;
+  order: number;
+  completed: boolean;
+  progress: number;
+}
+
+export interface CourseAdminInput {
+  title: string;
+  summary?: string | null;
+  detail?: string | null;
+  required?: number;
+  required_minutes?: number;
+  sort?: number;
+  status?: number;
+}
+
+export interface LessonAdminInput {
+  title: string;
+  lesson_type: string;
+  content?: string | null;
+  duration_min?: number;
+  sort?: number;
+  is_free?: number;
+  status?: number;
+}
+
+export interface QuestionOption {
+  key: string;
+  text: string;
+}
+
+export interface QuestionAdminRow {
+  public_id: string;
+  question_type: string;
+  stem: string;
+  options: QuestionOption[];
+  answer: string;
+  analysis: string | null;
+  difficulty: number;
+  tags: string | null;
+  status: number;
+  created_at: number;
+}
+
+export interface QuestionAdminInput {
+  question_type: string;
+  stem: string;
+  options: QuestionOption[];
+  answer: string;
+  analysis?: string | null;
+  difficulty?: number;
+  tags?: string | null;
+  status?: number;
+}
+
+export interface PaperAdminRow {
+  public_id: string;
+  title: string;
+  course_public_id: string | null;
+  course_title: string | null;
+  pick_rule: Record<string, unknown> | string;
+  total_score: number;
+  pass_score: number;
+  duration_min: number;
+  max_attempts: number;
+  status: number;
+  created_at: number;
+}
+
+export interface PaperAdminInput {
+  title: string;
+  /** 关联课程使用 public_id（后端解析 numeric id）；不发送 numeric course id。 */
+  course_public_id?: string | null;
+  pick_rule: Record<string, unknown>;
+  total_score?: number;
+  pass_score?: number;
+  duration_min?: number;
+  max_attempts?: number;
+  status?: number;
+}
+
+export interface SessionAdminRow {
+  session_public_id: string;
+  paper_public_id: string | null;
+  paper_title: string | null;
+  user_public_id: string | null;
+  user_nickname: string | null;
+  status: number;
+  attempt_no: number;
+  score: number | null;
+  passed: number | null;
+  started_at: number;
+  submitted_at: number | null;
+}
+
+export interface CertAdminRow {
+  public_id: string;
+  cert_no: string;
+  cert_type: string;
+  holder_name: string | null;
+  holder_public_id: string | null;
+  holder_nickname: string | null;
+  issuer_name: string | null;
+  issued_at: number;
+  status: number;
+  source_type: string | null;
+  source_public_id: string | null;
+  activity_public_id: string | null;
+  course_public_id: string | null;
+  score: number | null;
 }
 
 function getToken(): string {
@@ -281,6 +419,113 @@ export const adminApi = {
   /** GET /service-records —— 当前团队服务记录列表（摘要）。 */
   listServiceRecords(limit = 50): Promise<{ records: ServiceRecordView[] }> {
     return request<{ records: ServiceRecordView[] }>('GET', `/service-records?limit=${limit}`);
+  },
+
+  // ===================== 培训管理（training.course.manage） =====================
+
+  /** GET /training/courses —— 本团队课程列表（分页）。 */
+  listTrainingCourses(page = 1, pageSize = 20): Promise<{ items: CourseAdminRow[]; pagination: Pagination }> {
+    return request<{ items: CourseAdminRow[]; pagination: Pagination }>(
+      'GET',
+      `/training/courses?page=${page}&page_size=${pageSize}`,
+    );
+  },
+
+  /** GET /training/courses/:publicId —— 课程详情（含 lessons）。 */
+  getTrainingCourse(publicId: string): Promise<{ course: any; lessons: LessonAdminRow[] }> {
+    return request<{ course: any; lessons: LessonAdminRow[] }>('GET', `/training/courses/${publicId}`);
+  },
+
+  /** POST /training/admin/courses —— 创建课程。 */
+  createTrainingCourse(cmd: CourseAdminInput): Promise<{ public_id: string }> {
+    return request<{ public_id: string }>('POST', `/training/admin/courses`, cmd);
+  },
+
+  /** PUT /training/admin/courses/:publicId —— 更新课程。 */
+  updateTrainingCourse(publicId: string, cmd: CourseAdminInput): Promise<{ updated: boolean }> {
+    return request<{ updated: boolean }>('PUT', `/training/admin/courses/${publicId}`, cmd);
+  },
+
+  /** POST /training/admin/courses/:coursePublicId/lessons —— 创建章节。 */
+  createLesson(coursePublicId: string, cmd: LessonAdminInput): Promise<{ public_id: string }> {
+    return request<{ public_id: string }>(
+      'POST',
+      `/training/admin/courses/${coursePublicId}/lessons`,
+      cmd,
+    );
+  },
+
+  /** PUT /training/admin/courses/:coursePublicId/lessons/:lessonPublicId —— 更新章节。 */
+  updateLesson(
+    coursePublicId: string,
+    lessonPublicId: string,
+    cmd: LessonAdminInput,
+  ): Promise<{ updated: boolean }> {
+    return request<{ updated: boolean }>(
+      'PUT',
+      `/training/admin/courses/${coursePublicId}/lessons/${lessonPublicId}`,
+      cmd,
+    );
+  },
+
+  // ===================== 题库（exam.question.manage） =====================
+
+  /** GET /exams/admin/questions —— 题库列表（分页）。 */
+  listQuestions(page = 1, pageSize = 50): Promise<{ items: QuestionAdminRow[]; pagination: Pagination }> {
+    return request<{ items: QuestionAdminRow[]; pagination: Pagination }>(
+      'GET',
+      `/exams/admin/questions?page=${page}&page_size=${pageSize}`,
+    );
+  },
+
+  /** POST /exams/admin/questions —— 创建题目。 */
+  createQuestion(cmd: QuestionAdminInput): Promise<{ public_id: string }> {
+    return request<{ public_id: string }>('POST', `/exams/admin/questions`, cmd);
+  },
+
+  /** PUT /exams/admin/questions/:publicId —— 更新题目。 */
+  updateQuestion(publicId: string, cmd: QuestionAdminInput): Promise<{ updated: boolean }> {
+    return request<{ updated: boolean }>('PUT', `/exams/admin/questions/${publicId}`, cmd);
+  },
+
+  // ===================== 试卷（exam.paper.manage） =====================
+
+  /** GET /exams/admin/papers —— 本团队试卷列表。 */
+  listPapers(): Promise<{ papers: PaperAdminRow[] }> {
+    return request<{ papers: PaperAdminRow[] }>('GET', `/exams/admin/papers`);
+  },
+
+  /** POST /exams/admin/papers —— 创建试卷。 */
+  createPaper(cmd: PaperAdminInput): Promise<{ public_id: string }> {
+    return request<{ public_id: string }>('POST', `/exams/admin/papers`, cmd);
+  },
+
+  /** PUT /exams/admin/papers/:publicId —— 更新试卷。 */
+  updatePaper(publicId: string, cmd: PaperAdminInput): Promise<{ updated: boolean }> {
+    return request<{ updated: boolean }>('PUT', `/exams/admin/papers/${publicId}`, cmd);
+  },
+
+  // ===================== 考试结果（exam.paper.manage） =====================
+
+  /** GET /exams/admin/sessions —— 本团队考试结果/会话列表（分页）。 */
+  listExamSessions(page = 1, pageSize = 50): Promise<{ sessions: SessionAdminRow[]; pagination: Pagination }> {
+    return request<{ sessions: SessionAdminRow[]; pagination: Pagination }>(
+      'GET',
+      `/exams/admin/sessions?page=${page}&page_size=${pageSize}`,
+    );
+  },
+
+  // ===================== 培训证书（certificate.certificate.view） =====================
+
+  /** GET /certificates/admin —— 本团队培训证书列表（安全字段）。 */
+  listTrainingCertificates(
+    page = 1,
+    pageSize = 50,
+  ): Promise<{ certificates: CertAdminRow[]; pagination: Pagination }> {
+    return request<{ certificates: CertAdminRow[]; pagination: Pagination }>(
+      'GET',
+      `/certificates/admin?page=${page}&page_size=${pageSize}`,
+    );
   },
 };
 

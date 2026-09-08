@@ -22,8 +22,8 @@ import { CertificateService } from '../services/certificate-service';
 import { CertificateRepository, type CertificateInput } from '../repository/certificate';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
-import { authRequired } from '../utils/errors';
-import { requireUlidParam } from '../utils/validation';
+import { authRequired, teamScopeRequired } from '../utils/errors';
+import { requireUlidParam, parsePagination } from '../utils/validation';
 
 const certificates = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -44,14 +44,6 @@ certificates.get('/mine', async (c) => {
 certificates.get('/verify', async (c) => {
   const svc = buildService(c);
   const result = await svc.verify(c.req.query('cert_no'), c.req.query('code'));
-  return ok(c, result);
-});
-
-/** GET /certificates/:certificatePublicId — 详情（持证者本人 SELF；团队管理员需 cert.view） */
-certificates.get('/:certificatePublicId', async (c) => {
-  const svc = buildService(c);
-  const certificatePublicId = requireUlidParam(c.req.param('certificatePublicId'), 'certificatePublicId');
-  const result = await svc.detail(certificatePublicId);
   return ok(c, result);
 });
 
@@ -83,6 +75,33 @@ certificates.put('/admin/templates/:templatePublicId', requirePermission('certif
   const body = await c.req.json().catch(() => ({}));
   const updated = await repo.adminUpdateTemplate(templatePublicId, body as CertificateInput, Math.floor(Date.now() / 1000));
   return ok(c, { updated });
+});
+
+/** GET /certificates/admin — 本团队培训证书列表（certificate.certificate.view）。仅安全字段。 */
+certificates.get('/admin', requirePermission('certificate.certificate.view'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const tenant = c.get('tenant');
+  const teamId = tenant?.teamId ?? null;
+  if (teamId == null) throw teamScopeRequired();
+  const repo = new CertificateRepository({ db: c.env.DB, ctx: { auth, tenant } });
+  const pagination = parsePagination(c.req.query());
+  const [rows, total] = await Promise.all([
+    repo.listCertsByTeam(teamId, pagination.page, pagination.pageSize),
+    repo.countCertsByTeam(teamId),
+  ]);
+  return ok(c, {
+    certificates: rows,
+    pagination: { page: pagination.page, page_size: pagination.pageSize, total },
+  });
+});
+
+/** GET /certificates/:certificatePublicId — 详情（持证者本人 SELF；团队管理员需 cert.view）。注册在 /admin 之后以避免被参数路由遮蔽。 */
+certificates.get('/:certificatePublicId', async (c) => {
+  const svc = buildService(c);
+  const certificatePublicId = requireUlidParam(c.req.param('certificatePublicId'), 'certificatePublicId');
+  const result = await svc.detail(certificatePublicId);
+  return ok(c, result);
 });
 
 export default certificates;

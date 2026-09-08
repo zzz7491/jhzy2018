@@ -1,0 +1,77 @@
+<!-- 列表模式 -->
+<view class="page" wx:if="{{mode === 'list'}}">
+  <view class="header">
+    <text class="title">试卷管理</text>
+    <button class="add-btn" bindtap="onAddPaper">+ 新建试卷</button>
+  </view>
+
+  <view class="list" wx:if="{{list.length > 0}}">
+    <view class="card" wx:for="{{list}}" wx:key="public_id" bindtap="onTapPaper" data-id="{{item.public_id}}">
+      <view class="card-main">
+        <text class="card-title">{{item.title}}</text>
+        <text class="card-sub">{{item.course_title ? ('课程：' + item.course_title) : '未关联课程'}} · 合格线 {{item.pass_score}}</text>
+      </view>
+      <view class="card-meta">
+        <text class="badge {{item.status === 1 ? 'on' : 'off'}}">{{item.status === 1 ? '已发布' : '草稿'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty" wx:elif="{{!loading}}"><text>暂无试卷</text></view>
+  <view class="loading" wx:if="{{loading}}"><text>加载中…</text></view>
+</view>
+
+<!-- 编辑模式 -->
+<view class="page" wx:else>
+  <view class="section">
+    <text class="section-title">{{mode === 'edit' ? '编辑试卷' : '新建试卷'}}</text>
+
+    <view class="field">
+      <text class="label">试卷标题</text>
+      <input class="input" placeholder="请输入试卷标题" value="{{title}}" bindinput="onTitleInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">关联课程</text>
+      <picker mode="selector" range="{{courses}}" range-key="title" value="{{courseIndex < 0 ? 0 : courseIndex}}" bindchange="onCourseChange">
+        <view class="picker">{{courseIndex < 0 ? '不关联（通用卷）' : (courses[courseIndex].title)}}</view>
+      </picker>
+    </view>
+
+    <view class="field row">
+      <text class="label">合格分数线</text>
+      <text class="static">{{passScore}}（系统冻结）</text>
+    </view>
+
+    <view class="field row">
+      <text class="label">抽题规则</text>
+      <text class="static">随机 20 题（系统冻结）</text>
+    </view>
+
+    <view class="field row">
+      <text class="label">满分</text>
+      <text class="static">100</text>
+    </view>
+
+    <view class="field row">
+      <text class="label">最大次数</text>
+      <input class="input small" type="number" value="{{maxAttempts}}" bindinput="onMaxAttemptsInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">时长(分钟)</text>
+      <input class="input small" type="number" value="{{durationMin}}" bindinput="onDurationInput" />
+    </view>
+
+    <view class="field row">
+      <text class="label">状态</text>
+      <picker mode="selector" range="{{statusOptions}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker">{{statusOptions[statusIndex]}}</view>
+      </picker>
+    </view>
+
+    <button class="save-btn" loading="{{saving}}" bindtap="onSave">
+      {{mode === 'edit' ? '保存' : '创建试卷'}}
+    </button>
+  </view>
+</view>

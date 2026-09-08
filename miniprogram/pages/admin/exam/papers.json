@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "试卷管理",
+  "usingComponents": {},
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f5f5f5"
+}

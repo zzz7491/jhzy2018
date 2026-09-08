@@ -107,6 +107,8 @@ export interface ExamQuestionInput {
 export interface ExamPaperInput {
   title: string;
   course_id?: number | null;
+  /** 管理端用 course_public_id 关联课程；后端解析为 numeric course_id（绝不依赖客户端传 numeric id）。 */
+  course_public_id?: string | null;
   pick_rule: Record<string, unknown>;
   total_score?: number;
   pass_score?: number;
@@ -289,10 +291,37 @@ export class ExamRepository extends BaseRepository {
     );
   }
 
-  async listPapersByTeam(teamId: number): Promise<ExamPaperRow[]> {
+  /**
+   * 管理端试卷列表（TEAM_SCOPED）。仅返回安全公开字段：
+   * course_public_id（关联课程的 public_id）+ course_title，绝不暴露 numeric course_id / paper id。
+   */
+  async listPapersByTeam(
+    teamId: number,
+  ): Promise<
+    Array<{
+      public_id: string;
+      title: string;
+      course_public_id: string | null;
+      course_title: string | null;
+      pick_rule: string;
+      total_score: number;
+      pass_score: number;
+      duration_min: number;
+      max_attempts: number;
+      status: number;
+      created_at: number;
+    }>
+  > {
     this.ensureTableRead('exam_papers');
-    return this.all<ExamPaperRow>(
-      `SELECT * FROM exam_papers WHERE team_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`,
+    return this.all(
+      `SELECT ep.public_id, ep.title,
+              c.public_id  AS course_public_id,
+              c.title      AS course_title,
+              ep.pick_rule, ep.total_score, ep.pass_score, ep.duration_min, ep.max_attempts, ep.status, ep.created_at
+         FROM exam_papers ep
+         LEFT JOIN courses c ON c.id = ep.course_id AND c.deleted_at IS NULL
+        WHERE ep.team_id = ? AND ep.deleted_at IS NULL
+        ORDER BY ep.created_at DESC`,
       [teamId],
     );
   }
@@ -320,8 +349,21 @@ export class ExamRepository extends BaseRepository {
     return r?.n ?? 0;
   }
 
+  /** 解析课程 public_id → numeric id（TEAM_SCOPED）。找不到返回 null。 */
+  async findCourseIdByPublicId(teamId: number, coursePublicId: string): Promise<number | null> {
+    this.ensureTableRead('courses');
+    const r = await this.first<{ id: number }>(
+      `SELECT id FROM courses WHERE team_id = ? AND public_id = ? AND deleted_at IS NULL`,
+      [teamId, coursePublicId],
+    );
+    return r ? r.id : null;
+  }
+
   async adminCreatePaper(teamId: number, cmd: ExamPaperInput, now: number): Promise<{ public_id: string }> {
     this.ensureTableRead('exam_papers');
+    const courseId = cmd.course_public_id
+      ? await this.findCourseIdByPublicId(teamId, cmd.course_public_id)
+      : (cmd.course_id ?? null);
     const publicId = generateUlid();
     await this.run(
       `INSERT INTO exam_papers
@@ -331,7 +373,7 @@ export class ExamRepository extends BaseRepository {
         publicId,
         teamId,
         cmd.title,
-        cmd.course_id ?? null,
+        courseId,
         JSON.stringify(cmd.pick_rule),
         cmd.total_score ?? 100,
         cmd.pass_score ?? 60,
@@ -347,13 +389,16 @@ export class ExamRepository extends BaseRepository {
 
   async adminUpdatePaper(teamId: number, paperPublicId: string, cmd: ExamPaperInput, now: number): Promise<boolean> {
     this.ensureTableRead('exam_papers');
+    const courseId = cmd.course_public_id
+      ? await this.findCourseIdByPublicId(teamId, cmd.course_public_id)
+      : (cmd.course_id ?? null);
     const res = await this.run(
       `UPDATE exam_papers
           SET title = ?, course_id = ?, pick_rule = ?, total_score = ?, pass_score = ?, duration_min = ?, max_attempts = ?, status = ?, updated_at = ?
         WHERE team_id = ? AND public_id = ?`,
       [
         cmd.title,
-        cmd.course_id ?? null,
+        courseId,
         JSON.stringify(cmd.pick_rule),
         cmd.total_score ?? 100,
         cmd.pass_score ?? 60,
@@ -697,6 +742,59 @@ const certType = args.faultCertType ?? 'training';
         WHERE ea.session_id = ? AND ea.team_id = ?
         ORDER BY ea.id ASC`,
       [sessionId, teamId],
+    );
+  }
+
+  // ===== admin result/session list（exam.paper.manage 由 route 层授权）=====
+
+  async countSessionsByTeam(teamId: number): Promise<number> {
+    this.ensureTableRead('exam_sessions');
+    const r = await this.first<{ n: number }>(
+      `SELECT COUNT(*) n FROM exam_sessions WHERE team_id = ?`,
+      [teamId],
+    );
+    return r?.n ?? 0;
+  }
+
+  /**
+   * 管理端考试结果/会话列表（TEAM_SCOPED）。仅返回安全公开字段（public_id），
+   * 绝不暴露 numeric session/paper/user id；holder 仅暴露 users.public_id + nickname。
+   */
+  async listSessionsByTeam(
+    teamId: number,
+    page: number,
+    pageSize: number,
+  ): Promise<
+    Array<{
+      session_public_id: string;
+      paper_public_id: string | null;
+      paper_title: string | null;
+      user_public_id: string | null;
+      user_nickname: string | null;
+      status: number;
+      attempt_no: number;
+      score: number | null;
+      passed: number | null;
+      started_at: number;
+      submitted_at: number | null;
+    }>
+  > {
+    this.ensureTableRead('exam_sessions');
+    const offset = (page - 1) * pageSize;
+    return this.all(
+      `SELECT es.public_id AS session_public_id,
+              p.public_id  AS paper_public_id,
+              p.title      AS paper_title,
+              u.public_id  AS user_public_id,
+              u.nickname   AS user_nickname,
+              es.status, es.attempt_no, es.score, es.passed, es.started_at, es.submitted_at
+         FROM exam_sessions es
+         LEFT JOIN exam_papers p ON p.id = es.paper_id
+         LEFT JOIN users u        ON u.id = es.user_id
+        WHERE es.team_id = ?
+        ORDER BY es.started_at DESC
+        LIMIT ? OFFSET ?`,
+      [teamId, pageSize, offset],
     );
   }
 }

@@ -71,6 +71,7 @@ export class TrainingService {
             lesson_type: l.lesson_type,
             duration_min: l.duration_min,
             is_free: l.is_free,
+            status: l.status,
             completed: !!rec?.completed_at,
             progress: rec?.progress ?? 0,
           };

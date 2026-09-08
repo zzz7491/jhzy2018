@@ -277,6 +277,66 @@ export class CertificateRepository extends BaseRepository {
     );
     return r?.n ?? 0;
   }
+
+  // ===== admin list（certificate.certificate.view 由 route 层授权）=====
+
+  async countCertsByTeam(teamId: number): Promise<number> {
+    this.ensureTableRead('certificates');
+    const r = await this.first<{ n: number }>(
+      `SELECT COUNT(*) n FROM certificates WHERE team_id = ?`,
+      [teamId],
+    );
+    return r?.n ?? 0;
+  }
+
+  /**
+   * 管理端培训证书列表（TEAM_SCOPED）。仅安全字段（public_id + holder_name/nickname），
+   * 绝不暴露 id_card / numeric id / verify_code / snapshot。score 仅当 source_type='exam' 时关联。
+   */
+  async listCertsByTeam(
+    teamId: number,
+    page: number,
+    pageSize: number,
+  ): Promise<
+    Array<{
+      public_id: string;
+      cert_no: string;
+      cert_type: string;
+      holder_name: string | null;
+      holder_public_id: string | null;
+      holder_nickname: string | null;
+      issuer_name: string | null;
+      issued_at: number;
+      status: number;
+      source_type: string | null;
+      source_public_id: string | null;
+      activity_public_id: string | null;
+      course_public_id: string | null;
+      score: number | null;
+    }>
+  > {
+    this.ensureTableRead('certificates');
+    const offset = (page - 1) * pageSize;
+    return this.all(
+      `SELECT c.public_id, c.cert_no, c.cert_type, c.holder_name, c.issuer_name,
+              c.issued_at, c.status, c.source_type,
+              u.public_id  AS holder_public_id,
+              u.nickname   AS holder_nickname,
+              es.public_id AS source_public_id,
+              a.public_id  AS activity_public_id,
+              cu.public_id AS course_public_id,
+              es.score     AS score
+         FROM certificates c
+         LEFT JOIN users u          ON u.id = c.user_id
+         LEFT JOIN exam_sessions es ON es.id = c.source_id AND c.source_type = 'exam'
+         LEFT JOIN activities a     ON a.id = c.source_id AND c.source_type = 'activity'
+         LEFT JOIN courses cu       ON cu.id = c.source_id AND c.source_type = 'course'
+        WHERE c.team_id = ?
+        ORDER BY c.issued_at DESC
+        LIMIT ? OFFSET ?`,
+      [teamId, pageSize, offset],
+    );
+  }
 }
 
 export default CertificateRepository;

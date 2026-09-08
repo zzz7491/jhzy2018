@@ -1,77 +1,44 @@
 <view class="container">
-  <!-- 搜索栏 -->
-  <view class="search-bar">
-    <input 
-      class="search-input" 
-      placeholder="搜索姓名/手机号/志愿者ID" 
-      value="{{search}}" 
-      bindinput="onSearchInput"
-    />
-    <button class="search-btn" bindtap="search">搜索</button>
-  </view>
-
-  <!-- 筛选栏 -->
-  <view class="filter-bar">
-    <picker mode="selector" range="{{scoreOptions}}" bindchange="onScoreChange">
-      <view class="filter-item">成绩：{{scoreText || '全部'}} ▼</view>
-    </picker>
-  </view>
-
-  <!-- 统计信息 -->
   <view class="stats">
-    <text>共 {{total}} 人获得培训证书</text>
+    <text>共 {{total}} 张培训证书</text>
   </view>
 
-  <!-- 列表 -->
   <view class="list" wx:if="{{!loading && list.length > 0}}">
-    <view class="card" wx:for="{{list}}" wx:key="record_id">
+    <view class="card" wx:for="{{list}}" wx:key="public_id">
       <view class="card-header">
-        <text class="name">{{item.real_name || item.name}}</text>
-        <text class="score {{item.score >= 95 ? 'high' : 'pass'}}">{{item.score}}分</text>
+        <text class="name">{{item.holder_nickname || item.holder_name || '志愿者'}}</text>
+        <text class="status {{item.status === 1 ? 'valid' : 'invalid'}}">{{item.status === 1 ? '有效' : '已作废'}}</text>
       </view>
       <view class="card-body">
         <view class="info-row">
-          <text class="label">手机号</text>
-          <text class="value">{{item.phone}}</text>
-        </view>
-        <view class="info-row">
-          <text class="label">志愿者ID</text>
-          <text class="value">{{item.volunteer_id || '未绑定'}}</text>
-        </view>
-        <view class="info-row">
           <text class="label">证书编号</text>
-          <text class="value cert-code">{{item.cert_code}}</text>
+          <text class="value cert-code">{{item.cert_no}}</text>
         </view>
-        <view class="info-row">
-          <text class="label">考试时间</text>
-          <text class="value">{{item.submit_time_formatted}}</text>
+        <view class="info-row" wx:if="{{item.course_public_id}}">
+          <text class="label">关联课程</text>
+          <text class="value">已关联（{{item.course_public_id}}）</text>
+        </view>
+        <view class="info-row" wx:if="{{item.score != null}}">
+          <text class="label">成绩</text>
+          <text class="value">{{item.score}} 分</text>
         </view>
         <view class="info-row">
           <text class="label">发证时间</text>
-          <text class="value">{{item.cert_issued_at_formatted}}</text>
+          <text class="value">{{item.issued_at_text}}</text>
         </view>
-      </view>
-      <view class="card-footer">
-        <view class="status {{item.is_registered ? 'registered' : 'unregistered'}}">
-          {{item.status_text}}
-        </view>
-        <button class="detail-btn" bindtap="viewDetail" data-id="{{item.volunteer_db_id}}">查看详情</button>
       </view>
     </view>
   </view>
 
-  <!-- 加载中 -->
   <view class="loading" wx:if="{{loading}}">
     <text>加载中...</text>
   </view>
 
-  <!-- 空状态 -->
   <view class="empty" wx:if="{{!loading && list.length === 0}}">
-    <text>暂无数据</text>
+    <text>暂无证书</text>
   </view>
 
-  <!-- 加载更多 -->
   <view class="load-more" wx:if="{{hasMore && !loading}}">
-    <button class="load-more-btn" bindtap="loadMore">加载更多</button>
+    <text class="load-more-hint">上拉加载更多</text>
   </view>
 </view>
