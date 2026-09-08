@@ -83,6 +83,13 @@ export const ConflictReason = {
   // P25-P3B1（新增，纯增量）：积分兑换订单核销冲突——订单在 TEAM 内存在但状态不可核销（RESERVED 3/4）。
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 内部订单状态含义。
   MALL_ORDER_NOT_VERIFIABLE: 'mall_order_not_verifiable', // 订单存在但状态不可核销（仅 status ∈ {3,4} 时返回）
+  // P32-P2（新增，纯增量）：考试 / 证书域业务冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 答案内容。
+  EXAM_ACTIVE_ATTEMPT_CONFLICT: 'exam_active_attempt_conflict', // 同一用户+试卷已存在活跃 attempt（并发 start 唯一约束命中）
+  EXAM_ALREADY_SUBMITTED: 'exam_already_submitted', // session 已是 COMPLETED，禁止重复写（idempotent read 除外）
+  EXAM_MAX_ATTEMPTS_REACHED: 'exam_max_attempts_reached', // 达到 exam_papers.max_attempts 上限
+  EXAM_POOL_EXHAUSTED: 'exam_pool_exhausted', // cert_trn 号池无可用编号（passed=1 且需发证时）
+  EXAM_CERT_ALREADY_EXISTS: 'exam_cert_already_exists', // 该 (user_id, exam_paper_id) 已有 active 证书（重考不发第二张）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];

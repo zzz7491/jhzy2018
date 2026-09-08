@@ -31,6 +31,9 @@ import attendanceAnomalies from './routes/attendance-anomalies';
 import serviceRecords from './routes/service-records'; // S2-NEW-ARCH-P22：服务时长记录（read/adjust）
 import points from './routes/points'; // P23-P4B：个人积分账户 / 流水 SELF 只读
 import mall from './routes/mall'; // P24-P3B：积分商城（商品 / 兑换 / 本人订单）SELF+TEAM 只读 + 兑换
+import training from './routes/training'; // P32-P2：学习培训（课程 / 章节 / 报名 / 进度 / admin CRUD）
+import exams from './routes/exams'; // P32-P2：考试（start / resume / submit / grade / 自动发证 / admin CRUD）
+import certificates from './routes/certificates'; // P32-P2：证书（mine / detail / verify / template admin）
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
 import { ok } from './utils/response';
@@ -67,6 +70,9 @@ export function createApp() {
   v2.route('/points', points); // P23-P4B：个人积分账户 / 流水 SELF 只读（/account、/transactions）
   v2.route('/mall', mall); // P24-P3B：积分商城（/products、/orders）SELF+TEAM 只读 + 兑换
   v2.route('/forms', forms); // S2-NEW-ARCH-P20：动态表单引擎（/api/v2/forms/*）
+  v2.route('/training', training); // P32-P2：/api/v2/training/*
+  v2.route('/exams', exams); // P32-P2：/api/v2/exams/*
+  v2.route('/certificates', certificates); // P32-P2：/api/v2/certificates/*
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁
   app.route('/api/v2', v2);
