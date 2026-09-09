@@ -20,6 +20,7 @@ import { ContentAdminService } from '../services/content-admin-service';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { requireUlidParam, parsePagination } from '../utils/validation';
+import { invalidParam } from '../utils/errors';
 
 const adminContent = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -30,10 +31,53 @@ function svc(c: Context) {
   });
 }
 
+/** 安全解析 JSON body（非对象 → 400，不泄露内部错误）。 */
+async function readJsonBody(c: Context): Promise<Record<string, unknown>> {
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    throw invalidParam('body', 'expected JSON object');
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw invalidParam('body', 'expected JSON object');
+  }
+  return raw as Record<string, unknown>;
+}
+
 // ---- GET /articles（审核台列表：同 team 全部未删除）----
 adminContent.get('/articles', requirePermission('content.article.audit'), async (c) => {
   const { page, pageSize } = parsePagination(c.req.query());
   const data = await svc(c).list(page, pageSize);
+  return ok(c, data);
+});
+
+// ---- POST /articles（管理端创建文章，需 content.article.create）----
+adminContent.post('/articles', requirePermission('content.article.create'), async (c) => {
+  const body = await readJsonBody(c);
+  const data = await svc(c).createArticle({
+    title: typeof body.title === 'string' ? body.title : '',
+    body: typeof body.body === 'string' ? body.body : '',
+    attachment_file_public_ids: Array.isArray(body.attachment_file_public_ids)
+      ? (body.attachment_file_public_ids as string[])
+      : undefined,
+  });
+  return ok(c, data, 201);
+});
+
+// ---- PUT /articles/:articlePublicId（管理端编辑团队内任意文章，需 content.article.update）----
+adminContent.put('/articles/:articlePublicId', requirePermission('content.article.update'), async (c) => {
+  const publicId = requireUlidParam(c.req.param('articlePublicId'), 'articlePublicId');
+  const body = await readJsonBody(c);
+  const patch: { title?: string; body?: string; attachment_file_public_ids?: string[] } = {};
+  if (body.title !== undefined) patch.title = typeof body.title === 'string' ? body.title : '';
+  if (body.body !== undefined) patch.body = typeof body.body === 'string' ? body.body : '';
+  if (body.attachment_file_public_ids !== undefined) {
+    patch.attachment_file_public_ids = Array.isArray(body.attachment_file_public_ids)
+      ? (body.attachment_file_public_ids as string[])
+      : undefined;
+  }
+  const data = await svc(c).updateArticle(publicId, patch);
   return ok(c, data);
 });
 

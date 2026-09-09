@@ -12,9 +12,10 @@
  */
 
 import type { D1Database } from '@cloudflare/workers-types';
-import { ContentRepository } from '../repository/content';
+import { ContentRepository, ATTACHMENT_MAX, ATTACHMENT_MIME_ALLOWED, type UpdatePostPatch } from '../repository/content';
 import type { AdminArticleItem } from '../repository/content';
-import { authRequired, teamScopeRequired } from '../utils/errors';
+import { FileRepository } from '../repository/files';
+import { authRequired, teamScopeRequired, invalidParam, notFound } from '../utils/errors';
 import type { RepositoryContext } from '../types/tenant';
 import type { Paginated } from '../types/api';
 
@@ -23,12 +24,26 @@ export interface ContentAdminServiceDeps {
   ctx: RepositoryContext;
 }
 
+export interface AdminCreateArticleBody {
+  title: string;
+  body: string;
+  attachment_file_public_ids?: string[];
+}
+
+export interface AdminUpdateArticleBody {
+  title?: string;
+  body?: string;
+  attachment_file_public_ids?: string[];
+}
+
 export class ContentAdminService {
   private readonly repo: ContentRepository;
+  private readonly fileRepo: FileRepository;
   private readonly ctx: RepositoryContext;
 
   constructor(deps: ContentAdminServiceDeps) {
     this.repo = new ContentRepository(deps);
+    this.fileRepo = new FileRepository(deps);
     this.ctx = deps.ctx;
   }
 
@@ -70,5 +85,101 @@ export class ContentAdminService {
     const { operatorId } = this.requireActor();
     await this.repo.deleteArticle(publicId, operatorId);
     return { article_public_id: publicId };
+  }
+
+  // ===================================================================
+  // 管理端：创建文章（content.article.create）
+  // ===================================================================
+  // author 强制为操作者（operatorId）；content_type/status/audit_status/published_at
+  // 一律服务端派生。附件复用 FileRepository.resolveForAttachment，但【不要求本人上传】
+  // （管理员可使用团队内任意成员上传的文件）。
+
+  async createArticle(body: AdminCreateArticleBody): Promise<{ article_public_id: string }> {
+    const { teamId, operatorId } = this.requireActor();
+    if (typeof body.title !== 'string' || body.title.trim() === '') {
+      throw invalidParam('title', 'required non-empty string');
+    }
+    if (typeof body.body !== 'string') {
+      throw invalidParam('body', 'required string');
+    }
+    const created = await this.repo.insertAdminArticle({
+      title: body.title.trim(),
+      content: body.body,
+      authorId: operatorId,
+      teamId,
+    });
+    const fileIds = await this.resolveAttachmentFileIds(body.attachment_file_public_ids, teamId);
+    if (fileIds.length > 0) {
+      await this.repo.replaceArticleAttachments(created.id, fileIds);
+    }
+    return { article_public_id: created.public_id };
+  }
+
+  // ===================================================================
+  // 管理端：编辑团队内任意文章（content.article.update）
+  // ===================================================================
+  // 不绑定 author_id（管理员可编辑团队内任意未删除文章）；仓储层仅按 team_id 二次收口，
+  // 跨 team → 404。任何编辑后统一重置为 DRAFT/PENDING（由 repo 强制），等待再次审核。
+
+  async updateArticle(publicId: string, body: AdminUpdateArticleBody): Promise<{ article_public_id: string }> {
+    const { teamId } = this.requireActor();
+    const patch: UpdatePostPatch = {};
+    if (body.title !== undefined) {
+      if (typeof body.title !== 'string' || body.title.trim() === '') {
+        throw invalidParam('title', 'required non-empty string when provided');
+      }
+      patch.title = body.title.trim();
+    }
+    if (body.body !== undefined) {
+      if (typeof body.body !== 'string') throw invalidParam('body', 'required string when provided');
+      patch.content = body.body;
+    }
+    await this.repo.updateAdminArticle(publicId, patch);
+    if (body.attachment_file_public_ids !== undefined) {
+      const fileIds = await this.resolveAttachmentFileIds(body.attachment_file_public_ids, teamId);
+      const art = await this.repo.findArticleRow(publicId);
+      if (art) await this.repo.replaceArticleAttachments(art.id, fileIds);
+    }
+    return { article_public_id: publicId };
+  }
+
+  // ===================================================================
+  // 附件解析（管理端）：复用 FileRepository.resolveForAttachment，仅做校验。
+  // 与志愿者端区别：不校验 uploader_id（管理员可使用团队内任意文件）。
+  // ===================================================================
+
+  private async resolveAttachmentFileIds(
+    publicIds: string[] | undefined,
+    teamId: number,
+  ): Promise<number[]> {
+    if (!Array.isArray(publicIds) || publicIds.length === 0) return [];
+    if (publicIds.length > ATTACHMENT_MAX) {
+      throw invalidParam('attachment_file_public_ids', `at most ${ATTACHMENT_MAX} attachments`);
+    }
+    // 去重（保持顺序）；重复 public id → 拒绝。
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const p of publicIds) {
+      if (typeof p !== 'string') throw invalidParam('attachment_file_public_ids', 'must be string[]');
+      if (seen.has(p)) throw invalidParam('attachment_file_public_ids', 'duplicate public id not allowed');
+      seen.add(p);
+      unique.push(p);
+    }
+    // resolver 强制 team_id + deleted_at IS NULL；缺失/cross-team 的文件不会返回 → 数量不符 → 404。
+    const resolved = await this.fileRepo.resolveForAttachment(unique, teamId);
+    if (resolved.length !== unique.length) {
+      throw notFound('File');
+    }
+    const fileIds: number[] = [];
+    for (const r of resolved) {
+      if (r.visibility !== 'team') {
+        throw invalidParam('attachment_file_public_ids', 'file is not team-visible');
+      }
+      if (!ATTACHMENT_MIME_ALLOWED.has(r.mime_type)) {
+        throw invalidParam('attachment_file_public_ids', `unsupported mime_type: ${r.mime_type}`);
+      }
+      fileIds.push(r.id);
+    }
+    return fileIds;
   }
 }

@@ -1,19 +1,17 @@
 // =============================================================================
-// P33-P3B-2C — Community HTTP Runtime Verification（真实 app + local D1）
+// P33-R2A 时代 — Community HTTP Runtime Verification（真实 app + local D1）
 //
-// 策略：
-//   1) esbuild 打包真实 src/app.ts（含本轮回写的 content/admin-content 路由 + 既有挂载）
-//      → 内存 ESM（不进 git delta）。
-//   2) 以 node:sqlite 实现 D1Database 适配器，应用【全部】migration
-//      （含 0002 roles / 0003 权限目录 / 0023 SELF 权限 / 0024+0025 社区 schema）。
-//      → roles / permissions / role_permissions 由 migration 真实填充，
-//        权限裁决 100% DB-backed（与 S2-6f 运行时一致）。
-//   3) 仅种子 users / teams / files（最小必需业务数据）；不写任何 permission 数据。
-//   4) 通过 Hono app.request() 直接驱动【真实中间件链】
-//      （authContext → tenantContext → csrfGuard → requirePermission → route → errorHandler）
-//      以 x-test-* local mock 身份注入通道（S2-5 既定回归通道；权限解析走真实 role_permissions）。
-//   5) 覆盖 H1–H25 + §13 审计流转核验。
+// 策略（与 p33_r2a_readonly.mjs 同源，但覆盖完整 H1–H25 + §13 矩阵）：
+//   1) esbuild 打包真实 src/app.ts（含管理端 create/update 路由 + 既有挂载）→ 内存 ESM。
+//   2) node:sqlite D1 适配器，应用【全部】migration（含 0026 志愿者社交权限回收）。
+//   3) 仅种子 users / teams / files；不写任何 permission 数据。
+//   4) 真实中间件链（authContext → tenantContext → csrfGuard → requirePermission → route）。
+//   5) 只读时代断言：
+//        - 志愿者 5 类写操作（建文/编辑/评论/点赞/举报）→ 一律 403（社交锁定）。
+//        - 文章生命周期（创建/审核/下架/删除）由管理员端点驱动（team_owner）。
+//        - 读端点（feed / detail / 跨团队 404 / 审计流转 / 禁止标识扫描）保持不变。
 //   不依赖 wrangler / 不触远端 / 不修改任何冻结文件。
+//   运行时（workers/ 目录）：node tests/p33_content_http.mjs
 // =============================================================================
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -25,14 +23,16 @@ import { build } from 'esbuild';
 
 const WORKERS_DIR = fileURLToPath(new URL('..', import.meta.url));
 
-// --- 唯一 public_id 生成（仅种子；article/comment public_id 由仓库层生成）---
 let __c = 0;
 function pid(tag) {
   __c++;
   return (tag + __c.toString(36).toUpperCase() + '00000000000000000000000000').slice(0, 26);
 }
 
-// ---------- D1 适配器（node:sqlite 后端，与 P33-P3B-2B 核心测试同构）----------
+// 合法 ULID（Crockford，供被 gate 拦截前的 param 解析；gate 先返回 403，此处仅为格式安全）。
+const DUMMY_ULID = '123456789ABCDEFGHJKMNPQRSTV';
+
+// ---------- D1 适配器（node:sqlite 后端）----------
 function makeD1(sqlite) {
   const prepare = (sql) => {
     let params = [];
@@ -103,7 +103,6 @@ function scanForBanned(obj, path = '') {
   return null;
 }
 
-// 收集需要被 H23 扫描的响应（data 部分）
 const scanned = [];
 function remember(json) {
   if (json && json.data != null) scanned.push(json.data);
@@ -172,7 +171,6 @@ async function main() {
   const fAlicePub = F.alice;
   const fBobPub = F.bob;
   const fCarolPub = F.carol;
-  // 10 个同 team 文件（max-9 测试）
   const fMaxPubs = [];
   for (let i = 0; i < 10; i++) {
     const pub = pid('F');
@@ -220,61 +218,64 @@ async function main() {
     check('H2 已认证无 TEAM → 4xx', r.status >= 400 && r.status < 500, `got ${r.status}`);
   }
 
-  // ===== H3：volunteer 自创建 → 成功 =====
+  // 管理端先建一篇团队 A 文章（供后续志愿者写拦截 / 审核流转使用）。
   let a1Pub = null;
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A1', body: 'hello' },
+    const c = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A1', body: 'hello' },
     });
-    remember(r.json);
-    a1Pub = r.json?.data?.article_public_id ?? null;
-    const st = a1Pub ? artState(a1Pub) : null;
-    check('H3 volunteer 自创建 → 201 + status=1/audit=1', r.status === 201 && st && st.status === 1 && st.audit_status === 1, `status=${r.status} art=${JSON.stringify(st)}`);
+    a1Pub = c.json?.data?.article_public_id ?? null;
   }
 
-  // ===== H4：volunteer 更新自己 → 成功 =====
+  // ===== H3：志愿者自建文章 → 403（社交锁定）=====
+  {
+    const r = await call('POST', '/api/v2/content/articles', {
+      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A1', body: 'hi' },
+    });
+    check('H3 志愿者自建文章 → 403', r.status === 403, `got ${r.status}`);
+  }
+
+  // ===== H4：志愿者自编辑 → 403 =====
   {
     const r = await call('PUT', `/api/v2/content/articles/${a1Pub}`, {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A1-edited' },
+      role: 'volunteer', user: uAlice, team: tA, body: { title: 'x' },
     });
-    remember(r.json);
-    const st = artState(a1Pub);
-    check('H4 volunteer 更新自己 → 200 + 回到草稿', r.status === 200 && st.status === 1 && st.audit_status === 1, `status=${r.status} art=${JSON.stringify(st)}`);
+    check('H4 志愿者编辑文章 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H5：volunteer 更新他人 → 404 =====
+  // ===== H5：志愿者编辑他人文章 → 403（gate 先于 ownership）=====
   {
     const r = await call('PUT', `/api/v2/content/articles/${a1Pub}`, {
       role: 'volunteer', user: uBob, team: tA, body: { title: 'x' },
     });
-    check('H5 volunteer 更新他人文章 → 404', r.status === 404, `got ${r.status}`);
+    check('H5 志愿者编辑他人文章 → 403', r.status === 403, `got ${r.status}`);
   }
 
   // ===== H6：跨团队详情 → 404（先建 teamB 文章）=====
   let aBPub = null;
   {
-    const c = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uCarol, team: tB, body: { title: 'B1', body: 'b' },
+    const c = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uCarol, team: tB, body: { title: 'B1', body: 'b' },
     });
     aBPub = c.json?.data?.article_public_id ?? null;
     const r = await call('GET', `/api/v2/content/articles/${aBPub}`, { role: 'volunteer', user: uAlice, team: tA });
     check('H6 跨团队文章详情 → 404', r.status === 404, `got ${r.status}`);
   }
 
-  // ===== H7：volunteer 不能 admin approve → 403 =====
+  // ===== H7：志愿者不能 admin approve → 403 =====
   {
     const r = await call('POST', `/api/v2/admin/content/articles/${a1Pub}/approve`, {
       role: 'volunteer', user: uAlice, team: tA,
     });
-    check('H7 volunteer 不能 admin approve → 403', r.status === 403, `got ${r.status}`);
+    check('H7 志愿者不能 admin approve → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H8：volunteer 不能 admin delete → 403 =====
+  // ===== H8：志愿者不能 admin delete → 403 =====
   {
     const r = await call('DELETE', `/api/v2/admin/content/articles/${a1Pub}`, {
       role: 'volunteer', user: uAlice, team: tA,
     });
-    check('H8 volunteer 不能 admin delete → 403', r.status === 403, `got ${r.status}`);
+    check('H8 志愿者不能 admin delete → 403', r.status === 403, `got ${r.status}`);
   }
 
   // ===== H9：admin（team_owner）approve → 成功 =====
@@ -306,104 +307,92 @@ async function main() {
     check('H11 reject → status=1/audit=3 且不在 feed', rj.status === 200 && st.status === 1 && st.audit_status === 3 && !items.some((x) => x.article_public_id === a1Pub), `art=${JSON.stringify(st)}`);
   }
 
-  // ===== H12：评论创建即可见（先重新 approve 让文章可评论）=====
-  let c1Pub = null;
+  // ===== H12：志愿者评论创建 → 403（社交锁定）=====
   {
-    await call('POST', `/api/v2/admin/content/articles/${a1Pub}/approve`, { role: 'team_owner', user: uAlice, team: tA });
     const r = await call('POST', `/api/v2/content/articles/${a1Pub}/comments`, {
       role: 'volunteer', user: uAlice, team: tA, body: { content: 'nice' },
     });
-    remember(r.json);
-    c1Pub = r.json?.data?.comment_public_id ?? null;
-    const list = await call('GET', `/api/v2/content/articles/${a1Pub}/comments`, { role: 'volunteer', user: uAlice, team: tA });
-    remember(list.json);
-    const items = list.json?.data ?? [];
-    check('H12 评论创建 → 201 且立即可见', r.status === 201 && items.some((x) => x.comment_public_id === c1Pub), `list=${items.length}`);
+    check('H12 志愿者评论创建 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H13：点赞两次幂等 =====
+  // ===== H13：志愿者点赞 → 403（社交锁定）=====
   {
-    const r1 = await call('POST', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
-    const r2 = await call('POST', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
-    remember(r1.json); remember(r2.json);
-    const st = artState(a1Pub);
-    check('H13 点赞两次幂等 (liked=true, like_count=1)', r1.json?.data?.liked === true && r2.json?.data?.liked === true && r1.json?.data?.like_count === 1 && r2.json?.data?.like_count === 1 && st.like_count === 1, `c1=${r1.json?.data?.like_count} c2=${r2.json?.data?.like_count} st=${st.like_count}`);
+    const r = await call('POST', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
+    check('H13 志愿者点赞 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H14：取消点赞两次幂等 =====
+  // ===== H14：志愿者取消点赞 → 403（社交锁定）=====
   {
-    const r1 = await call('DELETE', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
-    const r2 = await call('DELETE', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
-    remember(r1.json); remember(r2.json);
-    const st = artState(a1Pub);
-    check('H14 取消点赞两次幂等 (liked=false, like_count=0)', r1.json?.data?.liked === false && r2.json?.data?.liked === false && r1.json?.data?.like_count === 0 && r2.json?.data?.like_count === 0 && st.like_count === 0, `c1=${r1.json?.data?.like_count} c2=${r2.json?.data?.like_count} st=${st.like_count}`);
+    const r = await call('DELETE', `/api/v2/content/articles/${a1Pub}/like`, { role: 'volunteer', user: uAlice, team: tA });
+    check('H14 志愿者取消点赞 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H15：文章举报 → 安全成功响应 =====
+  // ===== H15：志愿者文章举报 → 403（社交锁定）=====
   {
     const r = await call('POST', `/api/v2/content/articles/${a1Pub}/report`, {
       role: 'volunteer', user: uAlice, team: tA, body: { reason: 'illegal', detail: 'x' },
     });
-    remember(r.json);
-    check('H15 文章举报 → 200 + {ok:true}', r.status === 200 && r.json?.data?.ok === true, `status=${r.status}`);
+    check('H15 志愿者文章举报 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H16：评论举报（comment_public_id）=====
+  // ===== H16：志愿者评论举报 → 403（社交锁定）=====
   {
-    const r = await call('POST', `/api/v2/content/comments/${c1Pub}/report`, {
+    const r = await call('POST', `/api/v2/content/comments/${DUMMY_ULID}/report`, {
       role: 'volunteer', user: uAlice, team: tA, body: { reason: 'abuse' },
     });
-    remember(r.json);
-    check('H16 评论举报 → 200 + {ok:true}', r.status === 200 && r.json?.data?.ok === true, `status=${r.status}`);
+    check('H16 志愿者评论举报 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H17：跨团队评论举报 → 404 =====
+  // ===== H17：跨团队志愿者评论举报 → 403（gate 先于 team 校验）=====
   {
-    const r = await call('POST', `/api/v2/content/comments/${c1Pub}/report`, {
+    const r = await call('POST', `/api/v2/content/comments/${DUMMY_ULID}/report`, {
       role: 'volunteer', user: uCarol, team: tB, body: { reason: 'abuse' },
     });
-    check('H17 跨团队评论举报 → 404', r.status === 404, `got ${r.status}`);
+    check('H17 跨团队志愿者评论举报 → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== H18：以 file_public_id 创建含附件 =====
+  // ===== H18：管理员创建含附件（本人同 team）→ 201 + 附件物化 =====
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A2', body: 'b', attachment_file_public_ids: [fAlicePub] },
+    const r = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A2', body: 'b', attachment_file_public_ids: [fAlicePub] },
     });
     remember(r.json);
     const pub = r.json?.data?.article_public_id;
     const cnt = pub ? q('SELECT COUNT(*) c FROM content_attachments WHERE target_id=(SELECT id FROM content_articles WHERE public_id=?)', pub).c : -1;
-    check('H18 附件创建路径 → 201 + 附件物化', r.status === 201 && cnt === 1, `status=${r.status} att=${cnt}`);
+    check('H18 管理员创建 + 本人同 team 附件 → 201 + 附件物化', r.status === 201 && cnt === 1, `status=${r.status} att=${cnt}`);
   }
 
-  // ===== H19：他人同 team 附件拒绝（400）=====
+  // ===== H19：管理员创建含他人同 team 附件 → 201 + 附件物化（不要求本人上传）=====
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A3', body: 'b', attachment_file_public_ids: [fBobPub] },
+    const r = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A3', body: 'b', attachment_file_public_ids: [fBobPub] },
     });
-    check('H19 他人同 team 附件 → 400', r.status === 400, `got ${r.status}`);
+    remember(r.json);
+    const pub = r.json?.data?.article_public_id;
+    const cnt = pub ? q('SELECT COUNT(*) c FROM content_attachments WHERE target_id=(SELECT id FROM content_articles WHERE public_id=?)', pub).c : -1;
+    check('H19 管理员创建 + 他人同 team 附件 → 201 + 附件物化', r.status === 201 && cnt === 1, `status=${r.status} att=${cnt}`);
   }
 
-  // ===== H20：跨团队附件 → 404 =====
+  // ===== H20：管理员创建含跨 team 附件 → 404 =====
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A4', body: 'b', attachment_file_public_ids: [fCarolPub] },
+    const r = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A4', body: 'b', attachment_file_public_ids: [fCarolPub] },
     });
-    check('H20 跨团队附件 → 404', r.status === 404, `got ${r.status}`);
+    check('H20 管理员创建 + 跨 team 附件 → 404', r.status === 404, `got ${r.status}`);
   }
 
   // ===== H21：max 9 强制 =====
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A5', body: 'b', attachment_file_public_ids: fMaxPubs },
+    const r = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A5', body: 'b', attachment_file_public_ids: fMaxPubs },
     });
     check('H21 超过9个附件 → 400', r.status === 400, `got ${r.status}`);
   }
 
   // ===== H22：重复附件拒绝 =====
   {
-    const r = await call('POST', '/api/v2/content/articles', {
-      role: 'volunteer', user: uAlice, team: tA, body: { title: 'A6', body: 'b', attachment_file_public_ids: [fAlicePub, fAlicePub] },
+    const r = await call('POST', '/api/v2/admin/content/articles', {
+      role: 'team_owner', user: uAlice, team: tA, body: { title: 'A6', body: 'b', attachment_file_public_ids: [fAlicePub, fAlicePub] },
     });
     check('H22 重复附件 → 400', r.status === 400, `got ${r.status}`);
   }
@@ -418,25 +407,27 @@ async function main() {
     check('H23 响应不含禁止 numeric/internal 标识', bad === null, bad ?? 'scanned ' + scanned.length);
   }
 
-  // ===== H24：非法 article/comment public id → 400 =====
+  // ===== H24：非法 public id → 读路径 400；被 gate 拦截的写路径优先 403 =====
   {
     const bad = 'NOTULID1234567890ABCDEFGH';
+    // 读路径（requireActiveTeam + requireUlidParam，无权限 gate）→ 400 字段校验优先。
     const r1 = await call('GET', `/api/v2/content/articles/${bad}`, { role: 'volunteer', user: uAlice, team: tA });
+    // 写路径（content.report.create gate 先于 ULID 解析）→ 403（只读时代志愿者已无此权限）。
     const r2 = await call('POST', `/api/v2/content/comments/${bad}/report`, { role: 'volunteer', user: uAlice, team: tA, body: { reason: 'abuse' } });
-    check('H24 非法 public id → 400', r1.status === 400 && r2.status === 400, `article=${r1.status} comment=${r2.status}`);
+    check('H24 非法 public id：读→400 / 写(gate)→403', r1.status === 400 && r2.status === 403, `article=${r1.status} comment=${r2.status}`);
   }
 
-  // ===== H25：非法举报 reason → 400 =====
+  // ===== H25：志愿者非法举报 reason → 403（gate 先于 reason 校验）=====
   {
     const r = await call('POST', `/api/v2/content/articles/${a1Pub}/report`, {
       role: 'volunteer', user: uAlice, team: tA, body: { reason: 'not-a-reason' },
     });
-    check('H25 非法举报 reason → 400', r.status === 400, `got ${r.status}`);
+    check('H25 志愿者非法举报 reason → 403', r.status === 403, `got ${r.status}`);
   }
 
-  // ===== §13 审计流转核验（独立文章 B，干净序列）=====
+  // ===== §13 审计流转核验（独立文章 B，干净序列，管理员驱动）=====
   {
-    const c = await call('POST', '/api/v2/content/articles', { role: 'volunteer', user: uAlice, team: tA, body: { title: 'B', body: 'b' } });
+    const c = await call('POST', '/api/v2/admin/content/articles', { role: 'team_owner', user: uAlice, team: tA, body: { title: 'B', body: 'b' } });
     const bPub = c.json?.data?.article_public_id;
     const bId = artId(bPub);
 
@@ -463,7 +454,7 @@ async function main() {
 
   // ---- 汇总 ----
   const failed = results.filter((r) => !r.pass);
-  console.log(`\n==== P33-P3B-2C HTTP TEST: ${results.length - failed.length}/${results.length} PASS ====`);
+  console.log(`\n==== P33-R2A HTTP TEST: ${results.length - failed.length}/${results.length} PASS ====`);
   if (failed.length) {
     console.log('FAILED:');
     for (const f of failed) console.log(`  - ${f.name}: ${f.detail}`);

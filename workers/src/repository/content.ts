@@ -266,6 +266,79 @@ export class ContentRepository extends BaseRepository {
   }
 
   // ===================================================================
+  // 写：管理员创建文章（content_type='post'，DRAFT/PENDING）
+  // ===================================================================
+  // 与 insertVolunteerPost 形态一致，但 author_id = operator（管理端操作者），
+  // 不强制"本人上传"。后续审核通过 approveArticle 后进入 feed 可见。
+
+  async insertAdminArticle(input: CreatePostInput): Promise<{ public_id: string; id: number }> {
+    this.ensureTableRead('content_articles');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    const now = Math.floor(Date.now() / 1000);
+    const publicId = generateUlid();
+    const res = await this.run(
+      `INSERT INTO content_articles
+        (public_id, team_id, author_id, content_type, title, content,
+         anonymous, status, audit_status, published_at, created_at, updated_at)
+       VALUES (?, ?, ?, 'post', ?, ?, 0, ?, ?, NULL, ?, ?)`,
+      [
+        publicId,
+        input.teamId,
+        input.authorId,
+        input.title,
+        input.content,
+        ARTICLE_STATUS.DRAFT,
+        ARTICLE_AUDIT.PENDING,
+        now,
+        now,
+      ],
+    );
+    const id = Number((res as { meta?: { last_row_id?: number | string } }).meta?.last_row_id ?? 0);
+    return { public_id: publicId, id };
+  }
+
+  // ===================================================================
+  // 写：管理员编辑团队内任意文章（仅 DRAFT 重置：status=1/audit=1/published=NULL）
+  // ===================================================================
+  // 与 updateOwnArticle 不同：此处【不绑定 author_id】——管理员可编辑团队内任意未删除文章；
+  // 他人同 team / 跨 team → 0 行 → 404（不泄露存在性）。任何编辑后统一重置为草稿/待审，
+  // 等待再次审核发布（杜绝"绕过审核直接改已发布内容"）。
+
+  async updateAdminArticle(publicId: string, patch: UpdatePostPatch): Promise<void> {
+    this.ensureTableRead('content_articles');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) throw notFound('Article');
+    const now = Math.floor(Date.now() / 1000);
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (patch.title !== undefined) {
+      sets.push('title = ?');
+      params.push(patch.title);
+    }
+    if (patch.content !== undefined) {
+      sets.push('content = ?');
+      params.push(patch.content);
+    }
+    // 任何管理端 update 后统一重置为草稿/待审（含原本已发布）。
+    sets.push('status = ?');
+    params.push(ARTICLE_STATUS.DRAFT);
+    sets.push('audit_status = ?');
+    params.push(ARTICLE_AUDIT.PENDING);
+    sets.push('published_at = NULL');
+    sets.push('updated_at = ?');
+    params.push(now);
+    // 团队内任意未删除文章；跨 team → 0 行 → 404（不泄露存在性）。
+    params.push(publicId, this.ctx.tenant.teamId);
+    const res = await this.run(
+      `UPDATE content_articles
+          SET ${sets.join(', ')}
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
+      params,
+    );
+    if ((res.meta?.changes ?? 0) === 0) throw notFound('Article');
+  }
+
+  // ===================================================================
   // 读：feed（仅已发布且已通过审核的 post）
   // ===================================================================
 
