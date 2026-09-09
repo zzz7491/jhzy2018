@@ -13,6 +13,13 @@ import type { TenantContext } from './types/tenant';
  */
 export interface Env {
   DB: D1Database;
+  /**
+   * P33-P3A-2：文件对象存储绑定（R2）。
+   * - local 由 Miniflare 内置 R2 模拟（.wrangler/state），不连接远端。
+   * - 仅作为绑定声明；本阶段【未】在 Cloudflare 创建任何 bucket，也未 deploy。
+   * - object_key 由服务端生成并仅在服务端使用，绝不返回客户端。
+   */
+  FILES: R2Bucket;
   ENVIRONMENT?: string;
   WECHAT_APPID?: string;
   WECHAT_APP_SECRET?: string;

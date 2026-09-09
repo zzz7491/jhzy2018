@@ -21,6 +21,16 @@ export async function sha256Hex(input: string): Promise<string> {
   return hex(new Uint8Array(digest));
 }
 
+/**
+ * P33-P3A-2：二进制内容 SHA-256 摘要（hex，64 字符）。
+ * 用于 files.checksum（内部字段，不返回客户端）。
+ * 与 sha256Hex 的区别：本函数直接对字节摘要，不经 UTF-8 文本编码（二进制安全）。
+ */
+export async function sha256HexBytes(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
+  return hex(new Uint8Array(digest));
+}
+
 /** HMAC-SHA256 摘要（hex）。key 为服务端密钥（实现期由 Workers Secret 提供）。 */
 export async function hmacSha256Hex(key: string, input: string): Promise<string> {
   const enc = new TextEncoder();

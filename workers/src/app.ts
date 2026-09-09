@@ -34,6 +34,7 @@ import mall from './routes/mall'; // P24-P3B：积分商城（商品 / 兑换 / 
 import training from './routes/training'; // P32-P2：学习培训（课程 / 章节 / 报名 / 进度 / admin CRUD）
 import exams from './routes/exams'; // P32-P2：考试（start / resume / submit / grade / 自动发证 / admin CRUD）
 import certificates from './routes/certificates'; // P32-P2：证书（mine / detail / verify / template admin）
+import files from './routes/files'; // P33-P3A-2：文件基础设施（POST /files、GET /files/:filePublicId）
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
 import { ok } from './utils/response';
@@ -73,6 +74,7 @@ export function createApp() {
   v2.route('/training', training); // P32-P2：/api/v2/training/*
   v2.route('/exams', exams); // P32-P2：/api/v2/exams/*
   v2.route('/certificates', certificates); // P32-P2：/api/v2/certificates/*
+  v2.route('/files', files); // P33-P3A-2：/api/v2/files/*（Community V1 图片上传 / TEAM-scoped 读取）
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁
   app.route('/api/v2', v2);
