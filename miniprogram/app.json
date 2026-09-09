@@ -65,6 +65,8 @@
     "pages/admin/exam/questions",
     "pages/admin/exam/papers",
     "pages/admin/exam/results",
+    "pages/community/article-detail/article-detail",
+    "pages/community/article-edit/article-edit",
     "pages/community/index/index"
   ],
   "tabBar": {

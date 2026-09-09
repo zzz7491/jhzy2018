@@ -1112,6 +1112,15 @@ Page({
     });
   },
 
+  goToCommunityFeed() {
+    if (!this.data.userInfo) {
+      this.showLoginModal('公益社区');
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages/community/index/index'
+    });
+  },
   goToLogin() {
     this.showLoginModal('使用该功能');
   },

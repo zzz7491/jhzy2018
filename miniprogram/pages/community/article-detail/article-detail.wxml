@@ -1,0 +1,97 @@
+<!-- pages/community/article-detail/article-detail.wxml - 社区文章详情（志愿者端，P33-P4B） -->
+<view class="container safe-top">
+
+  <!-- 需要选择团队 -->
+  <view wx:if="{{needTeam}}" class="need-team">
+    <text class="need-team-icon">🏢</text>
+    <text class="need-team-title">请先选择志愿团队</text>
+    <text class="need-team-sub">公益社区以团队为单位，请先选择你所在的志愿团队</text>
+    <button class="need-team-btn" bindtap="goSelectTeam">前往团队选择</button>
+  </view>
+
+  <!-- 加载 -->
+  <view wx:elif="{{loading}}" class="loading-container">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 错误 -->
+  <view wx:elif="{{error}}" class="error-container">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">{{errMsg || '加载失败'}}</text>
+    <button class="retry-btn" bindtap="checkTeamAndLoad">重试</button>
+  </view>
+
+  <!-- 内容 -->
+  <view wx:else class="detail-wrap">
+    <view class="article-card">
+      <text class="article-title">{{article.title}}</text>
+      <text class="article-time">{{article.createdText}}</text>
+
+      <text wx:if="{{article.body}}" class="article-body">{{article.body}}</text>
+
+      <!-- 附件图片 -->
+      <view wx:if="{{article.attachments.length > 0}}" class="article-imgs img-count-{{article.attachments.length}}">
+        <image
+          wx:for="{{article.attachments}}"
+          wx:for-item="img"
+          wx:key="file_public_id"
+          wx:if="{{img.localUrl}}"
+          src="{{img.localUrl}}"
+          mode="aspectFill"
+          class="article-img"
+          bindtap="previewImage"
+          data-url="{{img.localUrl}}"
+        />
+      </view>
+
+      <view class="article-actions">
+        <view class="act-like {{article.liked_by_me ? 'liked' : ''}}" bindtap="toggleLike">
+          <text class="act-icon">{{article.liked_by_me ? '👍' : '👍🏻'}}</text>
+          <text class="act-text">{{article.like_count}}</text>
+        </view>
+        <view class="act-report" bindtap="reportArticle">
+          <text class="act-text">举报</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 评论区 -->
+    <view class="comment-section">
+      <view class="section-title">
+        <text class="title-text">评论</text>
+        <text class="title-count">{{article.comment_count}}</text>
+      </view>
+
+      <view wx:if="{{comments.length === 0}}" class="comment-empty">
+        <text class="comment-empty-text">还没有评论，来发表第一条吧</text>
+      </view>
+
+      <view wx:else class="comment-list">
+        <view wx:for="{{comments}}" wx:key="comment_public_id" class="comment-item">
+          <view class="comment-main">
+            <text class="comment-content">{{item.content}}</text>
+            <text class="comment-time">{{item.createdText}}</text>
+          </view>
+          <text class="comment-report" bindtap="reportComment" data-id="{{item.comment_public_id}}">举报</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="safe-bottom"></view>
+  </view>
+
+  <!-- 底部评论输入 -->
+  <view wx:if="{{!needTeam && !loading && !error}}" class="comment-bar">
+    <input
+      class="comment-input"
+      placeholder="说点什么..."
+      value="{{commentText}}"
+      bindinput="onCommentInput"
+      confirm-type="send"
+      bindconfirm="submitComment"
+    />
+    <view class="comment-send {{commenting ? 'disabled' : ''}}" bindtap="submitComment">
+      <text class="comment-send-text">发送</text>
+    </view>
+  </view>
+</view>

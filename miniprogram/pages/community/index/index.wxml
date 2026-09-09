@@ -1,9 +1,91 @@
-<view class="placeholder-page">
-  <view class="placeholder-card">
-    <view class="placeholder-icon">🏘️</view>
-    <view class="placeholder-title">公益社区</view>
-    <view class="placeholder-body">公益社区正在建设中</view>
-    <view class="placeholder-tip">更多志愿服务内容即将上线，敬请期待</view>
-    <button class="placeholder-btn" bindtap="goHome">返回首页</button>
+<!-- pages/community/index/index.wxml - 公益社区一级入口 Feed（志愿者端，P33-P4B） -->
+<view class="container safe-top">
+
+  <!-- 顶部标题栏 -->
+  <view class="page-header">
+    <text class="page-title">公益社区</text>
+    <view class="header-create" bindtap="goCreate">
+      <text class="header-create-text">发布</text>
+    </view>
+  </view>
+
+  <!-- 需要选择团队 -->
+  <view wx:if="{{needTeam}}" class="need-team">
+    <text class="need-team-icon">🏢</text>
+    <text class="need-team-title">请先选择志愿团队</text>
+    <text class="need-team-sub">公益社区以团队为单位，请先选择你所在的志愿团队</text>
+    <button class="need-team-btn" bindtap="goSelectTeam">前往团队选择</button>
+  </view>
+
+  <!-- 首次加载 -->
+  <view wx:elif="{{loading && articles.length === 0}}" class="loading-container">
+    <text class="loading-text">加载中...</text>
+  </view>
+
+  <!-- 加载失败 -->
+  <view wx:elif="{{error && articles.length === 0}}" class="error-container">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">{{errMsg || '加载失败'}}</text>
+    <button class="retry-btn" bindtap="refresh">重试</button>
+  </view>
+
+  <!-- 空 -->
+  <view wx:elif="{{!loading && articles.length === 0}}" class="empty-container">
+    <text class="empty-icon">📝</text>
+    <text class="empty-text">社区还没有已发布的内容</text>
+    <text class="empty-subtext">发布你的第一篇社区动态吧</text>
+    <button class="empty-btn" bindtap="goCreate">去发布</button>
+  </view>
+
+  <!-- 列表 -->
+  <view wx:else class="feed-list">
+    <view
+      wx:for="{{articles}}"
+      wx:key="article_public_id"
+      class="feed-card"
+      bindtap="goDetail"
+      data-id="{{item.article_public_id}}"
+    >
+      <view class="feed-card-head">
+        <text class="feed-card-title">{{item.title}}</text>
+      </view>
+
+      <text wx:if="{{item.bodyPreview}}" class="feed-card-body">{{item.bodyPreview}}</text>
+
+      <!-- 附件图片网格（经授权下载到本地临时文件） -->
+      <view wx:if="{{item.attachments.length > 0}}" class="feed-imgs img-count-{{item.attachments.length}}">
+        <image
+          wx:for="{{item.attachments}}"
+          wx:for-item="img"
+          wx:key="file_public_id"
+          wx:if="{{img.localUrl}}"
+          src="{{img.localUrl}}"
+          mode="aspectFill"
+          class="feed-img"
+        />
+      </view>
+
+      <view class="feed-card-foot">
+        <text class="feed-meta">{{item.createdText}}</text>
+        <view class="feed-stats">
+          <text class="feed-stat">💬 {{item.comment_count}}</text>
+          <text class="feed-stat">👍 {{item.like_count}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 底部加载更多 -->
+    <view wx:if="{{loading && articles.length > 0}}" class="list-loading">
+      <text class="loading-text">加载中...</text>
+    </view>
+    <view wx:elif="{{!hasMore && articles.length > 0}}" class="list-end">
+      <text class="list-end-text">没有更多了</text>
+    </view>
+  </view>
+
+  <!-- 底部安全区 + 悬浮发布 -->
+  <view class="safe-bottom"></view>
+  <view wx:if="{{!needTeam}}" class="fab" bindtap="goCreate">
+    <text class="fab-plus">＋</text>
   </view>
 </view>

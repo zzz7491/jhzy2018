@@ -230,6 +230,18 @@
   </view>
 </view>
 
+<!-- 公益社区入口（P33-P4B，内联样式，不改动 index.scss） -->
+<view style="margin:24rpx;background:#fff;border-radius:20rpx;padding:28rpx;display:flex;align-items:center;box-shadow:0 4rpx 16rpx rgba(0,0,0,0.05);" bindtap="goToCommunityFeed">
+  <view style="width:80rpx;height:80rpx;border-radius:20rpx;background:linear-gradient(135deg,#FF6B35,#FF8A5B);display:flex;align-items:center;justify-content:center;margin-right:24rpx;">
+    <text style="font-size:40rpx;">💬</text>
+  </view>
+  <view style="flex:1;">
+    <text style="font-size:32rpx;font-weight:700;color:#1a1a1a;display:block;">公益社区</text>
+    <text style="font-size:24rpx;color:#999;margin-top:6rpx;display:block;">分享志愿故事，交流服务心得</text>
+  </view>
+  <text style="font-size:40rpx;color:#ccc;">›</text>
+</view>
+
 <!-- 热点活动轮播 -->
 <view class="hot-activities" wx:if="{{hotActivities.length > 0}}">
   <view class="section-title">

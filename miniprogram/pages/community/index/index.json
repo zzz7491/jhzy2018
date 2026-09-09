@@ -1,4 +1,5 @@
 {
   "navigationBarTitleText": "公益社区",
+  "enablePullDownRefresh": true,
   "usingComponents": {}
 }
