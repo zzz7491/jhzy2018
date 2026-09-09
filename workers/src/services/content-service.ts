@@ -11,7 +11,7 @@
  */
 
 import type { D1Database } from '@cloudflare/workers-types';
-import { ContentRepository, ATTACHMENT_MAX, ATTACHMENT_MIME_ALLOWED, REPORT_REASONS } from '../repository/content';
+import { ContentRepository, ATTACHMENT_MAX, ATTACHMENT_MIME_ALLOWED, REPORT_REASONS, ARTICLE_STATUS, ARTICLE_AUDIT } from '../repository/content';
 import type { CreatePostInput, UpdatePostPatch, FeedArticleItem, CommentView, ReportReason } from '../repository/content';
 import { FileRepository } from '../repository/files';
 import { invalidParam, authRequired, teamScopeRequired, notFound } from '../utils/errors';
@@ -125,6 +125,12 @@ export class ContentService {
     if (teamId == null) throw teamScopeRequired();
     const art = await this.repo.findArticleRow(publicId);
     if (!art) throw notFound('Article');
+    // 冻结产品规则（P33-R2C）：志愿者详情仅可见「已发布 + 已审核通过」文章。
+    // 草稿 / 驳回 / 下架 / 删除 一律按不存在处理，不泄露存在性或状态。
+    // （删除态已由 findArticleRow 的 deleted_at IS NULL 前置拦截。）
+    if (art.status !== ARTICLE_STATUS.PUBLISHED || art.audit_status !== ARTICLE_AUDIT.APPROVED) {
+      throw notFound('Article');
+    }
     const attachments = await this.repo.listArticleAttachmentsById(publicId);
     const likedByMe = this.ctx.auth.userId != null ? await this.repo.hasLiked(art.id, this.ctx.auth.userId) : false;
     return {

@@ -129,6 +129,21 @@ export interface AdminArticleItem {
   published_at: number | null;
 }
 
+/** 管理端文章详情 DTO（供编辑/审核台回填）：含 status/audit_status/作者信息/附件；不含任何 numeric id。 */
+export interface AdminArticleDetail {
+  article_public_id: string;
+  content_type: string;
+  title: string;
+  body: string | null;
+  status: number;
+  audit_status: number;
+  author_public_id: string | null;
+  author_nickname: string | null;
+  attachments: FeedAttachmentItem[];
+  created_at: number;
+  published_at: number | null;
+}
+
 export interface CommentView {
   comment_public_id: string;
   content: string;
@@ -472,6 +487,58 @@ export class ContentRepository extends BaseRepository {
     return {
       items,
       pagination: { page, page_size: pageSize, total, total_pages: Math.max(1, Math.ceil(total / pageSize)) },
+    };
+  }
+
+  // ===================================================================
+  // 读：admin 文章详情（同 team 任意未删除状态，供编辑/审核台回填）
+  // ===================================================================
+
+  /**
+   * 管理端文章详情：team-scoped（public_id + team_id + deleted_at IS NULL），
+   * 无发布态过滤 —— 草稿 / 驳回 / 下架 / 已发布 均可见（编辑/审核需要）。
+   * cross-team / 不存在 / 已删除 → null（不泄露存在性）。
+   * 返回安全 DTO（含 status/audit_status/作者信息/附件），不含 numeric id。
+   */
+  async getAdminArticleDetail(publicId: string): Promise<AdminArticleDetail | null> {
+    this.ensureTableRead('content_articles');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) return null;
+    const row = await this.first<{
+      article_public_id: string;
+      content_type: string;
+      title: string;
+      body: string | null;
+      status: number;
+      audit_status: number;
+      author_public_id: string | null;
+      author_nickname: string | null;
+      created_at: number;
+      published_at: number | null;
+    }>(
+      `SELECT a.public_id AS article_public_id, a.content_type, a.title, a.content AS body,
+              a.status, a.audit_status,
+              u.public_id AS author_public_id, u.nickname AS author_nickname,
+              a.created_at, a.published_at
+         FROM content_articles a
+         LEFT JOIN users u ON u.id = a.author_id
+        WHERE a.public_id = ? AND a.team_id = ? AND a.deleted_at IS NULL`,
+      [publicId, this.ctx.tenant.teamId],
+    );
+    if (!row) return null;
+    const attachments = await this.listArticleAttachmentsById(publicId);
+    return {
+      article_public_id: row.article_public_id,
+      content_type: row.content_type,
+      title: row.title,
+      body: row.body,
+      status: row.status,
+      audit_status: row.audit_status,
+      author_public_id: row.author_public_id,
+      author_nickname: row.author_nickname,
+      attachments,
+      created_at: row.created_at,
+      published_at: row.published_at,
     };
   }
 

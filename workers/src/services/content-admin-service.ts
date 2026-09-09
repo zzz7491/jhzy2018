@@ -13,7 +13,7 @@
 
 import type { D1Database } from '@cloudflare/workers-types';
 import { ContentRepository, ATTACHMENT_MAX, ATTACHMENT_MIME_ALLOWED, type UpdatePostPatch } from '../repository/content';
-import type { AdminArticleItem } from '../repository/content';
+import type { AdminArticleItem, AdminArticleDetail } from '../repository/content';
 import { FileRepository } from '../repository/files';
 import { authRequired, teamScopeRequired, invalidParam, notFound } from '../utils/errors';
 import type { RepositoryContext } from '../types/tenant';
@@ -61,6 +61,14 @@ export class ContentAdminService {
     this.requireActor();
     const offset = Math.max(0, (page - 1) * pageSize);
     return this.repo.listAdminArticles(page, pageSize, offset);
+  }
+
+  /** 管理端文章详情（供编辑/审核回填）：同 team 任意未删除状态，含 status/audit_status/作者信息。 */
+  async getArticleDetail(publicId: string): Promise<AdminArticleDetail> {
+    this.requireActor();
+    const detail = await this.repo.getAdminArticleDetail(publicId);
+    if (!detail) throw notFound('Article');
+    return detail;
   }
 
   async approve(publicId: string): Promise<{ article_public_id: string }> {

@@ -2,7 +2,7 @@
  * 社区管理端路由（P33-P3B-2C）—— /api/v2/admin/content
  *
  * 纪律（§8/§10/§13）：
- * - 仅实现：list / approve / reject / unpublish / delete 五个管理端点；
+ * - 实现：list / detail / approve / reject / unpublish / delete 管理端点；
  *   不新增任何 permission code（沿用 0003 目录：
  *     list/approve/reject → content.article.audit
  *     unpublish           → content.article.publish
@@ -49,6 +49,13 @@ async function readJsonBody(c: Context): Promise<Record<string, unknown>> {
 adminContent.get('/articles', requirePermission('content.article.audit'), async (c) => {
   const { page, pageSize } = parsePagination(c.req.query());
   const data = await svc(c).list(page, pageSize);
+  return ok(c, data);
+});
+
+// ---- GET /articles/:articlePublicId（管理端详情：同 team 任意未删除状态，需 content.article.audit）----
+adminContent.get('/articles/:articlePublicId', requirePermission('content.article.audit'), async (c) => {
+  const publicId = requireUlidParam(c.req.param('articlePublicId'), 'articlePublicId');
+  const data = await svc(c).getArticleDetail(publicId);
   return ok(c, data);
 });
 
