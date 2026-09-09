@@ -143,8 +143,4 @@ Page({
     if (!id) return;
     wx.navigateTo({ url: '/pages/community/article-detail/article-detail?articlePublicId=' + id });
   },
-
-  goCreate() {
-    wx.navigateTo({ url: '/pages/community/article-edit/article-edit' });
-  },
 });

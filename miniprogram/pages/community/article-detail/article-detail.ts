@@ -1,5 +1,5 @@
-// pages/community/article-detail/article-detail.ts - 社区文章详情（志愿者端，P33-P4B）
-import { contentApi, REPORT_REASONS, REPORT_REASON_LABELS, ReportReason } from '../../../utils/contentApi';
+// pages/community/article-detail/article-detail.ts - 社区文章详情（志愿者端，P33-R2B 只读化）
+import { contentApi } from '../../../utils/contentApi';
 
 function formatDateText(input: string | number | null): string {
   if (input == null) return '';
@@ -31,14 +31,10 @@ function downloadAuthImage(filePublicId: string): Promise<string | null> {
 interface DetailPageData {
   articlePublicId: string;
   article: any;
-  comments: any[];
   loading: boolean;
   error: boolean;
   errMsg: string;
   needTeam: boolean;
-  commenting: boolean;
-  commentText: string;
-  likeLoading: boolean;
   imgCache: Record<string, string>;
 }
 
@@ -46,14 +42,10 @@ Page<DetailPageData>({
   data: {
     articlePublicId: '',
     article: null,
-    comments: [],
     loading: true,
     error: false,
     errMsg: '',
     needTeam: false,
-    commenting: false,
-    commentText: '',
-    likeLoading: false,
     imgCache: {},
   },
 
@@ -83,7 +75,7 @@ Page<DetailPageData>({
 
   loadAll() {
     this.setData({ loading: true, error: false });
-    Promise.all([this.loadArticle(false), this.loadComments()])
+    this.loadArticle(false)
       .then(() => this.setData({ loading: false }))
       .catch((err: any) => {
         this.setData({ loading: false, error: true, errMsg: err && err.message ? err.message : '加载失败' });
@@ -122,57 +114,6 @@ Page<DetailPageData>({
     });
   },
 
-  loadComments(): Promise<void> {
-    const id = this.data.articlePublicId;
-    return contentApi.getComments(id).then((list: any[]) => {
-      const comments = (list || []).map((c: any) => ({ ...c, createdText: formatDateText(c.created_at) }));
-      this.setData({ comments });
-    });
-  },
-
-  toggleLike() {
-    if (this.data.likeLoading || !this.data.article) return;
-    const id = this.data.articlePublicId;
-    const liked = this.data.article.liked_by_me;
-    this.setData({ likeLoading: true });
-    const call = liked ? contentApi.unlikeArticle(id) : contentApi.likeArticle(id);
-    call
-      .then((res) => {
-        this.setData({ 'article.liked_by_me': res.liked, 'article.like_count': res.like_count });
-      })
-      .catch((err: any) => {
-        wx.showToast({ title: (err && err.message) || '操作失败', icon: 'none' });
-      })
-      .finally(() => this.setData({ likeLoading: false }));
-  },
-
-  onCommentInput(e: any) {
-    this.setData({ commentText: e.detail.value });
-  },
-
-  submitComment() {
-    const text = (this.data.commentText || '').trim();
-    if (!text) {
-      wx.showToast({ title: '评论内容不能为空', icon: 'none' });
-      return;
-    }
-    if (this.data.commenting) return;
-    this.setData({ commenting: true });
-    contentApi
-      .createComment(this.data.articlePublicId, text)
-      .then(() => {
-        this.setData({ commentText: '' });
-        wx.showToast({ title: '评论成功', icon: 'success' });
-        // 同步真实评论数与列表（不使用乐观计数）
-        return Promise.all([this.loadComments(), this.loadArticle(false)]);
-      })
-      .catch((err: any) => {
-        const msg = err && err.message ? err.message : '评论失败';
-        wx.showToast({ title: msg, icon: 'none' });
-      })
-      .finally(() => this.setData({ commenting: false }));
-  },
-
   previewImage(e: any) {
     const url = e.currentTarget.dataset.url;
     const urls = (this.data.article.attachments || [])
@@ -180,33 +121,5 @@ Page<DetailPageData>({
       .map((x: any) => x.localUrl);
     if (!url || urls.length === 0) return;
     wx.previewImage({ current: url, urls });
-  },
-
-  reportArticle() {
-    wx.showActionSheet({
-      itemList: REPORT_REASONS.map((r) => REPORT_REASON_LABELS[r]),
-      success: (res) => {
-        const reason: ReportReason = REPORT_REASONS[res.tapIndex];
-        contentApi
-          .reportArticle(this.data.articlePublicId, reason)
-          .then(() => wx.showToast({ title: '已提交', icon: 'success' }))
-          .catch((err: any) => wx.showToast({ title: (err && err.message) || '提交失败', icon: 'none' }));
-      },
-    });
-  },
-
-  reportComment(e: any) {
-    const cid = e.currentTarget.dataset.id;
-    if (!cid) return;
-    wx.showActionSheet({
-      itemList: REPORT_REASONS.map((r) => REPORT_REASON_LABELS[r]),
-      success: (res) => {
-        const reason: ReportReason = REPORT_REASONS[res.tapIndex];
-        contentApi
-          .reportComment(cid, reason)
-          .then(() => wx.showToast({ title: '已提交', icon: 'success' }))
-          .catch((err: any) => wx.showToast({ title: (err && err.message) || '提交失败', icon: 'none' }));
-      },
-    });
   },
 });

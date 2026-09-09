@@ -43,55 +43,8 @@
           data-url="{{img.localUrl}}"
         />
       </view>
-
-      <view class="article-actions">
-        <view class="act-like {{article.liked_by_me ? 'liked' : ''}}" bindtap="toggleLike">
-          <text class="act-icon">{{article.liked_by_me ? '👍' : '👍🏻'}}</text>
-          <text class="act-text">{{article.like_count}}</text>
-        </view>
-        <view class="act-report" bindtap="reportArticle">
-          <text class="act-text">举报</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 评论区 -->
-    <view class="comment-section">
-      <view class="section-title">
-        <text class="title-text">评论</text>
-        <text class="title-count">{{article.comment_count}}</text>
-      </view>
-
-      <view wx:if="{{comments.length === 0}}" class="comment-empty">
-        <text class="comment-empty-text">还没有评论，来发表第一条吧</text>
-      </view>
-
-      <view wx:else class="comment-list">
-        <view wx:for="{{comments}}" wx:key="comment_public_id" class="comment-item">
-          <view class="comment-main">
-            <text class="comment-content">{{item.content}}</text>
-            <text class="comment-time">{{item.createdText}}</text>
-          </view>
-          <text class="comment-report" bindtap="reportComment" data-id="{{item.comment_public_id}}">举报</text>
-        </view>
-      </view>
     </view>
 
     <view class="safe-bottom"></view>
-  </view>
-
-  <!-- 底部评论输入 -->
-  <view wx:if="{{!needTeam && !loading && !error}}" class="comment-bar">
-    <input
-      class="comment-input"
-      placeholder="说点什么..."
-      value="{{commentText}}"
-      bindinput="onCommentInput"
-      confirm-type="send"
-      bindconfirm="submitComment"
-    />
-    <view class="comment-send {{commenting ? 'disabled' : ''}}" bindtap="submitComment">
-      <text class="comment-send-text">发送</text>
-    </view>
   </view>
 </view>

@@ -19,24 +19,6 @@
   color: #1a1a1a;
 }
 
-.header-create {
-  min-width: 96rpx;
-  height: 60rpx;
-  padding: 0 28rpx;
-  border-radius: 30rpx;
-  background: #FF6B35;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 6rpx 16rpx rgba(255, 107, 53, 0.28);
-}
-
-.header-create-text {
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
 /* 需要选择团队 */
 .need-team {
   margin-top: 120rpx;
@@ -51,7 +33,6 @@
 .need-team-sub { font-size: 26rpx; color: #888; text-align: center; line-height: 1.6; margin-bottom: 36rpx; }
 
 .need-team-btn,
-.empty-btn,
 .retry-btn {
   background: #FF6B35;
   color: #fff;
@@ -140,30 +121,11 @@
 }
 
 .feed-meta { font-size: 24rpx; color: #aaa; }
-.feed-stats { display: flex; gap: 24rpx; }
-.feed-stat { font-size: 26rpx; color: #777; }
 
 .list-loading, .list-end {
   text-align: center;
   padding: 24rpx 0;
 }
 .list-end-text { font-size: 24rpx; color: #bbb; }
-
-/* 悬浮发布按钮 */
-.fab {
-  position: fixed;
-  right: 40rpx;
-  bottom: 60rpx;
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 50%;
-  background: #FF6B35;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(255, 107, 53, 0.4);
-  z-index: 20;
-}
-.fab-plus { color: #fff; font-size: 56rpx; line-height: 56rpx; }
 
 .safe-bottom { height: 40rpx; }

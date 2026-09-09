@@ -4,9 +4,6 @@
   <!-- 顶部标题栏 -->
   <view class="page-header">
     <text class="page-title">公益社区</text>
-    <view class="header-create" bindtap="goCreate">
-      <text class="header-create-text">发布</text>
-    </view>
   </view>
 
   <!-- 需要选择团队 -->
@@ -32,9 +29,8 @@
   <!-- 空 -->
   <view wx:elif="{{!loading && articles.length === 0}}" class="empty-container">
     <text class="empty-icon">📝</text>
-    <text class="empty-text">社区还没有已发布的内容</text>
-    <text class="empty-subtext">发布你的第一篇社区动态吧</text>
-    <button class="empty-btn" bindtap="goCreate">去发布</button>
+    <text class="empty-text">暂无内容</text>
+    <text class="empty-subtext">内容由团队管理员发布，敬请关注</text>
   </view>
 
   <!-- 列表 -->
@@ -67,10 +63,6 @@
 
       <view class="feed-card-foot">
         <text class="feed-meta">{{item.createdText}}</text>
-        <view class="feed-stats">
-          <text class="feed-stat">💬 {{item.comment_count}}</text>
-          <text class="feed-stat">👍 {{item.like_count}}</text>
-        </view>
       </view>
     </view>
 
@@ -83,9 +75,6 @@
     </view>
   </view>
 
-  <!-- 底部安全区 + 悬浮发布 -->
+  <!-- 底部安全区 -->
   <view class="safe-bottom"></view>
-  <view wx:if="{{!needTeam}}" class="fab" bindtap="goCreate">
-    <text class="fab-plus">＋</text>
-  </view>
 </view>
