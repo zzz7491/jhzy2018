@@ -90,7 +90,10 @@ async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Pr
       throw notFound('Form submission');
     }
 
-    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    // P34-C3 blocker fix：创建新报名必须先过"报名资格"查询。
+    // findSignupEligibleByPublicId 仅在 audit_status=APPROVED(2) AND status=SIGNUP_OPEN(1) 时返回，
+    // 否则 404（与不可见态一致，不泄露活动存在性）。历史流程（cancel/读/attendance）仍走共享 lookup，不受影响。
+    const activity = await activities.findSignupEligibleByPublicId(activityPublicId);
     if (activity.status !== 1) throw conflict(ConflictReason.ACTIVITY_SIGNUP_CLOSED);
 
     const binding = await this.resolvePolicy(activityPublicId);

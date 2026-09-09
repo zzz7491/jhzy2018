@@ -32,7 +32,7 @@ import { ActivitySignupService } from '../services/activity-signup-service';
 import { ActivityAdminService } from '../services/activity-admin-service';
 import { ActivityAttendanceService } from '../services/attendance-service';
 import { requirePermission } from '../middleware/rbac';
-import { D1PermissionProvider } from '../services/permission-provider';
+import { D1PermissionProvider, can } from '../services/permission-provider';
 import { ok } from '../utils/response';
 import { authRequired, invalidParam, AppError, ErrorCode } from '../utils/errors';
 import { requireUlidParam, parsePagination, isUlid } from '../utils/validation';
@@ -60,7 +60,12 @@ activities.get('/', async (c) => {
 
   const pagination = parsePagination(c.req.query());
   const repo = new ActivityRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
-  const result = await repo.listByMyTeam(pagination.page, pagination.pageSize, pagination.offset);
+  // P34-C3：无活动管理权限者（志愿者）仅可见"已审核公开"活动；具备 review/submit 的管理员走完整列表（§5 不得误伤 admin）。
+  const isManager = (await can(c.env, auth, c.get('tenant'), 'activity.activity.review')) ||
+    (await can(c.env, auth, c.get('tenant'), 'activity.activity.submit'));
+  const result = isManager
+    ? await repo.listByMyTeam(pagination.page, pagination.pageSize, pagination.offset)
+    : await repo.listVolunteerVisible(pagination.page, pagination.pageSize, pagination.offset);
 
   return ok(c, result);
 });
@@ -72,7 +77,11 @@ activities.get('/:id', async (c) => {
 
   const publicId = requireUlidParam(c.req.param('id'), 'id');
   const repo = new ActivityRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
-  const activity = await repo.findByPublicId(publicId);
+  const isManager = (await can(c.env, auth, c.get('tenant'), 'activity.activity.review')) ||
+    (await can(c.env, auth, c.get('tenant'), 'activity.activity.submit'));
+  const activity = isManager
+    ? await repo.findByPublicId(publicId)
+    : await repo.findVolunteerVisibleByPublicId(publicId);
 
   return ok(c, { activity });
 });

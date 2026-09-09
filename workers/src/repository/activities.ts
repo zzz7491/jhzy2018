@@ -45,6 +45,26 @@ export interface ActivityRow {
   max_session_minutes: number | null;
 }
 
+/**
+ * 志愿者公开可见活动视图（P34-C3）。
+ *
+ * 仅含志愿者端所需字段，且不暴露内部 numeric id / team_id（避免 id 泄露，A.§14 / D.§12）。
+ * 与 ActivityRow 分离：本视图不进入管理端 GET /activities 响应契约。
+ */
+export interface VolunteerActivityRow {
+  public_id: string;
+  title: string;
+  summary: string | null;
+  start_time: number;
+  end_time: number;
+  signup_deadline: number | null;
+  quota: number;
+  signed_count: number;
+  status: number;
+  audit_status: number;
+  max_session_minutes: number | null;
+}
+
 // =========================================================================
 // P31-P1A：活动管理端（team-scoped）数据契约与原子写。
 // 以下接口仅暴露 Beta 管理必需字段；team_id / created_by / 内部 numeric id
@@ -207,6 +227,51 @@ export class ActivityRepository extends BaseRepository {
   }
 
   /**
+   * 志愿者公开可见活动（P34-C3）：仅返回 audit_status=APPROVED 且 lifecycle status ∈ (1,2,3,4)
+   * 的活动。TEAM_SCOPED（team_id 双重限定 → 跨团队 / 不可见状态 → 同一 404）。
+   * 投影不含内部 id / team_id（避免 numeric DB id 泄露，A.§14 / D.§12）。
+   */
+  async listVolunteerVisible(page: number, pageSize: number, offset: number): Promise<Paginated<VolunteerActivityRow>> {
+    this.ensureTableRead('activities');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+
+    const teamId = this.ctx.tenant.teamId;
+    const where = `WHERE team_id = ? AND deleted_at IS NULL AND audit_status = 2 AND status IN (1,2,3,4)`;
+    const items = await this.all<VolunteerActivityRow>(
+      `SELECT public_id, title, summary, start_time, end_time,
+              signup_deadline, quota, signed_count, status, audit_status, max_session_minutes
+         FROM activities ${where}
+        ORDER BY start_time DESC
+        LIMIT ? OFFSET ?`,
+      [teamId, pageSize, offset],
+    );
+
+    const totalRow = await this.first<{ total: number }>(`SELECT COUNT(*) AS total FROM activities ${where}`, [teamId]);
+    const total = totalRow?.total ?? 0;
+    return {
+      items,
+      pagination: { page, page_size: pageSize, total, total_pages: Math.max(1, Math.ceil(total / pageSize)) },
+    };
+  }
+
+  async findVolunteerVisibleByPublicId(publicId: string): Promise<VolunteerActivityRow> {
+    this.ensureTableRead('activities');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) throw notFound('Activity');
+
+    const row = await this.first<VolunteerActivityRow>(
+      `SELECT public_id, title, summary, start_time, end_time, signup_deadline,
+              quota, signed_count, status, audit_status, max_session_minutes
+         FROM activities
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
+          AND audit_status = 2 AND status IN (1,2,3,4)`,
+      [publicId, this.ctx.tenant.teamId],
+    );
+    if (!row) throw notFound('Activity');
+    return row;
+  }
+
+  /**
    * 读取报名目标活动（S2-6g）。
    *
    * TEAM_SCOPED 双重限定：public_id = ? AND team_id = ? AND deleted_at IS NULL。
@@ -222,6 +287,34 @@ export class ActivityRepository extends BaseRepository {
       `SELECT id, team_id, status, allow_cancel, need_audit
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
+      [publicId, this.ctx.tenant.teamId],
+    );
+    if (!row) throw notFound('Activity');
+    return row;
+  }
+
+  /**
+   * 报名资格查询（P34-C3 blocker fix）。
+   *
+   * 仅当活动同时满足【创建新报名】资格时才返回，否则走 404（与"不可见/不存在"一致，不泄露活动存在性）：
+   *   audit_status = APPROVED(2) AND status = SIGNUP_OPEN(1) AND deleted_at IS NULL AND team_id 匹配。
+   *
+   * 与 findSignupTargetByPublicId 的区别：
+   * - 本方法额外强制 audit_status = APPROVED，杜绝志愿者对"已开放但未过审"活动（status=1 + audit DRAFT/PENDING/REJECTED）
+   *   以及任意非开放态（status 0/2/3/4/5）创建新报名。
+   * - 仅用于【创建新报名】路径（createOwn）；cancel / 历史读 / attendance / checkin / checkout 仍使用
+   *   findSignupTargetByPublicId（保留历史 participation / service 数据可读性，不被 visibility predicate 误伤）。
+   */
+  async findSignupEligibleByPublicId(publicId: string): Promise<ActivitySignupTarget> {
+    this.ensureTableRead('activities');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) throw notFound('Activity');
+
+    const row = await this.first<ActivitySignupTarget>(
+      `SELECT id, team_id, status, allow_cancel, need_audit
+         FROM activities
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
+          AND status = 1 AND audit_status = 2`,
       [publicId, this.ctx.tenant.teamId],
     );
     if (!row) throw notFound('Activity');
