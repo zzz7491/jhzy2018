@@ -1,0 +1,37 @@
+<view class="container">
+  <view class="topbar">
+    <text class="page-title">公益社区内容</text>
+    <button class="create-btn" bindtap="gotoCreate" size="mini" type="primary">+ 新建</button>
+  </view>
+
+  <view wx:if="{{!hasTeam}}" class="empty">
+    <text class="empty-text">请先在管理面板选择团队</text>
+  </view>
+
+  <view wx:elif="{{loading && items.length === 0}}" class="empty">
+    <text class="empty-text">加载中...</text>
+  </view>
+
+  <view wx:elif="{{items.length === 0}}" class="empty">
+    <text class="empty-text">暂无内容</text>
+  </view>
+
+  <view wx:else class="list">
+    <view class="card" wx:for="{{items}}" wx:key="article_public_id" data-id="{{item.article_public_id}}" bindtap="openItem">
+      <view class="card-head">
+        <text class="card-title">{{item.title}}</text>
+        <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
+      </view>
+      <text class="card-meta">作者：{{item.author_nickname}} · {{item.created_at_text}}</text>
+      <view class="card-actions" catchtap="noop">
+        <button wx:if="{{item.status === 1 && item.audit_status === 1}}" class="act act-pass" size="mini" data-id="{{item.article_public_id}}" bindtap="doApprove">通过</button>
+        <button wx:if="{{item.status === 1 && item.audit_status === 1}}" class="act act-reject" size="mini" data-id="{{item.article_public_id}}" bindtap="doReject">驳回</button>
+        <button wx:if="{{item.status === 2 && item.audit_status === 2}}" class="act act-unpub" size="mini" data-id="{{item.article_public_id}}" bindtap="doUnpublish">下架</button>
+        <button class="act" size="mini" data-id="{{item.article_public_id}}" bindtap="doEdit">编辑</button>
+        <button class="act act-del" size="mini" data-id="{{item.article_public_id}}" bindtap="doDelete">删除</button>
+      </view>
+    </view>
+    <view wx:if="{{loading}}" class="list-foot"><text>加载中...</text></view>
+    <view wx:elif="{{!hasMore}}" class="list-foot"><text>没有更多了</text></view>
+  </view>
+</view>

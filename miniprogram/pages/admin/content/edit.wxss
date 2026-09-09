@@ -1,0 +1,157 @@
+.container {
+  min-height: 100vh;
+  background: #f5f6f8;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.page-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.badge-st {
+  font-size: 24rpx;
+  padding: 6rpx 18rpx;
+  border-radius: 20rpx;
+  background: #ff9500;
+  color: #fff;
+}
+
+.loading {
+  text-align: center;
+  color: #8a8f99;
+  padding: 120rpx 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.meta-item {
+  font-size: 24rpx;
+  color: #8a8f99;
+}
+
+.field {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+
+.label {
+  display: block;
+  font-size: 26rpx;
+  color: #1f2329;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.input {
+  font-size: 28rpx;
+  color: #1f2329;
+  padding: 12rpx 0;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 240rpx;
+  font-size: 28rpx;
+  color: #1f2329;
+  line-height: 1.5;
+}
+
+.img-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.img-cell {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+  background: #f0f1f3;
+}
+
+.img {
+  width: 100%;
+  height: 100%;
+}
+
+.img-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  color: #8a8f99;
+}
+
+.img-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40rpx;
+  height: 40rpx;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 32rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-bottom-left-radius: 12rpx;
+}
+
+.img-add {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  border: 2rpx dashed #c8ccd4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafbfc;
+}
+
+.add-icon {
+  font-size: 60rpx;
+  color: #c8ccd4;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  margin-top: 12rpx;
+}
+
+.btn {
+  flex: 1;
+  min-width: 200rpx;
+  font-size: 28rpx;
+  border-radius: 40rpx;
+  padding: 16rpx 0;
+  margin: 0;
+}
+
+.btn-primary { background: #ff6b35; color: #fff; }
+.btn-pass { background: #52c41a; color: #fff; }
+.btn-reject { background: #f5222d; color: #fff; }
+.btn-edit { background: #fff; color: #1f2329; border: 2rpx solid #d9dce1; }
+.btn-cancel { background: #f0f1f3; color: #1f2329; }

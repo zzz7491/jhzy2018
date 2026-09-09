@@ -103,3 +103,29 @@ export function uploadCommunityImage(tempFilePath: string, base?: string): Promi
 export function fileUrl(filePublicId: string, base?: string): string {
   return (base || V2_BASE) + '/files/' + encodeURIComponent(filePublicId);
 }
+
+/**
+ * 下载受保护 Community 图片到本地临时文件（需鉴权头）。
+ * 与小程序前端 community 页面已验证模式一致：Bearer + X-Team-Id → wx.downloadFile → tempFilePath。
+ * 不允许直接将受保护 URL 绑定到 <image src>。
+ * @returns 成功返回 tempFilePath；失败/无权限返回 null。
+ */
+export function downloadAuthImage(filePublicId: string, base?: string): Promise<string | null> {
+  const url = (base || V2_BASE) + '/files/' + encodeURIComponent(filePublicId);
+  const header: Record<string, string> = {};
+  const token = getToken();
+  if (token) header['Authorization'] = `Bearer ${token}`;
+  const teamId = getActiveTeamId();
+  if (teamId) header['X-Team-Id'] = teamId;
+  return new Promise<string | null>((resolve) => {
+    wx.downloadFile({
+      url,
+      header,
+      success: (res: any) => {
+        if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath);
+        else resolve(null);
+      },
+      fail: () => resolve(null),
+    });
+  });
+}

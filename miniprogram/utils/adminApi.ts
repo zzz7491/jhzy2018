@@ -123,6 +123,43 @@ export interface Pagination {
   total_pages: number;
 }
 
+// ===== 公益社区内容管理类型（community admin） =====
+export interface ContentAttachmentItem {
+  file_public_id: string;
+  mime_type: string;
+  size_bytes: number;
+}
+
+export interface ContentArticleItem {
+  article_public_id: string;
+  content_type: string;
+  title: string;
+  body: string | null;
+  author_public_id: string | null;
+  author_nickname: string | null;
+  status: number;
+  audit_status: number;
+  comment_count: number;
+  like_count: number;
+  report_count: number;
+  created_at: number;
+  published_at: number | null;
+}
+
+export interface ContentArticleDetail {
+  article_public_id: string;
+  content_type: string;
+  title: string;
+  body: string | null;
+  status: number;
+  audit_status: number;
+  author_public_id: string | null;
+  author_nickname: string | null;
+  attachments: ContentAttachmentItem[];
+  created_at: number;
+  published_at: number | null;
+}
+
 // ===== P32-P4 培训/考试/证书管理类型 =====
 
 export interface CourseAdminRow {
@@ -526,6 +563,58 @@ export const adminApi = {
       'GET',
       `/certificates/admin?page=${page}&page_size=${pageSize}`,
     );
+  },
+
+  // ===================== 公益社区内容管理（community admin） =====================
+  /** GET /content/articles —— 本团队社区内容审核台列表（分页）。 */
+  getContentArticles(page = 1, pageSize = 20): Promise<{ items: ContentArticleItem[]; pagination: Pagination }> {
+    return request<{ items: ContentArticleItem[]; pagination: Pagination }>(
+      'GET',
+      `/content/articles?page=${page}&page_size=${pageSize}`,
+    );
+  },
+
+  /** GET /content/articles/:id —— 本团队单篇内容详情（含附件/作者/状态）。 */
+  getContentArticleDetail(publicId: string): Promise<ContentArticleDetail> {
+    return request<ContentArticleDetail>('GET', `/content/articles/${publicId}`);
+  },
+
+  /** POST /content/articles —— 管理端创建内容（默认 DRAFT/PENDING）。 */
+  createContentArticle(cmd: {
+    title: string;
+    body: string;
+    attachment_file_public_ids?: string[];
+    content_type?: string;
+  }): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('POST', '/content/articles', cmd);
+  },
+
+  /** PUT /content/articles/:id —— 管理端编辑（后端重置为 DRAFT/PENDING）。 */
+  updateContentArticle(
+    publicId: string,
+    patch: { title?: string; body?: string; attachment_file_public_ids?: string[] },
+  ): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('PUT', `/content/articles/${publicId}`, patch);
+  },
+
+  /** POST /content/articles/:id/approve —— 审核通过并发布。 */
+  approveContentArticle(publicId: string): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('POST', `/content/articles/${publicId}/approve`, {});
+  },
+
+  /** POST /content/articles/:id/reject —— 驳回。 */
+  rejectContentArticle(publicId: string): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('POST', `/content/articles/${publicId}/reject`, {});
+  },
+
+  /** POST /content/articles/:id/unpublish —— 下架。 */
+  unpublishContentArticle(publicId: string): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('POST', `/content/articles/${publicId}/unpublish`, {});
+  },
+
+  /** DELETE /content/articles/:id —— 删除（软删除）。 */
+  deleteContentArticle(publicId: string): Promise<{ article_public_id: string }> {
+    return request<{ article_public_id: string }>('DELETE', `/content/articles/${publicId}`);
   },
 };
 

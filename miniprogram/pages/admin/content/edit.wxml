@@ -1,0 +1,55 @@
+<view class="container">
+  <view class="topbar">
+    <text class="page-title">{{mode === 'create' ? '新建内容' : (mode === 'edit' ? '编辑内容' : '内容详情')}}</text>
+    <text wx:if="{{mode === 'view'}}" class="badge-st">{{statusText}}</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading"><text>加载中...</text></view>
+
+  <block wx:else>
+    <view wx:if="{{mode === 'view'}}" class="meta">
+      <text class="meta-item">作者：{{author_nickname}}</text>
+      <text class="meta-item">创建：{{created_at_text}}</text>
+      <text class="meta-item" wx:if="{{published_at_text}}">发布：{{published_at_text}}</text>
+    </view>
+
+    <view class="field">
+      <text class="label">标题</text>
+      <input class="input" value="{{title}}" disabled="{{mode === 'view'}}" bindinput="onTitle" placeholder="请输入标题" />
+    </view>
+
+    <view class="field">
+      <text class="label">正文</text>
+      <textarea class="textarea" value="{{body}}" disabled="{{mode === 'view'}}" bindinput="onBody" placeholder="请输入正文内容" maxlength="-1" />
+    </view>
+
+    <view class="field">
+      <text class="label">图片（最多 9 张）</text>
+      <view class="img-grid">
+        <view class="img-cell" wx:for="{{images}}" wx:key="file_public_id" wx:for-index="idx">
+          <image class="img" src="{{item.tempFilePath}}" mode="aspectFill" wx:if="{{item.tempFilePath}}" />
+          <view class="img-ph" wx:else><text>加载中</text></view>
+          <view wx:if="{{mode !== 'view'}}" class="img-del" data-idx="{{idx}}" bindtap="removeImage">×</view>
+        </view>
+        <view wx:if="{{mode !== 'view' && images.length < 9}}" class="img-add" bindtap="chooseImage">
+          <text class="add-icon">+</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="actions">
+      <block wx:if="{{mode === 'view'}}">
+        <button wx:if="{{statusText === '待审核'}}" class="btn btn-pass" bindtap="doApprove">审核通过</button>
+        <button wx:if="{{statusText === '待审核'}}" class="btn btn-reject" bindtap="doReject">驳回</button>
+        <button class="btn btn-edit" bindtap="enterEdit">编辑</button>
+      </block>
+      <block wx:elif="{{mode === 'edit'}}">
+        <button class="btn btn-primary" loading="{{saving}}" bindtap="save">保存</button>
+        <button class="btn btn-cancel" bindtap="cancelEdit">取消</button>
+      </block>
+      <block wx:else>
+        <button class="btn btn-primary" loading="{{saving}}" bindtap="save">保存并提交审核</button>
+      </block>
+    </view>
+  </block>
+</view>
