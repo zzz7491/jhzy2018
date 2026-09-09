@@ -281,7 +281,7 @@ async function main() {
   // ===== H9：admin（team_owner）approve → 成功 =====
   {
     const r = await call('POST', `/api/v2/admin/content/articles/${a1Pub}/approve`, {
-      role: 'team_owner', user: uAlice, team: tA,
+      role: 'team_admin', user: uBob, team: tA,
     });
     remember(r.json);
     const st = artState(a1Pub);
@@ -299,7 +299,7 @@ async function main() {
   // ===== H11：reject 后不在 feed =====
   {
     const rj = await call('POST', `/api/v2/admin/content/articles/${a1Pub}/reject`, {
-      role: 'team_owner', user: uAlice, team: tA,
+      role: 'team_admin', user: uBob, team: tA,
     });
     const st = artState(a1Pub);
     const feed = await call('GET', '/api/v2/content/feed', { role: 'volunteer', user: uAlice, team: tA });
@@ -431,23 +431,23 @@ async function main() {
     const bPub = c.json?.data?.article_public_id;
     const bId = artId(bPub);
 
-    await call('POST', `/api/v2/admin/content/articles/${bPub}/approve`, { role: 'team_owner', user: uAlice, team: tA });
+    await call('POST', `/api/v2/admin/content/articles/${bPub}/approve`, { role: 'team_admin', user: uBob, team: tA });
     const ap = auditRow(bId, 'approve');
     check('§13 approve from=1 to=2', ap && ap.from_status === '1' && ap.to_status === '2', JSON.stringify(ap));
 
-    await call('POST', `/api/v2/admin/content/articles/${bPub}/reject`, { role: 'team_owner', user: uAlice, team: tA });
+    await call('POST', `/api/v2/admin/content/articles/${bPub}/reject`, { role: 'team_admin', user: uBob, team: tA });
     const rj = auditRow(bId, 'reject');
     check('§13 reject from=2 to=1', rj && rj.from_status === '2' && rj.to_status === '1', JSON.stringify(rj));
 
-    await call('POST', `/api/v2/admin/content/articles/${bPub}/approve`, { role: 'team_owner', user: uAlice, team: tA });
+    await call('POST', `/api/v2/admin/content/articles/${bPub}/approve`, { role: 'team_admin', user: uBob, team: tA });
     const ap2 = auditRow(bId, 'approve');
     check('§13 二次 approve from=1 to=2', ap2 && ap2.from_status === '1' && ap2.to_status === '2', JSON.stringify(ap2));
 
-    await call('POST', `/api/v2/admin/content/articles/${bPub}/unpublish`, { role: 'team_owner', user: uAlice, team: tA });
+    await call('POST', `/api/v2/admin/content/articles/${bPub}/unpublish`, { role: 'team_admin', user: uBob, team: tA });
     const un = auditRow(bId, 'unpublish');
     check('§13 unpublish from=2 to=3', un && un.from_status === '2' && un.to_status === '3', JSON.stringify(un));
 
-    await call('DELETE', `/api/v2/admin/content/articles/${bPub}`, { role: 'team_owner', user: uAlice, team: tA });
+    await call('DELETE', `/api/v2/admin/content/articles/${bPub}`, { role: 'team_admin', user: uBob, team: tA });
     const del = auditRow(bId, 'delete');
     check('§13 delete from=3 to=4', del && del.from_status === '3' && del.to_status === '4', JSON.stringify(del));
   }

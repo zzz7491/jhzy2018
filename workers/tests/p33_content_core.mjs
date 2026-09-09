@@ -245,7 +245,8 @@ async function main() {
   // ---- C8: self update own → DRAFT/PENDING ----
   // 先将其发布（用 admin），再 self-update 验证重置为草稿
   const adminA = new ContentAdminService({ db: d1, ctx: ctx(uAlice, tA) });
-  await adminA.approve(c1.article_public_id);
+  const adminReviewer = new ContentAdminService({ db: d1, ctx: ctx(uBob, tA) });
+  await adminReviewer.approve(c1.article_public_id);
   check('前置: approve 后 status=2/audit=2', (() => { const s = articleState(c1.article_public_id); return s.status === 2 && s.audit_status === 2; })());
   await svcA.updateOwnArticle(c1.article_public_id, { title: 'A1-edited' });
   const a1u = articleState(c1.article_public_id);
@@ -260,12 +261,12 @@ async function main() {
   let feed = await svcA.getFeed(1, 20);
   check('C6 草稿文章不进 feed', feed.items.length === 0, `feed=${feed.items.length}`);
 
-  // ---- C10: admin approve ----
-  await adminA.approve(c1.article_public_id);
+  // ---- C10: admin approve（由非创建者的 reviewer uBob 执行）----
+  await adminReviewer.approve(c1.article_public_id);
   const a1ap = articleState(c1.article_public_id);
   check('C10 approve → status=2/audit=2/published set', a1ap.status === 2 && a1ap.audit_status === 2 && a1ap.published_at != null, JSON.stringify(a1ap));
   const log10 = sqlite.prepare("SELECT action,from_status,to_status,operator_id,team_id FROM content_audit_logs WHERE target_type='article' AND target_id=(SELECT id FROM content_articles WHERE public_id=?) ORDER BY id DESC LIMIT 1").get(c1.article_public_id);
-  check('C10 审计日志 approve from=1 to=2 operator=alice', log10 && log10.action === 'approve' && log10.from_status === '1' && log10.to_status === '2' && log10.operator_id === uAlice && log10.team_id === tA, JSON.stringify(log10));
+  check('C10 审计日志 approve from=1 to=2 operator=uBob(reviewer)', log10 && log10.action === 'approve' && log10.from_status === '1' && log10.to_status === '2' && log10.operator_id === uBob && log10.team_id === tA, JSON.stringify(log10));
 
   // ---- C6 (cont): feed 现含该文章 ----
   feed = await svcA.getFeed(1, 20);
@@ -309,8 +310,8 @@ async function main() {
   const u2 = await svcA.unlikeArticle(c1.article_public_id);
   check('C15 取消点赞幂等 liked=false 且 count=0', u1.liked === false && u2.liked === false && u1.like_count === 0 && u2.like_count === 0, `u1=${u1.like_count} u2=${u2.like_count}`);
 
-  // ---- C11: admin reject ----
-  await adminA.reject(c1.article_public_id);
+  // ---- C11: admin reject（由非创建者的 reviewer uBob 执行）----
+  await adminReviewer.reject(c1.article_public_id);
   const a1rj = articleState(c1.article_public_id);
   check('C11 reject → status=1/audit=3', a1rj.status === 1 && a1rj.audit_status === 3, JSON.stringify(a1rj));
   const log11 = sqlite.prepare("SELECT action,from_status,to_status FROM content_audit_logs WHERE target_type='article' AND target_id=(SELECT id FROM content_articles WHERE public_id=?) ORDER BY id DESC LIMIT 1").get(c1.article_public_id);

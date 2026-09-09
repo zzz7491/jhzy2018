@@ -170,7 +170,7 @@ async function main() {
   }
 
   // 用管理端（team_owner）建文并推进到目标状态
-  async function createInState(team, ownerUser, state, withAttachment = false) {
+  async function createInState(team, ownerUser, state, withAttachment = false, reviewerUser = uBob) {
     const body = { title: 'T-' + state, body: 'b' };
     if (withAttachment) body.attachment_file_public_ids = [F.alice];
     const c = await call('POST', '/api/v2/admin/content/articles', {
@@ -178,15 +178,15 @@ async function main() {
     });
     const pub = c.json?.data?.article_public_id;
     if (state === 'published') {
-      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_owner', user: ownerUser, team });
+      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_admin', user: reviewerUser, team });
     } else if (state === 'rejected') {
-      await call('POST', `/api/v2/admin/content/articles/${pub}/reject`, { role: 'team_owner', user: ownerUser, team });
+      await call('POST', `/api/v2/admin/content/articles/${pub}/reject`, { role: 'team_admin', user: reviewerUser, team });
     } else if (state === 'unpublished') {
-      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_owner', user: ownerUser, team });
-      await call('POST', `/api/v2/admin/content/articles/${pub}/unpublish`, { role: 'team_owner', user: ownerUser, team });
+      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_admin', user: reviewerUser, team });
+      await call('POST', `/api/v2/admin/content/articles/${pub}/unpublish`, { role: 'team_admin', user: reviewerUser, team });
     } else if (state === 'deleted') {
-      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_owner', user: ownerUser, team });
-      await call('DELETE', `/api/v2/admin/content/articles/${pub}`, { role: 'team_owner', user: ownerUser, team });
+      await call('POST', `/api/v2/admin/content/articles/${pub}/approve`, { role: 'team_admin', user: reviewerUser, team });
+      await call('DELETE', `/api/v2/admin/content/articles/${pub}`, { role: 'team_admin', user: reviewerUser, team });
     }
     // 'draft' 保持 POST 后默认 DRAFT/PENDING
     return pub;

@@ -359,7 +359,7 @@ async function main() {
       role: 'team_owner', user: uAlice, team: tA, body: { title: 'O1', body: 'visible' },
     });
     oPub = c.json?.data?.article_public_id;
-    const ap = await call('POST', `/api/v2/admin/content/articles/${oPub}/approve`, { role: 'team_owner', user: uAlice, team: tA });
+    const ap = await call('POST', `/api/v2/admin/content/articles/${oPub}/approve`, { role: 'team_admin', user: uBob, team: tA });
     const st = artState(oPub);
     const feed = await call('GET', '/api/v2/content/feed', { role: 'volunteer', user: uAlice, team: tA });
     remember(feed.json);

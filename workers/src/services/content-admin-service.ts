@@ -15,7 +15,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { ContentRepository, ATTACHMENT_MAX, ATTACHMENT_MIME_ALLOWED, type UpdatePostPatch } from '../repository/content';
 import type { AdminArticleItem, AdminArticleDetail } from '../repository/content';
 import { FileRepository } from '../repository/files';
-import { authRequired, teamScopeRequired, invalidParam, notFound } from '../utils/errors';
+import { authRequired, teamScopeRequired, invalidParam, notFound, forbidden } from '../utils/errors';
 import type { RepositoryContext } from '../types/tenant';
 import type { Paginated } from '../types/api';
 
@@ -71,14 +71,33 @@ export class ContentAdminService {
     return detail;
   }
 
+  /**
+   * Separation-of-duties（职责分离）：创建者不得审核/发布自己创建的内容。
+   * 规则：article.author_id == 当前 actor user_id → 拒绝。
+   * - 使用明确业务错误，优先 403（文章真实存在且 actor 持审核权限，仅违反职责分离，不得返回 404）。
+   * - 纯 server-side 强制，不依赖前端；适用于 team_admin / team_owner / platform_* 等同时持有
+   *   create 与 audit 权限的高级角色，以及 team_auditor（其本人非 author 时方可通过）。
+   */
+  private assertNotSelfApproval(authorId: number, operatorId: number): void {
+    if (authorId === operatorId) {
+      throw forbidden('创建者不能审核自己创建的内容（职责分离）');
+    }
+  }
+
   async approve(publicId: string): Promise<{ article_public_id: string }> {
     const { operatorId } = this.requireActor();
+    const art = await this.repo.findArticleRow(publicId);
+    if (!art) throw notFound('Article');
+    this.assertNotSelfApproval(art.author_id, operatorId);
     await this.repo.approveArticle(publicId, operatorId);
     return { article_public_id: publicId };
   }
 
   async reject(publicId: string): Promise<{ article_public_id: string }> {
     const { operatorId } = this.requireActor();
+    const art = await this.repo.findArticleRow(publicId);
+    if (!art) throw notFound('Article');
+    this.assertNotSelfApproval(art.author_id, operatorId);
     await this.repo.rejectArticle(publicId, operatorId);
     return { article_public_id: publicId };
   }
