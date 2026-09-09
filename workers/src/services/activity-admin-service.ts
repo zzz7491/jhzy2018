@@ -10,7 +10,9 @@
  *   batch 内任一语句失败整批回滚（§4 原子性）。
  * - 更新 v1 仅支持标量字段；嵌套 occurrence/position/slot 重配置显式拒绝
  *   （避免破坏既有 participation 的 FK/业务一致性，§5）。
- * - 发布仅支持草稿（status 0）→ 1 的最小转换；不做 scheduled_publish / 审批流。
+ * - P34-C2：发布不再有 direct publish runtime path。唯一正式发布路径 = approve
+ *   （audit_status PENDING → APPROVED 且 status → SIGNUP_OPEN）；
+ *   创建恒为草稿（status=0 / audit_status=0），任何业务编辑统一回到草稿待审（UNIFORM RE-REVIEW）。
  */
 
 import type { D1Database } from '@cloudflare/workers-types';
@@ -22,12 +24,34 @@ import {
   type PositionInput,
   type SlotInput,
 } from '../repository/activities';
-import { invalidParam, authRequired, teamScopeRequired, notFound } from '../utils/errors';
+import {
+  invalidParam,
+  authRequired,
+  teamScopeRequired,
+  notFound,
+  forbidden,
+  conflict,
+  ConflictReason,
+} from '../utils/errors';
+import { ACTIVITY_AUDIT, type ActivityApprovalState } from '../repository/activities';
 import type { RepositoryContext } from '../types/tenant';
 
 export interface ActivityAdminDeps {
   db: D1Database;
   ctx: RepositoryContext;
+}
+
+/** 驳回原因长度上限（P34-B §E 冻结：trim 后 1–500 字符）。 */
+export const REJECT_REASON_MAX_LENGTH = 500;
+
+/** 审核结果最小 DTO（禁止 internal id / 审核人 numeric id，§14）。 */
+export interface ActivityApprovalView {
+  activity_public_id: string;
+  status: number;
+  audit_status: number;
+  submitted_at: number | null;
+  reviewed_at: number | null;
+  reject_reason: string | null;
 }
 
 export class ActivityAdminService {
@@ -92,8 +116,9 @@ export class ActivityAdminService {
     if (cmd.start_time >= cmd.end_time) {
       throw invalidParam('start_time', 'must be < end_time');
     }
-    if (cmd.status !== undefined && (typeof cmd.status !== 'number' || cmd.status < 0 || cmd.status > 7)) {
-      throw invalidParam('status', 'must be 0..7');
+    // P34-C2 §3：status 属服务端权威的发布字段，客户端不得提交（路由层亦已拦截，此处纵深防御）。
+    if (cmd.status !== undefined) {
+      throw invalidParam('status', 'publication fields are server-authoritative and must not be supplied');
     }
     if (cmd.quota !== undefined && (typeof cmd.quota !== 'number' || cmd.quota < 0)) {
       throw invalidParam('quota', 'must be >= 0');
@@ -154,10 +179,151 @@ export class ActivityAdminService {
     await this.repo.updateActivityScalar(publicId, patch);
   }
 
-  async publish(publicId: string): Promise<void> {
-    const status = await this.repo.getPublishStatus(publicId);
-    if (status === null) throw notFound('Activity');
-    if (status !== 0) throw invalidParam('status', 'only draft (status=0) can be published');
-    await this.repo.publishActivity(publicId);
+  // =======================================================================
+  // P34-C2：活动发布审核状态机（submit / approve / reject）
+  //
+  // 冻结原则：
+  //   * CREATE != SUBMIT != REVIEW：审核人必须同时不同于 submitted_by 与 created_by（§5/§6）。
+  //   * 无 super-admin bypass：职责分离以数据判定，不以角色判定。
+  //   * 唯一正式发布路径 = approve（status 1）；direct publish runtime 已移除（§9）。
+  // =======================================================================
+
+  /** 当前操作者（团队上下文 + 用户身份），供审核链路复用。 */
+  private requireActor(): { operatorId: number; teamId: number } {
+    const teamId = this.ctx.tenant.teamId;
+    if (teamId == null) throw teamScopeRequired();
+    const operatorId = this.ctx.auth.userId;
+    if (operatorId == null) throw authRequired();
+    return { operatorId, teamId };
+  }
+
+  /** 读取审核状态；跨团队 / 不存在 / 已删除 → 404（不泄露存在性，不降级为 403）。 */
+  private async requireApprovalState(publicId: string): Promise<ActivityApprovalState> {
+    const state = await this.repo.getApprovalState(publicId);
+    if (state === null) throw notFound('Activity');
+    return state;
+  }
+
+  /**
+   * 职责分离：审核人不得为提交人，也不得为原始创建者。
+   * （创建者即使不是提交人，也不得审核自己最初创建的活动。）
+   */
+  private assertNotSelfReview(state: ActivityApprovalState, operatorId: number): void {
+    if (state.submitted_by != null && state.submitted_by === operatorId) {
+      throw forbidden('提交人不能审核自己提交的活动（职责分离）');
+    }
+    if (state.created_by === operatorId) {
+      throw forbidden('创建者不能审核自己创建的活动（职责分离）');
+    }
+  }
+
+  /** POST submit：DRAFT / REJECTED → PENDING。 */
+  async submit(publicId: string): Promise<ActivityApprovalView> {
+    const { operatorId } = this.requireActor();
+    const state = await this.requireApprovalState(publicId);
+
+    if (state.audit_status !== ACTIVITY_AUDIT.DRAFT && state.audit_status !== ACTIVITY_AUDIT.REJECTED) {
+      throw conflict(ConflictReason.ACTIVITY_APPROVAL_TRANSITION);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const changes = await this.repo.submitForApproval(publicId, operatorId, now);
+    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
+
+    await this.repo.insertActivityAuditLog({
+      activityId: state.id,
+      action: 'submit',
+      fromAudit: state.audit_status,
+      toAudit: ACTIVITY_AUDIT.PENDING,
+      reason: null,
+      operatorId,
+      now,
+    });
+
+    return {
+      activity_public_id: publicId,
+      status: 0,
+      audit_status: ACTIVITY_AUDIT.PENDING,
+      submitted_at: now,
+      reviewed_at: null,
+      reject_reason: null,
+    };
+  }
+
+  /** POST approve：仅 PENDING → APPROVED + SIGNUP_OPEN（唯一正式发布路径）。 */
+  async approve(publicId: string): Promise<ActivityApprovalView> {
+    const { operatorId } = this.requireActor();
+    const state = await this.requireApprovalState(publicId);
+
+    if (state.audit_status !== ACTIVITY_AUDIT.PENDING) {
+      throw conflict(ConflictReason.ACTIVITY_APPROVAL_TRANSITION);
+    }
+    this.assertNotSelfReview(state, operatorId);
+
+    const now = Math.floor(Date.now() / 1000);
+    const changes = await this.repo.approveForPublication(publicId, operatorId, now);
+    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
+
+    await this.repo.insertActivityAuditLog({
+      activityId: state.id,
+      action: 'approve',
+      fromAudit: ACTIVITY_AUDIT.PENDING,
+      toAudit: ACTIVITY_AUDIT.APPROVED,
+      reason: null,
+      operatorId,
+      now,
+    });
+
+    return {
+      activity_public_id: publicId,
+      status: 1,
+      audit_status: ACTIVITY_AUDIT.APPROVED,
+      submitted_at: state.submitted_at,
+      reviewed_at: now,
+      reject_reason: null,
+    };
+  }
+
+  /** POST reject：仅 PENDING → REJECTED + DRAFT；reason 必填（trim 后 1–500）。 */
+  async reject(publicId: string, rawReason: unknown): Promise<ActivityApprovalView> {
+    const { operatorId } = this.requireActor();
+
+    if (typeof rawReason !== 'string') {
+      throw invalidParam('reason', 'required non-empty string (1..500 chars)');
+    }
+    const reason = rawReason.trim();
+    if (reason === '' || reason.length > REJECT_REASON_MAX_LENGTH) {
+      throw invalidParam('reason', `required non-empty string, max ${REJECT_REASON_MAX_LENGTH} chars`);
+    }
+
+    const state = await this.requireApprovalState(publicId);
+
+    if (state.audit_status !== ACTIVITY_AUDIT.PENDING) {
+      throw conflict(ConflictReason.ACTIVITY_APPROVAL_TRANSITION);
+    }
+    this.assertNotSelfReview(state, operatorId);
+
+    const now = Math.floor(Date.now() / 1000);
+    const changes = await this.repo.rejectForRevision(publicId, operatorId, now, reason);
+    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
+
+    await this.repo.insertActivityAuditLog({
+      activityId: state.id,
+      action: 'reject',
+      fromAudit: ACTIVITY_AUDIT.PENDING,
+      toAudit: ACTIVITY_AUDIT.REJECTED,
+      reason,
+      operatorId,
+      now,
+    });
+
+    return {
+      activity_public_id: publicId,
+      status: 0,
+      audit_status: ACTIVITY_AUDIT.REJECTED,
+      submitted_at: state.submitted_at,
+      reviewed_at: now,
+      reject_reason: reason,
+    };
   }
 }

@@ -248,9 +248,19 @@ function walk(dir) {
   }
   return out;
 }
-const srcHits = walk(SRC_DIR).filter((f) => readFileSync(f, 'utf8').includes('publish_audit_by'));
-check('附加 publish_audit_by 在 workers/src 中仍无 runtime 使用', srcHits.length === 0,
-  srcHits.length ? srcHits.join(', ') : 'LEGACY_DORMANT 成立');
+// 判据：LEGACY_DORMANT = 不存在任何【SQL 读写】publish_audit_by 的语句。
+// 仅将其列为「客户端 forbidden 字段」（防注入/防越权声明）不构成 runtime 使用。
+const SQL_MARKERS = ['SELECT', 'INSERT', 'UPDATE', 'SET ', 'publish_audit_by ='];
+const srcHits = [];
+for (const f of walk(SRC_DIR)) {
+  const lines = readFileSync(f, 'utf8').split(/\r?\n/);
+  lines.forEach((line, i) => {
+    if (!line.includes('publish_audit_by')) return;
+    if (SQL_MARKERS.some((m) => line.includes(m))) srcHits.push(`${f}:${i + 1}`);
+  });
+}
+check('附加 publish_audit_by 无 SQL 读写（LEGACY_DORMANT 成立）', srcHits.length === 0,
+  srcHits.length ? srcHits.join(', ') : '仅作为 forbidden 输入字段声明，未读写列');
 
 // ---------- 汇总 ----------
 const passed = results.filter((r) => r.pass).length;

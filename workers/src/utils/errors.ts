@@ -90,6 +90,10 @@ export const ConflictReason = {
   EXAM_MAX_ATTEMPTS_REACHED: 'exam_max_attempts_reached', // 达到 exam_papers.max_attempts 上限
   EXAM_POOL_EXHAUSTED: 'exam_pool_exhausted', // cert_trn 号池无可用编号（passed=1 且需发证时）
   EXAM_CERT_ALREADY_EXISTS: 'exam_cert_already_exists', // 该 (user_id, exam_paper_id) 已有 active 证书（重考不发第二张）
+  // P34-C2（新增，纯增量）：活动发布审核状态机冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 审核人身份。
+  ACTIVITY_APPROVAL_TRANSITION: 'activity_approval_transition', // 当前 audit_status 不允许该转换（无效状态跃迁）
+  ACTIVITY_APPROVAL_RACE: 'activity_approval_race', // 并发转换：条件更新未命中（状态已被并发修改）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];

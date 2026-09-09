@@ -95,6 +95,67 @@ export interface ActivityScalarUpdate {
   max_session_minutes?: number | null;
 }
 
+// =========================================================================
+// P34-C2：活动发布审核状态机（双维度，严格分离）
+//
+//   lifecycle status  —— 业务生命周期（既有列，语义不变）
+//   audit_status      —— 发布审核维度（0027 新增列）
+//
+// 两者不得混用；lifecycle 6/7 保留未分配，绝不用于审核态。
+// =========================================================================
+
+export const ACTIVITY_STATUS = {
+  DRAFT: 0,
+  SIGNUP_OPEN: 1,
+  IN_PROGRESS: 2,
+  ENDED: 3,
+  CANCELLED: 4,
+  UNPUBLISHED: 5,
+} as const;
+
+export const ACTIVITY_AUDIT = {
+  DRAFT: 0,
+  PENDING: 1,
+  APPROVED: 2,
+  REJECTED: 3,
+} as const;
+
+/** audit_status → 稳定文本标签（写入 content_audit_logs.from_status/to_status）。 */
+export const ACTIVITY_AUDIT_LABEL: Readonly<Record<number, string>> = {
+  [ACTIVITY_AUDIT.DRAFT]: 'DRAFT',
+  [ACTIVITY_AUDIT.PENDING]: 'PENDING',
+  [ACTIVITY_AUDIT.APPROVED]: 'APPROVED',
+  [ACTIVITY_AUDIT.REJECTED]: 'REJECTED',
+};
+
+/**
+ * 发布/审核相关字段一律服务端权威，客户端不得提交（P34-C2 §3 / §8）。
+ * 出现在 create / update body 中 → 400 INVALID_PARAM（不静默忽略）。
+ * 注意：publish_audit_by 为 LEGACY_DORMANT，永不写入、永不删除、永不 rename。
+ */
+export const ACTIVITY_FORBIDDEN_PUBLICATION_FIELDS = [
+  'status',
+  'audit_status',
+  'published_at',
+  'submitted_by',
+  'submitted_at',
+  'reviewed_by',
+  'reviewed_at',
+  'reject_reason',
+  'publish_audit_by',
+] as const;
+
+/** 审核所需最小活动视图（team-scoped；含职责分离判定所需主体）。 */
+export interface ActivityApprovalState {
+  id: number;
+  status: number;
+  audit_status: number;
+  created_by: number;
+  submitted_by: number | null;
+  submitted_at: number | null;
+  reviewed_by: number | null;
+}
+
 export class ActivityRepository extends BaseRepository {
   /** 团队活动分页列表（TEAM_SCOPED：强制 team_id 隔离）。 */
   async listByMyTeam(page: number, pageSize: number, offset: number): Promise<Paginated<ActivityRow>> {
@@ -193,14 +254,17 @@ export class ActivityRepository extends BaseRepository {
 
     const now = Math.floor(Date.now() / 1000);
     const activityPublicId = generateUlid();
-    const status = typeof cmd.status === 'number' ? cmd.status : 0; // 默认草稿
+    // P34-C2 §3：create 一律服务端权威 —— status = 0 (DRAFT)、audit_status = 0 (DRAFT)。
+    // 客户端提交的 status 一律不接受（路由层对 forbidden 字段返回 400；此处再兜底强制草稿）。
+    const status = ACTIVITY_STATUS.DRAFT;
 
     const statements: { sql: string; params: unknown[] }[] = [
       {
         sql: `INSERT INTO activities
                 (public_id, team_id, title, summary, start_time, end_time,
-                 signup_deadline, quota, status, max_session_minutes, created_by, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 signup_deadline, quota, status, audit_status, max_session_minutes,
+                 created_by, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params: [
           activityPublicId,
           teamId,
@@ -211,6 +275,7 @@ export class ActivityRepository extends BaseRepository {
           cmd.signup_deadline ?? null,
           cmd.quota ?? 0,
           status,
+          ACTIVITY_AUDIT.DRAFT,
           cmd.max_session_minutes ?? null,
           createdBy,
           now,
@@ -293,6 +358,21 @@ export class ActivityRepository extends BaseRepository {
     if (patch.max_session_minutes !== undefined) apply('max_session_minutes', patch.max_session_minutes);
 
     if (sets.length === 0) return;
+
+    // P34-C2 §7：UNIFORM RE-REVIEW —— 任何管理员业务编辑都使活动重新进入 DRAFT 审核起点，
+    // 并清空全部发布 / 审核元数据（published_at / submitted_* / reviewed_* / reject_reason）。
+    // 不做 major/minor 分类器；已发布活动被编辑后必须重新 submit + 他人审核。
+    sets.push('status = ?');
+    params.push(ACTIVITY_STATUS.DRAFT);
+    sets.push('audit_status = ?');
+    params.push(ACTIVITY_AUDIT.DRAFT);
+    sets.push('published_at = NULL');
+    sets.push('submitted_by = NULL');
+    sets.push('submitted_at = NULL');
+    sets.push('reviewed_by = NULL');
+    sets.push('reviewed_at = NULL');
+    sets.push('reject_reason = NULL');
+
     sets.push('updated_at = ?');
     params.push(now, publicId, this.ctx.tenant.teamId);
 
@@ -304,31 +384,143 @@ export class ActivityRepository extends BaseRepository {
     if ((res.meta?.changes ?? 0) === 0) throw notFound('Activity');
   }
 
-  /** 读取发布前置状态（team-scoped；跨团队/不存在返回 null）。 */
-  async getPublishStatus(publicId: string): Promise<number | null> {
+  /** 读取审核所需最小状态（team-scoped；跨团队 / 不存在 / 已删除 → null → 404）。 */
+  async getApprovalState(publicId: string): Promise<ActivityApprovalState | null> {
     this.ensureTableRead('activities');
     if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
     if (!isUlid(publicId)) throw notFound('Activity');
-    const row = await this.first<{ status: number }>(
-      `SELECT status FROM activities WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
+    return this.first<ActivityApprovalState>(
+      `SELECT id, status, audit_status, created_by, submitted_by, submitted_at, reviewed_by
+         FROM activities
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
       [publicId, this.ctx.tenant.teamId],
     );
-    return row ? row.status : null;
   }
 
-  /** 发布草稿（status 0 → 1）。仅当当前为草稿时生效；否则 0 行（由 service 层转为 404/400）。 */
-  async publishActivity(publicId: string): Promise<void> {
+  /**
+   * 提交审核：DRAFT(0) / REJECTED(3) → PENDING(1)。
+   * 条件更新（WHERE audit_status IN (0,3)）+ changes 判定，杜绝 read → unchecked update 竞态。
+   * @returns 受影响行数（0 = 并发转换，由 service 转 409）。
+   */
+  async submitForApproval(publicId: string, operatorId: number, now: number): Promise<number> {
     this.ensureTableRead('activities');
     if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
     if (!isUlid(publicId)) throw notFound('Activity');
-
-    const now = Math.floor(Date.now() / 1000);
     const res = await this.run(
       `UPDATE activities
-          SET status = 1, published_at = ?, updated_at = ?
-        WHERE public_id = ? AND team_id = ? AND status = 0 AND deleted_at IS NULL`,
-      [now, now, publicId, this.ctx.tenant.teamId],
+          SET audit_status = ?, status = ?,
+              submitted_by = ?, submitted_at = ?,
+              reviewed_by = NULL, reviewed_at = NULL, reject_reason = NULL,
+              updated_at = ?
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
+          AND audit_status IN (?, ?)`,
+      [
+        ACTIVITY_AUDIT.PENDING,
+        ACTIVITY_STATUS.DRAFT,
+        operatorId,
+        now,
+        now,
+        publicId,
+        this.ctx.tenant.teamId,
+        ACTIVITY_AUDIT.DRAFT,
+        ACTIVITY_AUDIT.REJECTED,
+      ],
     );
-    if ((res.meta?.changes ?? 0) === 0) throw notFound('Activity');
+    return res.meta?.changes ?? 0;
+  }
+
+  /**
+   * 审核通过：PENDING → APPROVED，并置为 SIGNUP_OPEN（唯一的正式发布路径）。
+   * @returns 受影响行数（0 = 并发转换）。
+   */
+  async approveForPublication(publicId: string, operatorId: number, now: number): Promise<number> {
+    this.ensureTableRead('activities');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) throw notFound('Activity');
+    const res = await this.run(
+      `UPDATE activities
+          SET audit_status = ?, status = ?,
+              reviewed_by = ?, reviewed_at = ?, reject_reason = NULL,
+              published_at = ?, updated_at = ?
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
+          AND audit_status = ?`,
+      [
+        ACTIVITY_AUDIT.APPROVED,
+        ACTIVITY_STATUS.SIGNUP_OPEN,
+        operatorId,
+        now,
+        now,
+        now,
+        publicId,
+        this.ctx.tenant.teamId,
+        ACTIVITY_AUDIT.PENDING,
+      ],
+    );
+    return res.meta?.changes ?? 0;
+  }
+
+  /**
+   * 驳回：PENDING → REJECTED，回到 DRAFT；published_at 保持 NULL。
+   * @returns 受影响行数（0 = 并发转换）。
+   */
+  async rejectForRevision(
+    publicId: string,
+    operatorId: number,
+    now: number,
+    reason: string,
+  ): Promise<number> {
+    this.ensureTableRead('activities');
+    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
+    if (!isUlid(publicId)) throw notFound('Activity');
+    const res = await this.run(
+      `UPDATE activities
+          SET audit_status = ?, status = ?,
+              reviewed_by = ?, reviewed_at = ?, reject_reason = ?,
+              updated_at = ?
+        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
+          AND audit_status = ?`,
+      [
+        ACTIVITY_AUDIT.REJECTED,
+        ACTIVITY_STATUS.DRAFT,
+        operatorId,
+        now,
+        reason,
+        now,
+        publicId,
+        this.ctx.tenant.teamId,
+        ACTIVITY_AUDIT.PENDING,
+      ],
+    );
+    return res.meta?.changes ?? 0;
+  }
+
+  /**
+   * 活动发布审核审计日志（P34-C2 §10：复用 content_audit_logs，target_type='activity'）。
+   * 不修改 content_audit_logs schema；不写第二个含义重复的 publish 成功日志。
+   */
+  async insertActivityAuditLog(args: {
+    activityId: number;
+    action: 'submit' | 'approve' | 'reject';
+    fromAudit: number;
+    toAudit: number;
+    reason: string | null;
+    operatorId: number;
+    now: number;
+  }): Promise<void> {
+    await this.run(
+      `INSERT INTO content_audit_logs
+         (target_type, target_id, action, from_status, to_status, reason, operator_id, team_id, created_at)
+       VALUES ('activity', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        args.activityId,
+        args.action,
+        ACTIVITY_AUDIT_LABEL[args.fromAudit] ?? String(args.fromAudit),
+        ACTIVITY_AUDIT_LABEL[args.toAudit] ?? String(args.toAudit),
+        args.reason,
+        args.operatorId,
+        this.ctx.tenant.teamId,
+        args.now,
+      ],
+    );
   }
 }

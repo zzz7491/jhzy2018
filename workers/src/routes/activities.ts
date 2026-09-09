@@ -21,7 +21,13 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
-import { ActivityRepository, type CreateActivityCommand, type ActivityScalarUpdate, type OccurrenceInput } from '../repository/activities';
+import {
+  ActivityRepository,
+  ACTIVITY_FORBIDDEN_PUBLICATION_FIELDS,
+  type CreateActivityCommand,
+  type ActivityScalarUpdate,
+  type OccurrenceInput,
+} from '../repository/activities';
 import { ActivitySignupService } from '../services/activity-signup-service';
 import { ActivityAdminService } from '../services/activity-admin-service';
 import { ActivityAttendanceService } from '../services/attendance-service';
@@ -33,6 +39,19 @@ import { requireUlidParam, parsePagination, isUlid } from '../utils/validation';
 import { parseAttendanceLocation, type AttendanceLocation } from '../utils/location';
 
 const activities = new Hono<{ Bindings: Env; Variables: AppVars }>();
+
+/**
+ * P34-C2 §3 / §8：发布与审核字段一律服务端权威。
+ * create / update body 中若出现任一 forbidden publication field → 400 INVALID_PARAM
+ * （不静默忽略，避免"借 update 绕过审批"）。
+ */
+function assertNoForbiddenPublicationFields(body: Record<string, unknown>): void {
+  for (const field of ACTIVITY_FORBIDDEN_PUBLICATION_FIELDS) {
+    if (body[field] !== undefined) {
+      throw invalidParam(field, 'publication/approval fields are server-authoritative and must not be supplied');
+    }
+  }
+}
 
 /** GET /api/v2/activities —— 本团队活动列表（分页，page/page_size 上限 clamp）。 */
 activities.get('/', async (c) => {
@@ -258,6 +277,9 @@ activities.post('/', requirePermission('activity.activity.create'), async (c) =>
     throw invalidParam('request', 'invalid request body');
   }
 
+  // P34-C2 §3：create 一律服务端权威（status/audit_status = DRAFT），客户端不得提交发布字段。
+  assertNoForbiddenPublicationFields(body);
+
   const cmd: CreateActivityCommand = {
     title: body.title as string,
     summary: (body.summary as string) ?? null,
@@ -292,6 +314,9 @@ activities.put('/:id', requirePermission('activity.activity.update'), async (c) 
     throw invalidParam('request', 'invalid request body');
   }
 
+  // P34-C2 §8：update 同样不得提交发布/审核字段（防止借 update 绕过审批）。
+  assertNoForbiddenPublicationFields(body);
+
   // 透传原始 body 给 service：由 service 层裁决嵌套字段拒绝 + 标量校验（§5 v1 仅标量）。
   const patch = body as ActivityScalarUpdate;
 
@@ -300,15 +325,60 @@ activities.put('/:id', requirePermission('activity.activity.update'), async (c) 
   return ok(c, { activity: { public_id: publicId } });
 });
 
-/** POST /api/v2/activities/:id/publish —— 团队管理员发布草稿活动（status 0 → 1）。 */
-activities.post('/:id/publish', requirePermission('activity.activity.publish'), async (c) => {
+// =========================================================================
+// P34-C2：活动发布审核端点（submit / approve / reject）
+//
+// 冻结：
+//   * 唯一正式发布路径 = approve（audit_status PENDING → APPROVED + status 1）。
+//   * 原 direct publish 端点 `POST /:id/publish` 已从 runtime 移除（§9），
+//     permission 定义 activity.activity.publish 保留于目录但不再授予发布能力。
+//   * 职责分离（submitted_by / created_by != reviewer）在 service 层数据判定，403。
+//   * 跨团队 / 不存在 / 已删除 → 404；无效状态跃迁 / 并发 → 409。
+// =========================================================================
+
+/** POST /api/v2/activities/:id/submit —— 提交发布审核（DRAFT / REJECTED → PENDING）。 */
+activities.post('/:id/submit', requirePermission('activity.activity.submit'), async (c) => {
   const auth = c.get('auth');
   if (!auth.authenticated) throw authRequired();
   const publicId = requireUlidParam(c.req.param('id'), 'id');
 
   const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
-  await svc.publish(publicId);
-  return ok(c, { activity: { public_id: publicId, status: 1 } });
+  const view = await svc.submit(publicId);
+  return ok(c, { activity: view });
+});
+
+/** POST /api/v2/activities/:id/approve —— 审核通过并发布（PENDING → APPROVED + SIGNUP_OPEN）。 */
+activities.post('/:id/approve', requirePermission('activity.activity.review'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+
+  const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const view = await svc.approve(publicId);
+  return ok(c, { activity: view });
+});
+
+/**
+ * POST /api/v2/activities/:id/reject —— 驳回（PENDING → REJECTED + DRAFT）。
+ * body: { "reason": "..." }（trim 后 1–500 字符，空 / 超长 → 400）。
+ */
+activities.post('/:id/reject', requirePermission('activity.activity.review'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+
+  let reason: unknown;
+  try {
+    const body = await c.req.json();
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+    reason = (body as Record<string, unknown>).reason;
+  } catch {
+    throw invalidParam('request', 'invalid request body');
+  }
+
+  const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const view = await svc.reject(publicId, reason);
+  return ok(c, { activity: view });
 });
 
 export default activities;
