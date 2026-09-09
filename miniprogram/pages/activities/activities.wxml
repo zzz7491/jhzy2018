@@ -5,6 +5,18 @@
     </swiper-item>
   </swiper>
 
+  <!-- 随手公益入口（导航整合：从独立 tab 并入活动页） -->
+  <view style="margin:24rpx 24rpx 0;padding:28rpx 32rpx;background:#fff;border-radius:20rpx;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4rpx 16rpx rgba(0,0,0,0.04);" bindtap="goToQuickAction">
+    <view style="display:flex;align-items:center;">
+      <text style="font-size:48rpx;margin-right:20rpx;">🤝</text>
+      <view>
+        <view style="font-size:32rpx;font-weight:600;color:#222;">随手公益</view>
+        <view style="font-size:24rpx;color:#999;margin-top:4rpx;">日常善举，随手可做</view>
+      </view>
+    </view>
+    <text style="font-size:40rpx;color:#ccc;">›</text>
+  </view>
+
   <view class="status-filter">
     <view class="status-item {{status === 'published' ? 'active' : ''}}" data-status="published" bindtap="onStatusChange">全部活动</view>
     <view class="status-item {{status === 'upcoming' ? 'active' : ''}}" data-status="upcoming" bindtap="onStatusChange">即将开始</view>

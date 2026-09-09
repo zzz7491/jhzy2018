@@ -1,0 +1,9 @@
+<view class="placeholder-page">
+  <view class="placeholder-card">
+    <view class="placeholder-icon">🏘️</view>
+    <view class="placeholder-title">公益社区</view>
+    <view class="placeholder-body">公益社区正在建设中</view>
+    <view class="placeholder-tip">更多志愿服务内容即将上线，敬请期待</view>
+    <button class="placeholder-btn" bindtap="goHome">返回首页</button>
+  </view>
+</view>

@@ -85,12 +85,12 @@ Page({
     const unreadCount = this.data.unreadCount;
     if (unreadCount > 0) {
       wx.setTabBarBadge({
-        index: 4,
+        index: 3,
         text: unreadCount > 99 ? '99+' : String(unreadCount)
       });
     } else {
       wx.removeTabBarBadge({
-        index: 4
+        index: 3
       });
     }
   },
@@ -538,6 +538,15 @@ Page({
       return;
     }
     wx.navigateTo({ url: '/pages/points/points' });
+  },
+
+  // 前往积分兑换（导航整合：原独立「积分」tab 并入个人中心）
+  goToPointsExchange() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/mall/mall' });
   },
 
   // 查看等级记录

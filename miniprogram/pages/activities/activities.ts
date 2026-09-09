@@ -276,5 +276,10 @@ Page({
 
   onShareAppMessage() {
     return { title: '志愿者活动', path: 'pages/activities/activities' };
+  },
+
+  // 前往「随手公益」（导航整合：原独立 tab 并入活动页入口）
+  goToQuickAction() {
+    wx.navigateTo({ url: '/pages/quick-action/quick-action' });
   }
 });

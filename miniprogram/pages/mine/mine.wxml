@@ -105,6 +105,29 @@
       </view>
     </view>
 
+    <!-- 积分入口（导航整合：原独立「积分」tab 并入个人中心） -->
+    <view class="message-entry" bindtap="goToPointsCenter">
+      <view class="message-entry-left">
+        <text class="message-icon">💎</text>
+        <text class="message-title">我的积分</text>
+      </view>
+      <view class="message-entry-right">
+        <text style="margin-right:12rpx;color:#FF6B35;font-weight:600;">{{stats.currentPoints || 0}} 分</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 积分兑换入口（导航整合：原独立「积分」tab 并入个人中心） -->
+    <view class="message-entry" bindtap="goToPointsExchange">
+      <view class="message-entry-left">
+        <text class="message-icon">🎁</text>
+        <text class="message-title">积分兑换</text>
+      </view>
+      <view class="message-entry-right">
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- 身份标识 -->
     <view wx:if="{{userIdentity}}" class="identity-badge">
       <text class="identity-icon">🛡️</text>

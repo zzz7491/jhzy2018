@@ -64,7 +64,8 @@
     "pages/admin/training/lesson",
     "pages/admin/exam/questions",
     "pages/admin/exam/papers",
-    "pages/admin/exam/results"
+    "pages/admin/exam/results",
+    "pages/community/index/index"
   ],
   "tabBar": {
     "color": "#999999",
@@ -77,16 +78,12 @@
         "text": "首页"
       },
       {
-        "pagePath": "pages/quick-action/quick-action",
-        "text": "随手公益"
-      },
-      {
         "pagePath": "pages/activities/activities",
         "text": "活动"
       },
       {
-        "pagePath": "pages/mall/mall",
-        "text": "积分"
+        "pagePath": "pages/community/index/index",
+        "text": "公益社区"
       },
       {
         "pagePath": "pages/mine/mine",

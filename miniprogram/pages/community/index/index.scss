@@ -1,0 +1,50 @@
+.placeholder-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  padding: 0 48rpx;
+  box-sizing: border-box;
+}
+
+.placeholder-card {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 64rpx 48rpx;
+  text-align: center;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.06);
+}
+
+.placeholder-icon {
+  font-size: 96rpx;
+  line-height: 1;
+}
+
+.placeholder-title {
+  margin-top: 24rpx;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #222222;
+}
+
+.placeholder-body {
+  margin-top: 16rpx;
+  font-size: 30rpx;
+  color: #ff6b35;
+}
+
+.placeholder-tip {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #999999;
+}
+
+.placeholder-btn {
+  margin-top: 48rpx;
+  background: #ff6b35;
+  color: #ffffff;
+  border-radius: 999rpx;
+  font-size: 30rpx;
+}
