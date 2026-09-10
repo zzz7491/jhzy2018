@@ -63,6 +63,16 @@
             <text class="iconfont icon-star"></text>
             <text>{{item.points_reward}} 积分</text>
           </view>
+
+          <!-- P34-C4 §5：审批态必须与生命周期状态分开显示 -->
+          <view class="info-row" wx:if="{{item.audit_label && item.audit_label !== '未知'}}">
+            <text class="audit-badge audit-{{item.audit_status}}">审核：{{item.audit_label}}</text>
+          </view>
+
+          <!-- P34-C4 §5/§6：驳回原因在编辑入口附近清楚显示 -->
+          <view class="info-row reject-reason" wx:if="{{item.reject_reason}}">
+            <text>驳回原因：{{item.reject_reason}}</text>
+          </view>
         </view>
 
         <view class="activity-actions">
@@ -71,6 +81,16 @@
           <button class="btn-view" bindtap="goToDetail" data-id="{{item.id}}" data-title="{{item.title}}">查看报名</button>
           <button class="btn-edit" bindtap="goToEdit" data-id="{{item.id}}">修改</button>
           <button class="btn-delete" bindtap="showDeleteDialog" data-id="{{item.id}}">删除</button>
+
+          <!--
+            P34-C4 §6 按钮矩阵：
+            - DRAFT / REJECTED → 提交审核
+            - PENDING + 具备审核能力 → 审核通过 / 驳回
+            - 不提供任何"直接发布"按钮（发布唯一路径 = approve）。
+          -->
+          <button wx:if="{{item.canSubmit}}" class="btn-submit" bindtap="submitForReview" data-id="{{item.id}}">提交审核</button>
+          <button wx:if="{{item.canApprove}}" class="btn-approve" bindtap="approveActivity" data-id="{{item.id}}">审核通过</button>
+          <button wx:if="{{item.canApprove}}" class="btn-reject" bindtap="openRejectModal" data-id="{{item.id}}">驳回</button>
         </view>
       </view>
     </block>
@@ -250,6 +270,34 @@
       <view class="confirm-actions">
         <button class="btn-cancel" bindtap="cancelDelete">取消</button>
         <button class="btn-confirm delete" bindtap="confirmDelete">确认删除</button>
+      </view>
+    </view>
+  </view>
+
+  <!--
+    P34-C4 §8：驳回原因输入弹窗。
+    - 必填：trim 后不能为空（前端校验 + 后端 1–500 校验）
+    - 最长 500 字（与后端 ACTIVITY_REJECT_REASON_MAX 对齐）
+  -->
+  <view wx:if="{{showRejectModal}}" class="modal-overlay">
+    <view class="confirm-dialog">
+      <view class="confirm-header">
+        <text class="confirm-title">驳回活动</text>
+      </view>
+      <view class="confirm-content">
+        <text>请填写驳回原因（必填，最多 500 字）：</text>
+        <textarea
+          class="reject-textarea"
+          placeholder="请输入驳回原因，提交人将看到该原因"
+          value="{{rejectReason}}"
+          bindinput="onRejectInput"
+          maxlength="500"
+        />
+        <text class="reject-counter">{{rejectReason.length}}/500</text>
+      </view>
+      <view class="confirm-actions">
+        <button class="btn-cancel" bindtap="closeRejectModal">取消</button>
+        <button class="btn-confirm" bindtap="confirmReject">确认驳回</button>
       </view>
     </view>
   </view>

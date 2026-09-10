@@ -34,7 +34,57 @@ export interface ActivityRow {
   signed_count: number;
   status: number;
   max_session_minutes: number | null;
+  /**
+   * P34-C4：审批态字段（P34-C1/C2 冻结）。
+   * 标注为可选：截至 P34-C4，admin list/detail 的后端投影尚未返回这些字段（见 P34-C4 blocker 报告）；
+   * 仅 submit / approve / reject 的响应（ActivityApprovalView）会返回。前端按"有则显示"处理，不臆造。
+   */
+  audit_status?: number;
+  submitted_at?: number | null;
+  reviewed_at?: number | null;
+  reject_reason?: string | null;
 }
+
+/**
+ * P34-C4：活动审批态（publication audit_status，与生命周期 status 严格分离）。
+ * 0 DRAFT / 1 PENDING / 2 APPROVED / 3 REJECTED（P34-B 冻结）。
+ */
+export const ACTIVITY_AUDIT = {
+  DRAFT: 0,
+  PENDING: 1,
+  APPROVED: 2,
+  REJECTED: 3,
+} as const;
+
+/** P34-C4：审批态展示文案（必须覆盖 0/1/2/3）。 */
+export const ACTIVITY_AUDIT_LABELS: Record<number, string> = {
+  0: '草稿',
+  1: '待审核',
+  2: '已通过',
+  3: '已驳回',
+};
+
+/** 审批态文案（未知值兜底为"未知"，不臆造为已通过）。 */
+export function getActivityAuditLabel(auditStatus: number | null | undefined): string {
+  if (auditStatus === null || auditStatus === undefined) return '未知';
+  return ACTIVITY_AUDIT_LABELS[auditStatus] || '未知';
+}
+
+/**
+ * P34-C4：审批操作返回的活动状态视图（对应后端 ActivityApprovalView）。
+ * submit / approve / reject 成功后一律以此为准刷新 UI，禁止前端本地臆造审批态。
+ */
+export interface ActivityApprovalView {
+  activity_public_id: string;
+  status: number;
+  audit_status: number;
+  submitted_at: number | null;
+  reviewed_at: number | null;
+  reject_reason: string | null;
+}
+
+/** reject reason 长度上限（与后端一致：trim 后 1–500）。 */
+export const ACTIVITY_REJECT_REASON_MAX = 500;
 
 export interface ActivityScalarUpdate {
   title?: string;
@@ -74,7 +124,11 @@ export interface CreateActivityCommand {
   end_time: number;
   signup_deadline?: number | null;
   quota?: number;
-  status?: number;
+  /**
+   * P34-C4：已移除 `status`。
+   * 发布字段属服务端权威（P34-C2）：create 恒为草稿（status=0 / audit_status=0），
+   * 客户端提交 status 会被后端以 INVALID_PARAM 400 拒绝。类型层面移除以防再次误传。
+   */
   max_session_minutes?: number | null;
   occurrences?: OccurrenceInput[];
 }
@@ -374,13 +428,25 @@ export const adminApi = {
     return request<{ activity: { public_id: string } }>('PUT', `/activities/${publicId}`, patch);
   },
 
-  /** POST /activities/:id/publish —— 发布草稿（status 0 → 1）。 */
-  publishActivity(publicId: string): Promise<{ activity: { public_id: string; status: number } }> {
-    return request<{ activity: { public_id: string; status: number } }>(
-      'POST',
-      `/activities/${publicId}/publish`,
-      {},
-    );
+  /**
+   * P34-C4：以下三个端点取代已移除的 POST /activities/:id/publish。
+   * 发布唯一正式路径 = approve；创建恒为草稿，不再有"直接发布"。
+   * 只用 activity public_id，禁止传 numeric DB id。
+   */
+
+  /** POST /activities/:id/submit —— 提交发布审核（DRAFT / REJECTED → PENDING）。 */
+  submitActivity(publicId: string): Promise<{ activity: ActivityApprovalView }> {
+    return request<{ activity: ActivityApprovalView }>('POST', `/activities/${publicId}/submit`, {});
+  },
+
+  /** POST /activities/:id/approve —— 审核通过并发布（PENDING → APPROVED + status SIGNUP_OPEN）。 */
+  approveActivity(publicId: string): Promise<{ activity: ActivityApprovalView }> {
+    return request<{ activity: ActivityApprovalView }>('POST', `/activities/${publicId}/approve`, {});
+  },
+
+  /** POST /activities/:id/reject —— 驳回（PENDING → REJECTED）。reason：trim 后 1–500 字符。 */
+  rejectActivity(publicId: string, reason: string): Promise<{ activity: ActivityApprovalView }> {
+    return request<{ activity: ActivityApprovalView }>('POST', `/activities/${publicId}/reject`, { reason });
   },
 
   /** GET /activities —— 本团队活动列表（分页）。 */

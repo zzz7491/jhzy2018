@@ -100,7 +100,14 @@ Page({
     return isNaN(t) ? 0 : Math.floor(t / 1000);
   },
 
-  /** 构造 POST /activities 的 v2 payload（P31-P1A CreateActivityCommand）。 */
+  /**
+   * 构造 POST /activities 的 v2 payload（P31-P1A CreateActivityCommand）。
+   *
+   * P34-C4：已移除 `status` 字段。
+   * 发布字段属服务端权威（P34-C2）：create 恒为草稿（status=0 / audit_status=0），
+   * 客户端提交 status 会被后端以 INVALID_PARAM 400 拒绝——这正是旧流程创建失败的根因。
+   * 创建后如需公开，必须走 submit → approve（且审核人不得为提交人/创建人）。
+   */
   buildPayload() {
     const d = this.data.formData;
     const startTime = this.toEpoch(d.activity_date, d.start_time);
@@ -112,7 +119,6 @@ Page({
       start_time: startTime,
       end_time: endTime,
       quota: quota > 0 ? quota : 0,
-      status: 0, // 草稿 → 创建成功后走 publish（0→1）
       occurrences: [{ start_time: startTime, end_time: endTime, positions: [], slots: [] }],
     };
   },
@@ -138,11 +144,18 @@ Page({
       .then((res) => {
         const publicId = res && res.activity ? res.activity.public_id : null;
         if (!publicId) throw new Error('创建失败');
-        // 创建成功（草稿 status=0）→ 发布（0→1）
-        return adminApi.publishActivity(publicId).then(() => {
-          wx.hideLoading();
-          wx.showToast({ title: '创建并发布成功', icon: 'success' });
-          setTimeout(() => wx.navigateBack(), 1500);
+        wx.hideLoading();
+        // P34-C4 §3：创建结果恒为草稿（status=DRAFT / audit_status=DRAFT）。
+        // 不再自动调用已移除的 publish endpoint；公开必须走 submit → approve。
+        wx.showModal({
+          title: '已保存为草稿',
+          content: '活动已保存为草稿，尚未提交审核。提交审核并通过后，活动才会对志愿者公开。',
+          confirmText: '提交审核',
+          cancelText: '返回列表',
+          success: (r: any) => {
+            if (r.confirm) this.submitForReview(publicId);
+            else wx.navigateBack();
+          },
         });
       })
       .catch((err: any) => {
@@ -164,6 +177,31 @@ Page({
       })
       .finally(() => {
         this.setData({ submitting: false });
+      });
+  },
+
+  /**
+   * P34-C4 §9：提交审核。
+   * 成功/失败一律以 backend 响应为准，前端不本地假设 published。
+   */
+  submitForReview(publicId: string) {
+    wx.showLoading({ title: '提交中...', mask: true });
+    adminApi
+      .submitActivity(publicId)
+      .then(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '已提交审核', icon: 'success' });
+        setTimeout(() => wx.navigateBack(), 1200);
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        let msg = (err && err.message) || '提交失败';
+        const status = err && err.status;
+        if (status === 403) msg = '无提交权限';
+        else if (status === 404) msg = '活动不存在或已不可访问';
+        else if (status === 409) msg = '状态已变化，请刷新后重试';
+        wx.showToast({ title: msg, icon: 'none' });
+        setTimeout(() => wx.navigateBack(), 1500);
       });
   },
 });

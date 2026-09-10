@@ -43,6 +43,19 @@ export interface ActivityRow {
   status: number;
   /** 活动级单次最大服务时长（分钟）；NULL = 该活动未冻结时长规则（未来 overlong detector 必须 SKIP）。S2-6k1 新增。 */
   max_session_minutes: number | null;
+  // ---------------------------------------------------------------------------
+  // P34-C4A：管理端读契约补充（发布审核状态）。
+  // 注意：仅暴露「状态 + 时间 + 原因」，不暴露任何审核主体 numeric identity
+  // （created_by / submitted_by / reviewed_by 一律不进 DTO；职责分离判定在 service 层）。
+  // ---------------------------------------------------------------------------
+  /** 发布审核状态：0 DRAFT / 1 PENDING / 2 APPROVED / 3 REJECTED。DB NOT NULL DEFAULT 0（migration 0027）。 */
+  audit_status: number;
+  /** 提交审核时间（epoch 秒）；NULL = 从未提交。 */
+  submitted_at: number | null;
+  /** 审核完成时间（epoch 秒）；NULL = 尚未审核。 */
+  reviewed_at: number | null;
+  /** 驳回原因；NULL = 未驳回 / 非驳回路径。 */
+  reject_reason: string | null;
 }
 
 /**
@@ -185,7 +198,8 @@ export class ActivityRepository extends BaseRepository {
     const teamId = this.ctx.tenant.teamId;
     const items = await this.all<ActivityRow>(
       `SELECT id, public_id, team_id, title, summary, start_time, end_time,
-              signup_deadline, quota, signed_count, status, max_session_minutes
+              signup_deadline, quota, signed_count, status, max_session_minutes,
+              audit_status, submitted_at, reviewed_at, reject_reason
          FROM activities
         WHERE team_id = ? AND deleted_at IS NULL
         ORDER BY start_time DESC
@@ -217,7 +231,8 @@ export class ActivityRepository extends BaseRepository {
 
     const row = await this.first<ActivityRow>(
       `SELECT id, public_id, team_id, title, summary, start_time, end_time,
-              signup_deadline, quota, signed_count, status, max_session_minutes
+              signup_deadline, quota, signed_count, status, max_session_minutes,
+              audit_status, submitted_at, reviewed_at, reject_reason
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
       [publicId, this.ctx.tenant.teamId],

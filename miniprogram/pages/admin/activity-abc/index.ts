@@ -1,12 +1,24 @@
 // pages/admin/activity-abc/index.ts
-// P31-P1B：迁移管理端活动视图到 /api/v2/activities（list / detail / update / publish）。
+// P31-P1B：迁移管理端活动视图到 /api/v2/activities（list / detail / update）。
 // - 列表：GET /api/v2/activities（public_id）
 // - 详情：GET /api/v2/activities/:id
 // - 编辑：PUT /api/v2/activities/:id（v1 仅标量；不重配置 nested occurrence/position/slot）
-// - 发布：POST /api/v2/activities/:id/publish（草稿 0 → 报名开放 1）
 // - 删除：v2 无删除端点 → 保留入口但安全提示，不调用不存在 API / 不回退 PHP。
+//
+// P34-C4：发布审批接入（旧「直接发布」流程已废弃）。
+// - 旧端点 POST /api/v2/activities/:id/publish 已由后端移除，前端不再有直接发布入口。
+// - 发布唯一正式路径 = 提交审核 → 审核通过：
+//     POST /:id/submit（草稿/已驳回 → 待审核）
+//     POST /:id/approve（待审核 → 已通过 + status 报名开放）
+//     POST /:id/reject（待审核 → 已驳回，需填原因）
+// - 创建恒为草稿；已通过活动编辑保存后后端统一回草稿，需重新提交审核。
 
-import adminApi, { type ActivityRow } from '../../../utils/adminApi';
+import adminApi, {
+  type ActivityRow,
+  ACTIVITY_AUDIT,
+  ACTIVITY_REJECT_REASON_MAX,
+  getActivityAuditLabel,
+} from '../../../utils/adminApi';
 
 // v2 activities.status: 0=草稿 1=报名开放 2=进行中 3=已结束 4=已取消 5=已下架
 const V2_STATUS_TO_FILTER: Record<number, string> = {
@@ -62,10 +74,36 @@ Page({
     },
     editFormStatusIndex: 0,
     es: 0,
+
+    // ===== P34-C4：发布审批 UI 状态 =====
+    /** 驳回原因输入弹窗。 */
+    showRejectModal: false,
+    rejectReason: '',
+    rejectTargetId: '',
+    /**
+     * 是否展示审核（通过/驳回）按钮。
+     * 前端无 capability API（见报告 §13）：此处按现有 admin role 做最小判定；
+     * 后端仍是最终权威——越权/自审一律由后端 403 兜底，前端不实现安全。
+     */
+    canReview: false,
   },
 
   onLoad() {
     this.checkLogin();
+    this.setData({ canReview: this.computeCanReview() });
+  },
+
+  /**
+   * P34-C4 §13：审核能力的最小前端判定。
+   * 本项目前端没有 capability/permission API（无 /me、无 permissions 端点），
+   * 故按现有 admin architecture（本地 adminInfo.role）做最小判定，仅用于减少无效按钮。
+   * 不做全局 RBAC 前端重构；后端 requirePermission('activity.activity.review') 才是最终权威，
+   * 越权与自审一律由后端 403 兜底。
+   */
+  computeCanReview(): boolean {
+    const adminInfo = wx.getStorageSync('adminInfo');
+    const role = adminInfo && adminInfo.role;
+    return role === 'super_admin' || role === 'admin';
   },
 
   onShow() {
@@ -140,9 +178,10 @@ Page({
       });
   },
 
-  /** ActivityRow → 视图（WXML 兼容字段 + public_id 主键）。 */
+  /** ActivityRow → 视图（WXML 兼容字段 + public_id 主键 + P34-C4 审批态）。 */
   toListView(a: ActivityRow) {
     const status = V2_STATUS_TO_FILTER[a.status] || 'upcoming';
+    const audit = a.audit_status;
     return {
       id: a.public_id,
       title: a.title,
@@ -154,6 +193,14 @@ Page({
       current_participants: a.signed_count,
       max_participants: a.quota,
       points_reward: 0,
+
+      // P34-C4 §5：审批态与生命周期状态严格分离显示。
+      audit_status: audit,
+      audit_label: getActivityAuditLabel(audit),
+      reject_reason: a.reject_reason || '',
+      // P34-C4 §6 按钮矩阵。audit_status 缺失/未知时不臆造，一律不显示审批按钮（避免误操作）。
+      canSubmit: audit === ACTIVITY_AUDIT.DRAFT || audit === ACTIVITY_AUDIT.REJECTED,
+      canApprove: audit === ACTIVITY_AUDIT.PENDING && this.data.canReview,
     };
   },
 
@@ -230,6 +277,17 @@ Page({
             enable_certificate: false,
           },
         });
+
+        // P34-C4 §11：已通过活动进入编辑 → 提示"修改后需重新提交审核"。
+        // （backend 已冻结：approved/pending/rejected 编辑后统一回 DRAFT。）
+        if (a.audit_status === ACTIVITY_AUDIT.APPROVED) {
+          wx.showModal({
+            title: '修改后需重新审核',
+            content: '该活动已审核通过并公开。保存修改后将回到草稿，需重新提交审核；审核期间活动会暂时停止对志愿者公开。',
+            showCancel: false,
+            confirmText: '我知道了',
+          });
+        }
       })
       .catch((err: any) => {
         wx.showToast({ title: (err && err.message) || '加载活动详情失败', icon: 'none' });
@@ -315,6 +373,108 @@ Page({
         } else {
           wx.showToast({ title: (err && err.message) || '修改失败', icon: 'none' });
         }
+      });
+  },
+
+  /**
+   * P34-C4 §7：审批类错误文案。
+   * 后端是最终权威；自审（职责分离）403 与"无审核权限"403 必须区分，不能都显示"操作失败"。
+   */
+  describeApprovalError(err: any): string {
+    const status = err && err.status;
+    const message: string = (err && err.message) || '';
+    if (status === 403) {
+      // 后端自审拒绝文案含"职责分离"（activity-admin-service.assertNotSelfReview）。
+      if (message.indexOf('职责分离') >= 0) return '不能审核自己创建或提交的活动';
+      return '无审核权限';
+    }
+    if (status === 409) return '状态已变化，请刷新后重试';
+    if (status === 404) return '活动不存在或已不可访问';
+    return message || '操作失败';
+  },
+
+  /** P34-C4 §9：提交审核。成功后以 backend 为准刷新，不本地臆造状态。 */
+  submitForReview(e: any) {
+    const id = e.currentTarget.dataset.id;
+    const self = this;
+    wx.showLoading({ title: '提交中...', mask: true });
+    adminApi
+      .submitActivity(id)
+      .then(() => {
+        wx.hideLoading();
+        wx.showToast({ title: '已提交审核', icon: 'success' });
+        self.loadActivityList(self.data.pagination.current_page);
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        wx.showToast({ title: self.describeApprovalError(err), icon: 'none' });
+      });
+  },
+
+  /** P34-C4 §10：审核通过。成功后 backend 返回 audit_status=APPROVED + status=SIGNUP_OPEN。 */
+  approveActivity(e: any) {
+    const id = e.currentTarget.dataset.id;
+    const self = this;
+    wx.showModal({
+      title: '确认审核通过',
+      content: '通过后活动将立即对志愿者公开（报名开放）。',
+      success(r: any) {
+        if (!r.confirm) return;
+        wx.showLoading({ title: '处理中...', mask: true });
+        adminApi
+          .approveActivity(id)
+          .then(() => {
+            wx.hideLoading();
+            wx.showToast({ title: '审核通过', icon: 'success' });
+            self.loadActivityList(self.data.pagination.current_page);
+          })
+          .catch((err: any) => {
+            wx.hideLoading();
+            wx.showToast({ title: self.describeApprovalError(err), icon: 'none' });
+          });
+      },
+    });
+  },
+
+  /** P34-C4 §8：驳回必须填写原因 → 打开输入弹窗。 */
+  openRejectModal(e: any) {
+    const id = e.currentTarget.dataset.id;
+    this.setData({ showRejectModal: true, rejectTargetId: id, rejectReason: '' });
+  },
+
+  closeRejectModal() {
+    this.setData({ showRejectModal: false, rejectReason: '', rejectTargetId: '' });
+  },
+
+  onRejectInput(e: any) {
+    this.setData({ rejectReason: e.detail.value || '' });
+  },
+
+  /** P34-C4 §8：校验（trim 后非空、≤500 字）→ 提交驳回 → 刷新。 */
+  confirmReject() {
+    const reason = (this.data.rejectReason || '').trim();
+    if (!reason) {
+      wx.showToast({ title: '请填写驳回原因', icon: 'none' });
+      return;
+    }
+    if (reason.length > ACTIVITY_REJECT_REASON_MAX) {
+      wx.showToast({ title: `驳回原因不能超过${ACTIVITY_REJECT_REASON_MAX}字`, icon: 'none' });
+      return;
+    }
+    const id = this.data.rejectTargetId;
+    const self = this;
+    wx.showLoading({ title: '提交中...', mask: true });
+    adminApi
+      .rejectActivity(id, reason)
+      .then(() => {
+        wx.hideLoading();
+        self.setData({ showRejectModal: false, rejectReason: '', rejectTargetId: '' });
+        wx.showToast({ title: '已驳回', icon: 'success' });
+        self.loadActivityList(self.data.pagination.current_page);
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        wx.showToast({ title: self.describeApprovalError(err), icon: 'none' });
       });
   },
 
