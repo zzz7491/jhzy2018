@@ -25,6 +25,7 @@ import {
   SETTLEMENT_STATUS,
   ServiceRecordView,
   ServiceRecordListFilters,
+  AdjustmentRequestRow,
   computePointsUnits,
 } from '../repository/service-records';
 import { PointsLedgerRepository } from '../repository/points-ledger';
@@ -36,6 +37,7 @@ import {
   invalidParam,
   conflict,
   ConflictReason,
+  forbidden,
 } from '../utils/errors';
 
 /** adjust 的 effective_minutes 上限（1 年 = 525600 分钟）：防御性上界，保证整数运算安全。 */
@@ -62,6 +64,27 @@ export interface SettleResult {
   /** 新建时=本次生成的 public_id；未新建时=既有 SR 的 public_id（若存在）。 */
   publicId: string | null;
   mode: SettlementMode;
+}
+
+/**
+ * P35-C2：服务时长修正申请的对外投影。
+ * 刻意【不】暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15 投影纪律）；
+ * 申请人/审批人身份本阶段不扩展为可泄露的显示名（§6：如安全显示名会扩大范围则本阶段不做）。
+ */
+export interface AdjustmentRequestView {
+  public_id: string;
+  service_record_public_id: string;
+  status: number;
+  requested_minutes: number;
+  reason: string;
+  old_minutes_snapshot: number;
+  old_points_awarded_units_snapshot: number;
+  old_settlement_status_snapshot: number;
+  requested_at: number;
+  reviewed_at: number | null;
+  applied_at: number | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export class ServiceRecordService {
@@ -254,7 +277,7 @@ export class ServiceRecordService {
   }
 
   // ==========================================================================
-  // P22-P4：读取（SELF / TEAM / 详情）+ 人工修正（adjust）
+  // P22-P4：读取（SELF / TEAM / 详情）
   // ==========================================================================
 
   /**
@@ -324,40 +347,39 @@ export class ServiceRecordService {
     return view;
   }
 
+  // ==========================================================================
+  // P35-C2：服务时长人工修正「申请 → 双人审批」工作流（仅 backend）
+  // ==========================================================================
+
   /**
-   * 人工修正（POST /service-records/:publicId/adjust）。
+   * 提交修正申请（POST /:serviceRecordPublicId/adjustments）。
    *
-   * 契约（P22-P4 §6）：body 只允许 { effective_minutes: integer >= 0, reason: non-empty string }。
-   * 客户端不得提交 points / multiplier / base rate / settlement_status / 任何主体 ID
-   * （路由层对这类字段显式 400，此处不再重复校验）。
+   * 契约（§3/§4/§5）：body 只允许 { requested_minutes: integer 0..525600, reason: 1..500 }。
+   * 客户端不得提交 status / 快照字段 / requester / reviewer / team / points / settlement_status /
+   * 任何 numeric ID / 任何 approval 字段（由路由层显式 400，此处不再重复）。
    *
-   * 计分（P22-P4 §7）：使用 ServiceRecord 【自身已冻结的政策快照】重算，
-   * 【绝不】重新查询 activities.points_multiplier_pct（历史记录不随活动政策变化而重算）。
+   * 资格（§4）：目标 SR 必须同团队且 settlement_status = EFFECTIVE(1)；否则 404（cross-team/not-found）
+   * 或 409 ADJUSTMENT_NOT_ALLOWABLE（不可调整状态）。同一 SR 最多 1 个 PENDING：第二个由
+   * 0028 部分唯一索引作最终并发保证（insertAdjustmentRequest 捕获 UNIQUE → 409）。
    *
-   * 状态（P22-P4 §8）：adjust 是人工重新认证，成功后恒为 EFFECTIVE(1)；
-   * UNVERIFIED(0) / REVOKED(2) 均可被重新认证为 EFFECTIVE。
-   *
-   * 无变化（P22-P4 §9）：effective_minutes 与当前值相同 → 409 SERVICE_RECORD_NO_CHANGE，
-   * 【不写 audit】（杜绝"数值没变但审计增长"的假审计）。
-   *
-   * 并发（P22-P4 §10）：UPDATE 的 WHERE 携带读到的 expected 快照形成乐观锁；
-   * 并发 lost update → changes=0 → 409 SERVICE_RECORD_STALE。
+   * 创建即原子捕获三快照（old_minutes / old_points_awarded_units / old_settlement_status），
+   * 客户端无法控制；创建后 service_record 与 points 完全不变。
    */
-  async adjustServiceRecord(
-    publicId: string,
-    body: { effectiveMinutes: number; reason: string },
-  ): Promise<ServiceRecordView> {
+  async requestAdjustment(
+    serviceRecordPublicId: string,
+    body: { requestedMinutes: number; reason: string },
+  ): Promise<AdjustmentRequestView> {
     const { userId, teamId } = this.requireActor();
 
-    // 1) 业务校验（先于 DB 写）：整数 / 非负 / 上界。
-    if (!Number.isInteger(body.effectiveMinutes)) {
-      throw invalidParam('effective_minutes', 'must be an integer');
+    // 1) 业务校验（先于 DB 写）。
+    if (!Number.isInteger(body.requestedMinutes)) {
+      throw invalidParam('requested_minutes', 'must be an integer');
     }
-    if (body.effectiveMinutes < 0) {
-      throw invalidParam('effective_minutes', 'must be >= 0');
+    if (body.requestedMinutes < 0) {
+      throw invalidParam('requested_minutes', 'must be >= 0');
     }
-    if (body.effectiveMinutes > MAX_ADJUST_MINUTES) {
-      throw invalidParam('effective_minutes', `must be <= ${MAX_ADJUST_MINUTES}`);
+    if (body.requestedMinutes > MAX_ADJUST_MINUTES) {
+      throw invalidParam('requested_minutes', `must be <= ${MAX_ADJUST_MINUTES}`);
     }
     const reason = body.reason?.trim() ?? '';
     if (reason === '') {
@@ -367,45 +389,166 @@ export class ServiceRecordService {
       throw invalidParam('reason', `must be <= ${REASON_MAX_LENGTH} characters`);
     }
 
-    // 2) 读当前行（含冻结政策快照）。跨团队 / 不存在 → 统一 404。
-    const current = await this.repo.findRowByPublicId(publicId, teamId);
+    // 2) 读目标 SR（团队作用域）。跨团队 / 不存在 → 404。
+    const current = await this.repo.findRowByPublicId(serviceRecordPublicId, teamId);
     if (current == null) throw notFound('ServiceRecord');
 
-    // 3) 无变化 → 409，不写 audit。
-    if (body.effectiveMinutes === current.minutes) {
-      throw conflict(ConflictReason.SERVICE_RECORD_NO_CHANGE);
+    // 3) 资格：仅 EFFECTIVE(1) 可发起修正申请。
+    if (current.settlement_status !== SETTLEMENT_STATUS.EFFECTIVE) {
+      throw conflict(ConflictReason.ADJUSTMENT_NOT_ALLOWABLE);
     }
 
-    // 4) 用本行冻结快照重算积分（不查 activities）。
+    // 4) 原子捕获三快照 + 插入 PENDING（public_id 由 Service 层生成）。
+    const publicId = generateUlid();
+    const now = this.nowSeconds();
+    await this.repo.insertAdjustmentRequest({
+      publicId,
+      serviceRecordPublicId,
+      teamId,
+      requesterId: userId,
+      oldMinutesSnapshot: current.minutes,
+      oldPointsAwardedUnitsSnapshot: current.points_awarded_units,
+      oldSettlementStatusSnapshot: current.settlement_status,
+      requestedMinutes: body.requestedMinutes,
+      reason,
+      now,
+    });
+
+    // 5) 回读投影返回（零内部 numeric FK）。
+    const row = await this.repo.findAdjustmentByPublicId(publicId, teamId);
+    if (row == null) throw notFound('AdjustmentRequest');
+    return this.toAdjustmentView(row);
+  }
+
+  /**
+   * 列出某 service record 的修正申请历史（GET /:serviceRecordPublicId/adjustments，newest first）。
+   * 团队作用域；跨团队 / 不存在的 SR → 404。投影不含任何 numeric 内部 id。
+   */
+  async listAdjustments(serviceRecordPublicId: string): Promise<AdjustmentRequestView[]> {
+    const { teamId } = this.requireActor();
+    const sr = await this.repo.findRowByPublicId(serviceRecordPublicId, teamId);
+    if (sr == null) throw notFound('ServiceRecord');
+    const rows = await this.repo.listAdjustmentRequests(serviceRecordPublicId, teamId);
+    return rows.map((r) => this.toAdjustmentView(r));
+  }
+
+  /**
+   * 审批通过（POST /service-record-adjustments/:adjustmentPublicId/approve）。
+   *
+   * 顺序（§7/§8/§9）：
+   *   1) 申请必须 PENDING，否则 409 INVALID_TRANSITION；
+   *   2) reviewer(当前 auth.userId) != requester，否则 403（含 platform_super_admin，无 bypass）；
+   *   3) stale：当前 SR 三字段 == 申请快照 且 快照=EFFECTIVE(1)，否则 409 STALE（零业务效果，保持 PENDING）；
+   *   4) 复用 computePointsUnits（项目唯一权威积分实现，绝不复制算法）算新 points；
+   *   5) 同一 db.batch 原子完成 audit + SR UPDATE(source='correction') + request APPROVED + 积分三件套；
+   *      快照谓词保证并发漂移时 audit/SR/request 三者皆 0 行 → 零副作用。
+   */
+  async approveAdjustment(adjustmentPublicId: string): Promise<ServiceRecordView> {
+    const { userId, teamId } = this.requireActor();
+
+    const req = await this.repo.findAdjustmentByPublicId(adjustmentPublicId, teamId);
+    if (req == null) throw notFound('AdjustmentRequest');
+    if (req.status !== 0) throw conflict(ConflictReason.ADJUSTMENT_INVALID_TRANSITION);
+
+    // 申请人不得审核自己（super admin 亦无 bypass）。
+    if (req.requester_id === userId) throw forbidden();
+
+    // stale 预检：当前 SR 必须与申请快照一致且快照为 EFFECTIVE。
+    const current = await this.repo.findRowByPublicId(req.service_record_public_id, teamId);
+    if (current == null) throw notFound('ServiceRecord');
+    if (
+      current.minutes !== req.old_minutes_snapshot ||
+      current.points_awarded_units !== req.old_points_awarded_units_snapshot ||
+      current.settlement_status !== req.old_settlement_status_snapshot ||
+      req.old_settlement_status_snapshot !== SETTLEMENT_STATUS.EFFECTIVE
+    ) {
+      throw conflict(ConflictReason.ADJUSTMENT_STALE);
+    }
+
+    // 复用项目唯一权威积分算法（target-net 由 SR_CTE 在 points 层完成，本处只算目标值）。
     const newPoints = computePointsUnits(
-      body.effectiveMinutes,
+      req.requested_minutes,
       current.points_min_minutes,
       current.points_base_units_per_hour,
       current.points_multiplier_pct,
     );
 
-    // 5) 原子写（audit + UPDATE 同批，共享 PRE-state 谓词）。
-    const changes = await this.repo.adjustAtomically({
-      serviceRecordId: current.id,
+    const now = this.nowSeconds();
+    const changes = await this.repo.approveAdjustmentAtomically({
+      adjustmentRequestId: req.id,
+      serviceRecordPublicId: req.service_record_public_id,
       teamId,
-      sessionId: current.session_id,
-      expectedMinutes: current.minutes,
-      expectedPoints: current.points_awarded_units,
-      expectedStatus: current.settlement_status,
-      newMinutes: body.effectiveMinutes,
+      requesterId: req.requester_id,
+      reviewerId: userId,
+      oldMinutesSnapshot: req.old_minutes_snapshot,
+      oldPointsAwardedUnitsSnapshot: req.old_points_awarded_units_snapshot,
+      oldSettlementStatusSnapshot: req.old_settlement_status_snapshot,
+      newMinutes: req.requested_minutes,
       newPoints,
-      reason,
-      operatorId: userId,
-      traceId: null,
-      now: this.nowSeconds(),
+      sessionId: current.session_id,
+      reason: req.reason,
+      traceId: req.public_id,
+      now,
     });
 
-    // 6) 乐观锁未命中 → 409（记录已被并发修改 / 已不可见）。
-    if (changes === 0) throw conflict(ConflictReason.SERVICE_RECORD_STALE);
+    // 并发漂移（in-batch 快照谓词落空）→ 0 行 → 视为 stale，保持 PENDING。
+    if (changes === 0) throw conflict(ConflictReason.ADJUSTMENT_STALE);
 
-    // 7) 回读投影返回（零内部 numeric FK）。
-    const view = await this.repo.findByPublicId(publicId, teamId);
+    const view = await this.repo.findByPublicId(req.service_record_public_id, teamId);
     if (view == null) throw notFound('ServiceRecord');
     return view;
+  }
+
+  /**
+   * 拒绝（POST /service-record-adjustments/:adjustmentPublicId/reject）。
+   *
+   * 仅更新 request 行（status=REJECTED + reviewer 字段）；不触碰 service_records / points /
+   * settlement_status / points ledger / service_record_audits。
+   * 申请人不得拒绝自己申请（403）；非 PENDING → 409 INVALID_TRANSITION。
+   */
+  async rejectAdjustment(adjustmentPublicId: string, reviewReason: string): Promise<void> {
+    const { userId, teamId } = this.requireActor();
+
+    const req = await this.repo.findAdjustmentByPublicId(adjustmentPublicId, teamId);
+    if (req == null) throw notFound('AdjustmentRequest');
+    if (req.status !== 0) throw conflict(ConflictReason.ADJUSTMENT_INVALID_TRANSITION);
+
+    // 申请人不得拒绝自己申请。
+    if (req.requester_id === userId) throw forbidden();
+
+    const reason = reviewReason?.trim() ?? '';
+    if (reason === '') throw invalidParam('reason', 'must be a non-empty string');
+    if (reason.length > REASON_MAX_LENGTH) {
+      throw invalidParam('reason', `must be <= ${REASON_MAX_LENGTH} characters`);
+    }
+
+    const now = this.nowSeconds();
+    const changes = await this.repo.rejectAdjustmentAtomically({
+      adjustmentRequestId: req.id,
+      teamId,
+      reviewerId: userId,
+      reviewReason: reason,
+      now,
+    });
+    if (changes === 0) throw conflict(ConflictReason.ADJUSTMENT_INVALID_TRANSITION);
+  }
+
+  /** 投影：AdjustmentRequestRow → AdjustmentRequestView（剥离一切 numeric 内部 id）。 */
+  private toAdjustmentView(row: AdjustmentRequestRow): AdjustmentRequestView {
+    return {
+      public_id: row.public_id,
+      service_record_public_id: row.service_record_public_id,
+      status: row.status,
+      requested_minutes: row.requested_minutes,
+      reason: row.reason,
+      old_minutes_snapshot: row.old_minutes_snapshot,
+      old_points_awarded_units_snapshot: row.old_points_awarded_units_snapshot,
+      old_settlement_status_snapshot: row.old_settlement_status_snapshot,
+      requested_at: row.requested_at,
+      reviewed_at: row.reviewed_at,
+      applied_at: row.applied_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
   }
 }

@@ -28,7 +28,8 @@ import participations from './routes/participations'; // S2-NEW-ARCH-P11：参�
 import forms from './routes/forms'; // S2-NEW-ARCH-P20：通用动态表单引擎
 import attendanceSessions from './routes/attendance-sessions';
 import attendanceAnomalies from './routes/attendance-anomalies';
-import serviceRecords from './routes/service-records'; // S2-NEW-ARCH-P22：服务时长记录（read/adjust）
+import serviceRecords from './routes/service-records'; // S2-NEW-ARCH-P22：服务时长记录（read + 修正申请）；直接 adjust 已于 P35-C2 移除
+import serviceRecordAdjustments from './routes/service-record-adjustments'; // P35-C2：服务时长修正「申请 → 双人审批」审批/拒绝端点
 import points from './routes/points'; // P23-P4B：个人积分账户 / 流水 SELF 只读
 import mall from './routes/mall'; // P24-P3B：积分商城（商品 / 兑换 / 本人订单）SELF+TEAM 只读 + 兑换
 import training from './routes/training'; // P32-P2：学习培训（课程 / 章节 / 报名 / 进度 / admin CRUD）
@@ -70,6 +71,7 @@ export function createApp() {
   v2.route('/attendance-sessions', attendanceSessions); // S2-6i：Review + Force Checkout（sessionId 资源键）
   v2.route('/attendance-anomalies', attendanceAnomalies); // S2-6j V1：Anomaly Handling（anomalyId 资源键，handling ONLY）
   v2.route('/service-records', serviceRecords); // S2-NEW-ARCH-P22：ServiceRecord 读 + 人工修正（public_id 资源键；/mine 字面量优先）
+  v2.route('/service-record-adjustments', serviceRecordAdjustments); // P35-C2：服务时长修正「申请 → 双人审批」审批/拒绝端点
   v2.route('/points', points); // P23-P4B：个人积分账户 / 流水 SELF 只读（/account、/transactions）
   v2.route('/mall', mall); // P24-P3B：积分商城（/products、/orders）SELF+TEAM 只读 + 兑换
   v2.route('/forms', forms); // S2-NEW-ARCH-P20：动态表单引擎（/api/v2/forms/*）

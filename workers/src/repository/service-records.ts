@@ -27,6 +27,7 @@
 import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { BaseRepository, type RepoDeps } from './base';
 import { PointsLedgerRepository } from './points-ledger';
+import { conflict, ConflictReason } from '../utils/errors';
 
 /** settlement mode：仅服务器代码选择，永不来自请求体。 */
 export type SettlementMode = 'automatic' | 'review_approved';
@@ -187,6 +188,71 @@ export interface ServiceRecordRow {
   settlement_status: number;
   created_at: number;
   updated_at: number | null;
+}
+
+// ==========================================================================
+// P35-C2：Service Time Adjustment Request（申请 → 双人审批 工作流）
+// ==========================================================================
+
+/** service_record_adjustment_requests 行（0028）。零内部 numeric FK 对外由 service 层投影剥离。 */
+export interface AdjustmentRequestRow {
+  id: number;
+  public_id: string;
+  service_record_public_id: string;
+  team_id: number;
+  requester_id: number;
+  old_minutes_snapshot: number;
+  old_points_awarded_units_snapshot: number;
+  old_settlement_status_snapshot: number;
+  requested_minutes: number;
+  reason: string;
+  status: number;
+  requested_at: number;
+  reviewer_id: number | null;
+  reviewed_at: number | null;
+  review_reason: string | null;
+  applied_at: number | null;
+  trace_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface InsertAdjustmentRequestInput {
+  publicId: string;
+  serviceRecordPublicId: string;
+  teamId: number;
+  requesterId: number;
+  oldMinutesSnapshot: number;
+  oldPointsAwardedUnitsSnapshot: number;
+  oldSettlementStatusSnapshot: number;
+  requestedMinutes: number;
+  reason: string;
+  now: number;
+}
+
+export interface ApproveAdjustmentInput {
+  adjustmentRequestId: number;
+  serviceRecordPublicId: string;
+  teamId: number;
+  requesterId: number;
+  reviewerId: number;
+  oldMinutesSnapshot: number;
+  oldPointsAwardedUnitsSnapshot: number;
+  oldSettlementStatusSnapshot: number;
+  newMinutes: number;
+  newPoints: number;
+  sessionId: number;
+  reason: string;
+  traceId: string;
+  now: number;
+}
+
+export interface RejectAdjustmentInput {
+  adjustmentRequestId: number;
+  teamId: number;
+  reviewerId: number;
+  reviewReason: string;
+  now: number;
 }
 
 /** 单条结算 INSERT 的查询列（用于 findBySessionId 投影）。 */
@@ -567,5 +633,233 @@ export class ServiceRecordRepository extends BaseRepository {
     });
     const results = await this.db.batch([auditStmt, updateStmt, ...pts.statements]);
     return Number((results[1] as { meta?: { changes?: number } })?.meta?.changes ?? 0);
+  }
+
+  // ==========================================================================
+  // P35-C2：Service Time Adjustment Request（申请 / 列表 / 审批 / 拒绝）
+  // ==========================================================================
+
+  /**
+   * 按 public_id 取申请行（团队作用域）。跨团队 / 不存在 → null（调用方统一 404）。
+   */
+  async findAdjustmentByPublicId(publicId: string, teamId: number): Promise<AdjustmentRequestRow | null> {
+    this.ensureTableRead('service_record_adjustment_requests');
+    return this.first<AdjustmentRequestRow>(
+      `SELECT * FROM service_record_adjustment_requests WHERE public_id = ? AND team_id = ?`,
+      [publicId, teamId],
+    );
+  }
+
+  /**
+   * 列出某 service record 的全部修正申请（newest first）。团队作用域。
+   */
+  async listAdjustmentRequests(serviceRecordPublicId: string, teamId: number): Promise<AdjustmentRequestRow[]> {
+    this.ensureTableRead('service_record_adjustment_requests');
+    return this.all<AdjustmentRequestRow>(
+      `SELECT * FROM service_record_adjustment_requests
+        WHERE service_record_public_id = ? AND team_id = ?
+        ORDER BY requested_at DESC, id DESC`,
+      [serviceRecordPublicId, teamId],
+    );
+  }
+
+  /**
+   * 插入一条 PENDING 申请（status=0）。
+   * 并发最终保证 = 0028 部分唯一索引 uq_one_pending（WHERE status=0）；
+   * 若同一 service record 已存在 PENDING，sqlite 抛 UNIQUE 约束 → 转 409 ADJUSTMENT_PENDING_EXISTS。
+   */
+  async insertAdjustmentRequest(p: InsertAdjustmentRequestInput): Promise<void> {
+    this.ensureTableRead('service_record_adjustment_requests');
+    try {
+      await this.db
+        .prepare(
+          `INSERT INTO service_record_adjustment_requests (
+             public_id, service_record_public_id, team_id, requester_id,
+             old_minutes_snapshot, old_points_awarded_units_snapshot, old_settlement_status_snapshot,
+             requested_minutes, reason, status, requested_at, trace_id, created_at, updated_at
+           ) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?,?)`,
+        )
+        .bind(
+          p.publicId,
+          p.serviceRecordPublicId,
+          p.teamId,
+          p.requesterId,
+          p.oldMinutesSnapshot,
+          p.oldPointsAwardedUnitsSnapshot,
+          p.oldSettlementStatusSnapshot,
+          p.requestedMinutes,
+          p.reason,
+          p.now,
+          p.publicId,
+          p.now,
+          p.now,
+        )
+        .run();
+    } catch (e: unknown) {
+      const msg = String((e as { message?: string })?.message ?? e);
+      // 部分唯一索引（status=0）命中 → 第二个 PENDING 被拒；先验的 exists 检查仅为 best-effort。
+      if (/UNIQUE|constraint|uq_one_pending/i.test(msg)) {
+        throw conflict(ConflictReason.ADJUSTMENT_PENDING_EXISTS);
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * 原子审批落地（P35-C2 §9）：同一 db.batch 内完成
+   *   stmt[0] audit INSERT（old/new 取自当前 SR；operator_id=requester, approved_by=reviewer, trace_id=adjustment public_id）
+   *   stmt[1] service_records UPDATE（minutes/points/settlement_status=EFFECTIVE/source='correction'/points_revision+1）
+   *   stmt[2] request UPDATE（status=APPROVED + reviewer 字段）
+   *   stmt[3..5] buildServicePointsStatements（SR_CTE target-net 复用，绝不复制积分算法）
+   *
+   * 原子性机制 = 【全语句统一谓词门控】，而非依赖 D1 batch 回滚：
+   *   D1 db.batch 仅在【真实 SQL 错误】时整批回滚；UPDATE 命中 0 行【不会】抛错、也【不会】回滚
+   *   （已用 disposable probe 实证：batch([INSERT, UPDATE 0 rows]) → 前置 INSERT 照常提交）。
+   *   因此不能依赖“changes=0 ⇒ 已回滚”。本方法改为让【每一条】写语句都受同一完整谓词
+   *   P = (SR == old 快照: minutes ∧ points ∧ settlement_status) ∧ (request 仍 PENDING) 门控：
+   *     - P 成立：stmt[0]/[1] 命中，stmt[2] 在 SR 已被 [1] 改写为新目标态后命中，积分三件套因
+   *       points_revision 递增而命中 → 四处全部落地（全成立）。
+   *     - P 不成立（SR 并发漂移 或 request 已被并发 APPROVED/REJECTED）：
+   *       stmt[0]/[1] 0 行；stmt[2] 以「status=0 ∧ 新目标态 EXISTS」为闸门 → 0 行；
+   *       积分三件套以 revision 幂等守卫（request_id NOT EXISTS）→ revision 未变 → 0 行。
+   *       → 四组语句【全部 0 行】= 零业务副作用（request 保持 PENDING/REJECTED，SR/audit/ledger 均不变）。
+   *   request 状态门控（status=0）额外封堵 approve 与 reject 并发时的窗口：若 request 已被并发置为
+   *   REJECTED，SR/audit/ledger 亦不落地（否则会“请求已拒但时长仍被改”的部分提交）。
+   *
+   * @returns SR UPDATE 实际变更行数（1=成功落地；0=谓词落空，调用方应转 409 STALE_REQUEST）。
+   */
+  async approveAdjustmentAtomically(p: ApproveAdjustmentInput): Promise<number> {
+    this.ensureTableRead('service_records');
+    this.ensureTableRead('service_record_adjustment_requests');
+    this.ensureTableRead('service_record_audits');
+
+    // stmt[0]：审计快照（operator_id=申请人，approved_by=审批人，trace_id=申请 public_id）。
+    const auditStmt = this.db
+      .prepare(
+        `INSERT INTO service_record_audits (
+           service_record_id, team_id, old_minutes, new_minutes,
+           old_points_awarded_units, new_points_awarded_units,
+           reason, operator_id, approved_by, trace_id, created_at
+         )
+         SELECT id, team_id, minutes, ?,
+                points_awarded_units, ?, ?, ?, ?, ?, ?
+           FROM service_records
+          WHERE public_id = ? AND team_id = ?
+            AND minutes = ? AND points_awarded_units = ? AND settlement_status = ?
+            AND EXISTS (
+              SELECT 1 FROM service_record_adjustment_requests
+               WHERE id = ? AND status = 0
+            )`,
+      )
+      .bind(
+        p.newMinutes,
+        p.newPoints,
+        p.reason,
+        p.requesterId,
+        p.reviewerId,
+        p.traceId,
+        p.now,
+        p.serviceRecordPublicId,
+        p.teamId,
+        p.oldMinutesSnapshot,
+        p.oldPointsAwardedUnitsSnapshot,
+        p.oldSettlementStatusSnapshot,
+        p.adjustmentRequestId,
+      );
+
+    // stmt[1]：条件 UPDATE（同一快照谓词）+ 重新认证为 EFFECTIVE + source='correction'。
+    const updateStmt = this.db
+      .prepare(
+        `UPDATE service_records
+            SET minutes = ?,
+                points_awarded_units = ?,
+                settlement_status = ${SETTLEMENT_STATUS.EFFECTIVE},
+                source = 'correction',
+                points_revision = points_revision + 1,
+                updated_at = ?
+          WHERE public_id = ? AND team_id = ?
+            AND minutes = ? AND points_awarded_units = ? AND settlement_status = ?
+            AND EXISTS (
+              SELECT 1 FROM service_record_adjustment_requests
+               WHERE id = ? AND status = 0
+            )`,
+      )
+      .bind(
+        p.newMinutes,
+        p.newPoints,
+        p.now,
+        p.serviceRecordPublicId,
+        p.teamId,
+        p.oldMinutesSnapshot,
+        p.oldPointsAwardedUnitsSnapshot,
+        p.oldSettlementStatusSnapshot,
+        p.adjustmentRequestId,
+      );
+
+    // stmt[2]：仅 PENDING → APPROVED。并发闸门以【更新后的目标态】作 EXISTS 子查询——
+    // updateStmt 已在本语句之前把 SR 改为新 minutes/points/settlement_status=EFFECTIVE；
+    // 仅当该 UPDATE 真的命中（乐观谓词未被并发漂移打破）时，此处 EXISTS 才成立，
+    // 否则子查询为空 → 0 行 → request 保持 PENDING（与 SR 零副作用一致）。
+    // 注意：不能用 old 快照作 EXISTS——updateStmt 已先改写了 SR，old 快照在此时已不成立。
+    const reqStmt = this.db
+      .prepare(
+        `UPDATE service_record_adjustment_requests
+            SET status = 1,
+                reviewer_id = ?,
+                reviewed_at = ?,
+                applied_at = ?,
+                updated_at = ?
+          WHERE id = ? AND status = 0
+            AND EXISTS (
+              SELECT 1 FROM service_records
+               WHERE public_id = ? AND team_id = ?
+                 AND minutes = ? AND points_awarded_units = ? AND settlement_status = ${SETTLEMENT_STATUS.EFFECTIVE}
+            )`,
+      )
+      .bind(
+        p.reviewerId,
+        p.now,
+        p.now,
+        p.now,
+        p.adjustmentRequestId,
+        p.serviceRecordPublicId,
+        p.teamId,
+        p.newMinutes,
+        p.newPoints,
+      );
+
+    // stmt[3..5]：积分三件套（SR_CTE target-net reconciliation），仅当 SR 已被更新后读取。
+    const pts = this.pointsRepo.buildServicePointsStatements({
+      sessionId: p.sessionId,
+      now: p.now,
+      remark: 'correction',
+      operatorId: p.requesterId,
+    });
+
+    const results = await this.db.batch([auditStmt, updateStmt, reqStmt, ...pts.statements]);
+    return Number((results[1] as { meta?: { changes?: number } })?.meta?.changes ?? 0);
+  }
+
+  /**
+   * 拒绝（P35-C2 §11）：仅更新 request 行（status=REJECTED + reviewer 字段）。
+   * 不修改 service_records / points / settlement_status / points ledger / service_record_audits。
+   *
+   * @returns request UPDATE 实际变更行数（1=成功；0=非 PENDING，调用方应转 409 INVALID_TRANSITION）。
+   */
+  async rejectAdjustmentAtomically(p: RejectAdjustmentInput): Promise<number> {
+    this.ensureTableRead('service_record_adjustment_requests');
+    const res = await this.db
+      .prepare(
+        `UPDATE service_record_adjustment_requests
+            SET status = 2,
+                reviewer_id = ?,
+                reviewed_at = ?,
+                review_reason = ?,
+                updated_at = ?
+          WHERE id = ? AND team_id = ? AND status = 0`,
+      )
+      .bind(p.reviewerId, p.now, p.reviewReason, p.now, p.adjustmentRequestId, p.teamId)
+      .run();
+    return Number((res as { meta?: { changes?: number } })?.meta?.changes ?? 0);
   }
 }

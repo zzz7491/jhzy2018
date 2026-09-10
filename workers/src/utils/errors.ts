@@ -75,6 +75,12 @@ export const ConflictReason = {
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
   SERVICE_RECORD_NO_CHANGE: 'service_record_no_change', // 提交的 effective_minutes 与当前值相同（无变化可审计）
   SERVICE_RECORD_STALE: 'service_record_stale', // 乐观锁未命中：记录已被并发修改 / 已不存在于本团队
+  // P35-C2（新增，纯增量）：服务时长人工修正「申请 → 双人审批」工作流冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 内部 numeric id。
+  ADJUSTMENT_PENDING_EXISTS: 'adjustment_pending_exists', // 同一 service record 已存在 PENDING 申请（部分唯一索引兜底）
+  ADJUSTMENT_INVALID_TRANSITION: 'adjustment_invalid_transition', // 申请不处于 PENDING（已审批/已拒绝/已取消）不可再审批/拒绝
+  ADJUSTMENT_STALE: 'adjustment_stale', // approve 时快照与当前 service record 不一致（minutes/points/settlement_status 漂移），保持 PENDING
+  ADJUSTMENT_NOT_ALLOWABLE: 'adjustment_not_allowable', // 目标 service record 非 EFFECTIVE(1)，不可发起修正申请
   // P24-P2D-REV1（新增，纯增量）：积分商城兑换业务冲突——余额 / 库存。
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id /
   // 当前余额数值 / 真实库存数字（避免给客户端提供余额/库存探测信号）。

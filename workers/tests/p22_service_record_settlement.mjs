@@ -1181,106 +1181,30 @@ async function main() {
     const detailCross = await call('GET', '/api/v2/service-records/L000000000123', { role: 'team_owner', user: 103, team: 10 });
     assert(detailCross.status === 404, `valid legacy cross-team -> 404 (got ${detailCross.status})`);
 
-    // 11 legacy adjust permission control
-    const adjLegacyOk = await call('POST', '/api/v2/service-records/L000000000124/adjust', {
+    // 11/12 旧直接 adjust 端点已移除（DIRECT_ADJUST_RUNTIME = REMOVED，P35-C2）
+    // 全部直接修正调用现应返回 404（无 bypass 残留）；结算/积分核心逻辑改由 P35-C2 审批工作流覆盖。
+    // 注意：此处仅验证「运行时已不存在」；adjustAtomically 原语（P22/P23 仍复用）的并发守卫见下方 repo 级测试。
+    const removedLegacy = await call('POST', '/api/v2/service-records/L000000000124/adjust', {
       role: 'team_owner',
       user: 103,
       team: 10,
       body: { effective_minutes: 25, reason: 'legacy adjust' },
     });
-    assert(adjLegacyOk.status === 200, `legacy adjust with permission -> 200 (got ${adjLegacyOk.status})`);
-    const adjLegacyNoPerm = await call('POST', '/api/v2/service-records/L000000000124/adjust', {
+    assert(removedLegacy.status === 404, `legacy direct adjust removed -> 404 (got ${removedLegacy.status})`);
+    const removedNoPerm = await call('POST', '/api/v2/service-records/L000000000124/adjust', {
       role: 'team_auditor',
       user: 105,
       team: 10,
       body: { effective_minutes: 25, reason: 'no perm' },
     });
-    assert(adjLegacyNoPerm.status === 403, `legacy adjust without permission -> 403 (got ${adjLegacyNoPerm.status})`);
-
-    // 12 adjust core
-    const adj = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
+    assert(removedNoPerm.status === 404, `direct adjust removed regardless of role -> 404 (got ${removedNoPerm.status})`);
+    const removedUlid = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
       role: 'team_owner',
       user: 103,
       team: 10,
       body: { effective_minutes: 25, reason: 'correct to 25' },
     });
-    assert(adj.status === 200, `adjust 45->25 -> 200 (got ${adj.status})`);
-    assert(rec(adj.json).minutes === 25, `adjust result minutes=25 (got ${rec(adj.json).minutes})`);
-    assert(rec(adj.json).points_awarded_units === 0, `adjust result points=0 (got ${rec(adj.json).points_awarded_units})`);
-    assert(rec(adj.json).settlement_status === SETTLEMENT_STATUS.EFFECTIVE, 'adjust result EFFECTIVE');
-    const audit1 = get1(sqlite, 'SELECT * FROM service_record_audits WHERE service_record_id=(SELECT id FROM service_records WHERE public_id=?)', [ulidA]);
-    assert(audit1 && audit1.old_minutes === 45 && audit1.new_minutes === 25, `audit old=45/new=25 (got ${audit1?.old_minutes}/${audit1?.new_minutes})`);
-    assert(audit1.old_points_awarded_units === 75 && audit1.new_points_awarded_units === 0, `audit old_units=75/new=0 (got ${audit1?.old_points_awarded_units}/${audit1?.new_points_awarded_units})`);
-    assert(audit1.reason === 'correct to 25', 'audit reason captured via route');
-
-    // 12 REVOKED -> EFFECTIVE
-    const adjRev = await call('POST', '/api/v2/service-records/' + ulidC + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25, reason: 'revive' },
-    });
-    assert(adjRev.status === 200 && rec(adjRev.json).settlement_status === SETTLEMENT_STATUS.EFFECTIVE, 'REVOKED -> adjust -> EFFECTIVE');
-
-    // 12 UNVERIFIED -> EFFECTIVE
-    const adjUnv = await call('POST', '/api/v2/service-records/' + ulidB + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25, reason: 'verify' },
-    });
-    assert(adjUnv.status === 200 && rec(adjUnv.json).settlement_status === SETTLEMENT_STATUS.EFFECTIVE, 'UNVERIFIED -> adjust -> EFFECTIVE');
-
-    // 12 no-change -> 409, no audit
-    const beforeAudits = get1(sqlite, 'SELECT count(*) c FROM service_record_audits WHERE service_record_id=(SELECT id FROM service_records WHERE public_id=?)', [ulidA]).c;
-    const adjNoChange = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25, reason: 'same' },
-    });
-    assert(adjNoChange.status === 409, `no-change adjust -> 409 (got ${adjNoChange.status})`);
-    const afterAudits = get1(sqlite, 'SELECT count(*) c FROM service_record_audits WHERE service_record_id=(SELECT id FROM service_records WHERE public_id=?)', [ulidA]).c;
-    assert(beforeAudits === afterAudits, `no-change: no audit written (before=${beforeAudits},after=${afterAudits})`);
-
-    // 12 invalid request
-    const adjNeg = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: -5, reason: 'neg' },
-    });
-    assert(adjNeg.status === 400, `negative minutes -> 400 (got ${adjNeg.status})`);
-    const adjFloat = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 1.5, reason: 'float' },
-    });
-    assert(adjFloat.status === 400, `non-integer minutes -> 400 (got ${adjFloat.status})`);
-    const adjNoReason = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25 },
-    });
-    assert(adjNoReason.status === 400, `missing reason -> 400 (got ${adjNoReason.status})`);
-
-    // 12 client cannot control points/policy
-    const adjPoints = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25, points_awarded_units: 999, reason: 'hack' },
-    });
-    assert(adjPoints.status === 400, `client points field -> 400 (got ${adjPoints.status})`);
-    const adjMult = await call('POST', '/api/v2/service-records/' + ulidA + '/adjust', {
-      role: 'team_owner',
-      user: 103,
-      team: 10,
-      body: { effective_minutes: 25, points_multiplier_pct: 999, reason: 'hack' },
-    });
-    assert(adjMult.status === 400, `client multiplier field -> 400 (got ${adjMult.status})`);
+    assert(removedUlid.status === 404, `ULID direct adjust removed -> 404 (got ${removedUlid.status})`);
 
     // 12 stale concurrent -> 409 (repo-level optimistic lock; route re-reads the row so
     // true HTTP concurrency isn't simulatable single-threaded — the real guard is the
@@ -1319,9 +1243,6 @@ async function main() {
       ...recs(teamList.json),
       rec(detailUlid.json),
       rec(detailLegacy.json),
-      rec(adj.json),
-      rec(adjRev.json),
-      rec(adjUnv.json),
     ].filter(Boolean);
     assert(allResp.every(noNumericIds), 'projection security: no numeric internal IDs in ANY external SR response');
     ok('route assertions done');

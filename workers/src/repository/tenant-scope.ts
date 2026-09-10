@@ -53,6 +53,7 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   form_definition_versions: 'TEAM_SCOPED',
   form_submissions: 'TEAM_SCOPED',
   service_records: 'TEAM_SCOPED',
+  service_record_adjustment_requests: 'TEAM_SCOPED',
   service_record_audits: 'TEAM_SCOPED',
   courses: 'TEAM_SCOPED',
   course_lessons: 'TEAM_SCOPED',

@@ -5,7 +5,9 @@
  *   GET  /service-records/mine              → service.record.read（USER/SELF；volunteer + platform_super_admin）
  *   GET  /service-records                   → service.record.view（TEAM；owner/admin/auditor + platform 角色）
  *   GET  /service-records/:publicId         → service.record.view（TEAM）
- *   POST /service-records/:publicId/adjust  → service.record.adjust（TEAM）
+ *   POST /service-records/:serviceRecordPublicId/adjustments  → service.record.adjust（TEAM，双人审批工作流「申请」入口）
+ *   GET  /service-records/:serviceRecordPublicId/adjustments  → service.record.view OR service.record.review（TEAM）
+ *   （旧的直接 POST .../:publicId/adjust 即时修正端点已移除，DIRECT_ADJUST_RUNTIME = REMOVED，见 P35-C2）
  *
  * 路由纪律（与 routes/forms.ts 一致）：**字面量段优先注册**——/mine 必须注册在 /:publicId 之前，
  * 否则会被参数路由吞掉。
@@ -24,8 +26,9 @@ import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
 import { ServiceRecordService } from '../services/service-record-service';
 import { requirePermission } from '../middleware/rbac';
+import { authorizePermissionDecision } from '../services/permission-provider';
 import { ok } from '../utils/response';
-import { authRequired, invalidParam } from '../utils/errors';
+import { authRequired, invalidParam, forbidden } from '../utils/errors';
 import { isUlid } from '../utils/validation';
 
 /**
@@ -59,27 +62,6 @@ function optionalBusinessDate(raw: string | undefined): string | undefined {
   }
   return trimmed;
 }
-
-/**
- * adjust 请求体中【客户端禁止提交】的字段（P22-P4 §6）。
- * 出现即 400：宁可显式拒绝，也不静默忽略——静默忽略会让调用方误以为设置生效。
- */
-const FORBIDDEN_ADJUST_FIELDS = [
-  'points_awarded_units',
-  'points_min_minutes',
-  'points_base_units_per_hour',
-  'points_multiplier_pct',
-  'settlement_status',
-  'public_id',
-  'user_id',
-  'user_public_id',
-  'team_id',
-  'activity_id',
-  'session_id',
-  'minutes',
-  'effectiveMinutes',
-  'id',
-] as const;
 
 const serviceRecords = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -153,60 +135,126 @@ serviceRecords.get('/:publicId', requirePermission('service.record.view'), async
 });
 
 /**
- * POST /api/v2/service-records/:publicId/adjust —— 人工修正（TEAM）。
+ * POST /api/v2/service-records/:serviceRecordPublicId/adjustments —— 提交修正申请（TEAM）。
  *
- * Body（严格）：{ "effective_minutes": 25, "reason": "人工核验修正" }
- * - effective_minutes：整数、>= 0、<= 525600；与当前值相同 → 409 service_record_no_change（不写审计）。
- * - reason：非空、<= 500 字符。
- * - 出现任何 FORBIDDEN_ADJUST_FIELDS（points / multiplier / base rate / settlement_status /
- *   任何主体 ID）→ 400 INVALID_PARAM。
+ * 双人审批工作流（P35-C2）的「申请」入口。权限 = service.record.adjust。
+ * 旧的直接 PATCH/POST .../adjust 即时修正端点已【移除】（DIRECT_ADJUST_RUNTIME = REMOVED），
+ * 任何时长修改必须经本申请 → 第二人审批 → 原子 APPLY，不再存在客户端直改通道。
  *
- * 计分使用 ServiceRecord 自身冻结的政策快照重算，不回查 activities。
- * 成功后 settlement_status 恒为 EFFECTIVE(1)（人工重新认证）。
- * 并发 lost update → 409 service_record_stale。
+ * Body（严格）：{ "requested_minutes": 25, "reason": "人工核验修正" }。
+ * - requested_minutes：整数、>= 0、<= 525600。
+ * - reason：非空、1..500 字符。
+ * - 客户端禁止提交 status / 任一 *_snapshot / requester / reviewer / team / points /
+ *   settlement_status / 任何 numeric ID / 任何 approval 字段 → 400。
  */
-serviceRecords.post('/:publicId/adjust', requirePermission('service.record.adjust'), async (c) => {
-  const auth = c.get('auth');
-  if (!auth.authenticated) throw authRequired();
+const FORBIDDEN_ADJUSTMENT_REQUEST_FIELDS = [
+  'status',
+  'old_minutes_snapshot',
+  'old_points_awarded_units_snapshot',
+  'old_settlement_status_snapshot',
+  'requester_id',
+  'requester',
+  'reviewer_id',
+  'reviewer',
+  'team_id',
+  'team',
+  'service_record_id',
+  'service_record_public_id',
+  'points_awarded_units',
+  'points',
+  'minutes',
+  'settlement_status',
+  'source',
+  'id',
+  'public_id',
+  'trace_id',
+  'operator_id',
+  'approved_by',
+] as const;
 
-  const publicId = requireServiceRecordPublicId(c.req.param('publicId'), 'publicId');
+serviceRecords.post(
+  '/:serviceRecordPublicId/adjustments',
+  requirePermission('service.record.adjust'),
+  async (c) => {
+    const auth = c.get('auth');
+    if (!auth.authenticated) throw authRequired();
 
-  let body: Record<string, unknown> = {};
-  try {
-    const json = await c.req.json();
-    if (json != null && typeof json === 'object') body = json as Record<string, unknown>;
-  } catch {
-    body = {};
-  }
+    const serviceRecordPublicId = requireServiceRecordPublicId(c.req.param('serviceRecordPublicId'), 'serviceRecordPublicId');
 
-  // 客户端禁止提交的字段：显式 400（先于业务校验）。
-  for (const field of FORBIDDEN_ADJUST_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(body, field)) {
-      throw invalidParam(field, 'must not be provided by client');
+    let body: Record<string, unknown> = {};
+    try {
+      const json = await c.req.json();
+      if (json != null && typeof json === 'object') body = json as Record<string, unknown>;
+    } catch {
+      body = {};
     }
-  }
 
-  const rawMinutes = body.effective_minutes;
-  const rawReason = body.reason;
+    // 客户端禁止提交的字段：显式 400（先于业务校验）。
+    for (const field of FORBIDDEN_ADJUSTMENT_REQUEST_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        throw invalidParam(field, 'must not be provided by client');
+      }
+    }
 
-  if (typeof rawMinutes !== 'number' || !Number.isInteger(rawMinutes)) {
-    throw invalidParam('effective_minutes', 'must be an integer');
-  }
-  if (typeof rawReason !== 'string') {
-    throw invalidParam('reason', 'must be a string');
-  }
+    const rawMinutes = body.requested_minutes;
+    const rawReason = body.reason;
 
-  const svc = new ServiceRecordService({
-    db: c.env.DB,
-    auth,
-    tenant: c.get('tenant'),
-  });
-  const record = await svc.adjustServiceRecord(publicId, {
-    effectiveMinutes: rawMinutes,
-    reason: rawReason,
-  });
+    if (typeof rawMinutes !== 'number' || !Number.isInteger(rawMinutes)) {
+      throw invalidParam('requested_minutes', 'must be an integer');
+    }
+    if (typeof rawReason !== 'string') {
+      throw invalidParam('reason', 'must be a string');
+    }
 
-  return ok(c, { record });
-});
+    const svc = new ServiceRecordService({
+      db: c.env.DB,
+      auth,
+      tenant: c.get('tenant'),
+    });
+    const adjustment = await svc.requestAdjustment(serviceRecordPublicId, {
+      requestedMinutes: rawMinutes,
+      reason: rawReason,
+    });
+
+    return ok(c, { adjustment });
+  },
+);
+
+/**
+ * GET /api/v2/service-records/:serviceRecordPublicId/adjustments —— 修正申请历史列表（TEAM）。
+ *
+ * 权限 = service.record.view OR service.record.review（最小安全 OR；不扩大权限）。
+ * 返回按 requested_at DESC（newest first），投影仅含 public_id 与业务字段，
+ * 绝不暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15）。
+ */
+serviceRecords.get(
+  '/:serviceRecordPublicId/adjustments',
+  async (c) => {
+    const auth = c.get('auth');
+    if (!auth.authenticated) throw authRequired();
+
+    // 权限：view OR review（二者任一即可；未知 code 由 authorizePermissionDecision 统一处理）。
+    const viewDecision = await authorizePermissionDecision(c.env, auth, 'service.record.view');
+    if (viewDecision !== 'allow') {
+      const reviewDecision = await authorizePermissionDecision(c.env, auth, 'service.record.review');
+      if (reviewDecision !== 'allow') {
+        // view/review 均无授权：沿用 forbidden（view 路径若为 unknown_permission 已在上层转 500，
+        // 此处两 code 均属已知目录，按 forbidden 处理）。
+        throw forbidden();
+      }
+    }
+
+    const serviceRecordPublicId = requireServiceRecordPublicId(c.req.param('serviceRecordPublicId'), 'serviceRecordPublicId');
+
+    const svc = new ServiceRecordService({
+      db: c.env.DB,
+      auth,
+      tenant: c.get('tenant'),
+    });
+    const adjustments = await svc.listAdjustments(serviceRecordPublicId);
+
+    return ok(c, { adjustments });
+  },
+);
 
 export default serviceRecords;
