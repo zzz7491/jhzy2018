@@ -226,7 +226,7 @@ export { AIContextRepository, AI_CONTEXT_DEFAULT_LIMITS } from './src/repository
 export { buildVolunteerAssistContext, AI_CONTEXT_SOURCE_LABELS } from './src/services/ai/data-block';
 export { AIBackendService } from './src/services/ai/service';
 export { AIUsageRepository, AI_USAGE_STATUS_EXISTING_SEMANTICS, FAILED_USAGE_LOGGING } from './src/services/ai/usage';
-export { FORBIDDEN_CONTEXT_KEYS, findForbiddenKeys, assertNoForbiddenKeys, AIPrivacyError } from './src/services/ai/privacy';
+export { FORBIDDEN_CONTEXT_KEYS, findForbiddenKeys, assertNoForbiddenKeys, AIPrivacyError } from './src/utils/ai-privacy';
 export { normalizeUserInput, normalizeHistory, assertNoClientControlFields, AIInputError, AI_INPUT_MAX_CHARS, AI_MAX_HISTORY_MESSAGES, REJECTED_CLIENT_FIELDS } from './src/services/ai/input';
 export { HttpChatProvider } from './src/services/ai/http-chat-provider';
 export { AIProviderError } from './src/services/ai/provider';

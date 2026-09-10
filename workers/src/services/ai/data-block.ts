@@ -13,7 +13,7 @@
  */
 
 import type { AIContextRepository } from '../../repository/ai-context';
-import { assertNoForbiddenKeys } from './privacy';
+import { assertNoForbiddenKeys } from '../../utils/ai-privacy';
 import {
   VOLUNTEER_ASSIST_DATA_OPEN,
   VOLUNTEER_ASSIST_DATA_CLOSE,
@@ -23,7 +23,8 @@ import {
  * 代码级 privacy guard（§7）：在数据离开组装层、送往 provider 之前，对**注入的原始投影行**
  * 再做一次精确键名断言——防未来误加列把 internal numeric id / 隐私密文带出。
  *
- * 放置于组装层（services）而非 repository：保持 repository → services 零依赖的既有分层。
+ * guard 实现位于共享层 `utils/ai-privacy.ts`（P36-C3-1A）：services 与 repository 均可依赖，
+ * 从而保持 repository → services 零依赖的既有分层，且禁止键清单只有一份权威定义。
  */
 function guard<T>(value: T): T {
   assertNoForbiddenKeys(value, 'context');

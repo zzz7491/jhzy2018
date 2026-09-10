@@ -1,7 +1,12 @@
 /**
- * 嘉禾 AI V1 —— 代码级隐私 guard（P36-C2 §7）。
+ * 嘉禾 AI V1 —— 代码级隐私 guard（P36-C2 §7；P36-C3-1A 迁至共享层）。
  *
  * 目标：在**代码层**阻断禁止字段进入 AI context，而不是只依赖 prompt 措辞。
+ *
+ * 分层（P36-C3-1A 冻结）：本文件是**纯无状态**共享工具，位于 `utils/` 层，
+ * 因此 `repository/**` 与 `services/**` 都可以依赖它，而不会产生
+ * repository → services 的分层倒置。禁止键清单**只允许有一份权威定义**（本文件）；
+ * 历史上不存在 `services/ai/privacy.ts` 的任何兼容 shim / 复制副本。
  *
  * 判定规则（精确键名匹配，**非子串**）：
  * - 只有与 `FORBIDDEN_CONTEXT_KEYS` **完全相等**的键才会被判违规；
