@@ -14,18 +14,6 @@
     <text class="subtitle">扫描二维码进行核销</text>
   </view>
 
-  <!-- 统计卡片 -->
-  <view class="stats-section">
-    <view class="stat-card">
-      <text class="stat-number">{{todayCount}}</text>
-      <text class="stat-label">今日核销</text>
-    </view>
-    <view class="stat-card">
-      <text class="stat-number">{{todayPoints}}</text>
-      <text class="stat-label">今日积分</text>
-    </view>
-  </view>
-
   <!-- 扫码区域 -->
   <view class="scan-area">
     <view class="scan-box" bindtap="startScan">
@@ -41,14 +29,15 @@
       <view class="input-title">
         <text>手动输入核销码</text>
       </view>
-      <input 
-        type="text" 
-        placeholder="请输入兑换码" 
+      <input
+        type="text"
+        placeholder="请输入兑换码"
         value="{{manualCode}}"
         bindinput="onManualInput"
         class="code-input"
+        disabled="{{isLoading}}"
       />
-      <button class="btn btn-verify" bindtap="verifyManualCode">
+      <button class="btn btn-verify" bindtap="verifyManualCode" disabled="{{isLoading}}">
         确认核销
       </button>
     </view>
@@ -56,49 +45,15 @@
 
   <!-- 操作按钮 -->
   <view class="action-buttons">
-    <button class="btn btn-scan" bindtap="startScan">
+    <button class="btn btn-scan" bindtap="startScan" disabled="{{isLoading}}">
       <text class="btn-icon">📷</text>
       <text>扫一扫核销</text>
     </button>
-    
-    <button class="btn btn-toggle" bindtap="toggleManualInput">
+
+    <button class="btn btn-toggle" bindtap="toggleManualInput" disabled="{{isLoading}}">
       <text class="btn-icon">{{showManualInput ? '📋' : '⌨️'}}</text>
       <text>{{showManualInput ? '隐藏手动输入' : '手动输入'}}</text>
     </button>
-  </view>
-
-  <!-- 历史记录 -->
-  <view class="history-section" wx:if="{{historyList.length > 0}}">
-    <view class="section-header">
-      <text class="section-title">📋 我的核销记录</text>
-      <text class="section-badge">{{historyList.length}}</text>
-    </view>
-    
-    <scroll-view class="history-list" scroll-y enhanced show-scrollbar="{{false}}">
-      <view 
-        class="history-item" 
-        wx:for="{{historyList}}" 
-        wx:key="id"
-      >
-        <view class="history-icon">
-          <text class="icon">✓</text>
-        </view>
-        <view class="history-info">
-          <text class="history-name">{{item.volunteer_name || '志愿者'}}</text>
-          <text class="history-time">{{formatTime(item.completed_at)}}</text>
-          <text class="history-goods">{{item.goods_name}}</text>
-          <text class="history-points">-{{item.points_spent}}分</text>
-          <text class="history-code">兑换码: {{item.exchange_code}}</text>
-        </view>
-      </view>
-    </scroll-view>
-  </view>
-
-  <!-- 空状态 -->
-  <view class="empty-state" wx:if="{{historyList.length === 0 && !isLoading}}">
-    <text class="empty-icon">📭</text>
-    <text class="empty-text">暂无核销记录</text>
-    <text class="empty-desc">扫码核销后，记录将显示在这里</text>
   </view>
 
   <!-- 退出登录 -->
@@ -116,14 +71,14 @@
       <view class="modal-header">
         <text class="modal-title">{{verifySuccess ? '✓ 核销成功' : '✗ 核销失败'}}</text>
       </view>
-      
+
       <view class="modal-body">
         <view class="result-icon {{verifySuccess ? 'success' : 'fail'}}">
           <text class="icon">{{verifySuccess ? '✓' : '✗'}}</text>
         </view>
-        
+
         <text class="result-message">{{verifyMessage}}</text>
-        
+
         <button class="btn btn-close" bindtap="closeResultModal">
           {{verifySuccess ? '继续核销' : '重新尝试'}}
         </button>

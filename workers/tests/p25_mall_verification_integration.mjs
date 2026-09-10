@@ -210,8 +210,8 @@ async function main() {
     const moIdx = q(sqlite, "PRAGMA index_list('mall_orders')").map((r) => r.name);
     assert(moIdx.includes('idx_mall_orders_exchange_code'), 'A: idx_mall_orders_exchange_code exists');
 
-    assert(get1(sqlite, 'SELECT COUNT(*) c FROM permissions').c === 99, 'A: permissions = 99');
-    assert(get1(sqlite, 'SELECT COUNT(*) c FROM role_permissions').c === 284, 'A: role_permissions = 284');
+    assert(get1(sqlite, 'SELECT COUNT(*) c FROM permissions').c === 103, 'A: permissions = 103');
+    assert(get1(sqlite, 'SELECT COUNT(*) c FROM role_permissions').c === 291, 'A: role_permissions = 291');
 
     const verifyBinds = q(sqlite, `SELECT r.code FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE p.code='mall.order.verify' ORDER BY r.code`).map((x) => x.code);
     assert(JSON.stringify(verifyBinds) === JSON.stringify(['platform_super_admin', 'team_admin', 'team_owner']), `A: mall.order.verify bound exactly to team_owner/team_admin/platform_super_admin (got ${JSON.stringify(verifyBinds)})`);

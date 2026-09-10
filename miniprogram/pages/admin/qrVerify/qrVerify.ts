@@ -1,4 +1,15 @@
 // pages/admin/qrVerify/qrVerify.ts
+// Beta-B1：将扫码核销接到 V2（POST /api/v2/mall/admin/orders/verify）。
+//
+// 纪律（与 Beta-B1 任务书一致）：
+// - 仅对接 /api/v2/mall；绝不调用 legacy PHP 端点（redeem.php / verifier_stats.php / admin_stats.php）。
+// - 使用项目统一 mallApi 客户端；Bearer 与 X-Team-Id 由 mallApi 统一注入，不得自行实现鉴权。
+// - 不暴露 numeric internal id；不客户端提交 team_id / user_id / order_no。
+// - 不做自动重试；核销请求进行中锁定提交（防双提交）。
+// - 附属单人核销统计无 V2 等价端点，按任务 §7 移除 legacy stats 请求与非核心展示。
+
+import { mallApi } from '../../../utils/mallApi';
+
 Page({
   data: {
     adminName: '',
@@ -10,28 +21,21 @@ Page({
     showResultModal: false,
     verifySuccess: false,
     verifyMessage: '',
-    // 核销员统计
-    todayCount: 0,
-    todayPoints: 0,
-    historyList: [] as any[]
   },
 
   onLoad() {
     this.checkLogin();
     this.getAdminInfo();
-    this.loadStats();
     this.startTimeUpdate();
   },
 
-  onShow() {
-    this.loadStats();
-  },
+  // onShow 不再拉取 legacy stats（已移除，见文件头说明）。
 
-  // 检查登录状态（不限制角色，所有管理员都可进入）
+  // 检查登录状态（不限制角色，所有管理员均可进入）
   checkLogin() {
     const token = wx.getStorageSync('access_token');
     const adminInfo = wx.getStorageSync('adminInfo');
-    
+
     if (!token || !adminInfo) {
       wx.redirectTo({ url: '/pages/login-unified/index?role=admin' });
       return;
@@ -43,7 +47,7 @@ Page({
     if (adminInfo) {
       this.setData({
         adminName: adminInfo.real_name || adminInfo.username || '管理员',
-        adminRole: adminInfo.role || ''
+        adminRole: adminInfo.role || '',
       });
     }
   },
@@ -57,48 +61,9 @@ Page({
     const now = new Date();
     const timeStr = now.toLocaleString('zh-CN', {
       year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
     });
     this.setData({ currentTime: timeStr });
-  },
-
-  // 加载统计（如果是核销员，显示自己的统计；如果是其他管理员，显示所有统计）
-  async loadStats() {
-    const token = wx.getStorageSync('access_token');
-    const adminInfo = wx.getStorageSync('adminInfo');
-    
-    // 根据角色决定请求参数
-    let url = 'https://api.jhzyfw.com/api/verifier_stats.php';
-    if (adminInfo.role !== 'verifier') {
-      // 超级管理员或普通管理员，可以查看所有核销统计
-      url = 'https://api.jhzyfw.com/api/admin_stats.php?type=redeem';
-    }
-    
-    wx.request({
-      url: url,
-      method: 'GET',
-      header: { 'Authorization': `Bearer ${token}` },
-      success: (res: any) => {
-        if (res.data.code === 200 && res.data.success) {
-          const data = res.data.data;
-          this.setData({
-            todayCount: data.today?.count || 0,
-            todayPoints: data.today?.points || 0,
-            historyList: data.history?.map((item: any) => ({
-              id: item.id,
-              goods_name: item.goods_name,
-              points_spent: item.points_spent,
-              volunteer_name: item.volunteer_name,
-              completed_at: item.completed_at,
-              exchange_code: item.exchange_code
-            })) || []
-          });
-        }
-      },
-      fail: () => {
-        console.error('加载统计失败');
-      }
-    });
   },
 
   toggleManualInput() {
@@ -113,8 +78,8 @@ Page({
     wx.scanCode({
       onlyFromCamera: true,
       scanType: ['qrCode'],
-      success: (res) => { this.doRedeem(res.result); },
-      fail: () => { wx.showToast({ title: '扫码失败', icon: 'none' }); }
+      success: (res) => { this.doVerify(res.result); },
+      fail: () => { wx.showToast({ title: '扫码失败', icon: 'none' }); },
     });
   },
 
@@ -124,66 +89,57 @@ Page({
       wx.showToast({ title: '请输入兑换码', icon: 'error' });
       return;
     }
-    this.doRedeem(code);
+    this.doVerify(code);
     this.setData({ manualCode: '' });
   },
 
-  async doRedeem(exchangeCode: string) {
+  // 核销主路径：仅把扫码/手输内容作为 exchange_code 提交给 V2 verify 端点。
+  // 不发送 numeric internal id / team_id / user_id / order_no（由 mallApi + 后端权威处理）。
+  async doVerify(rawCode: string) {
+    if (this.data.isLoading) return; // 双提交锁：进行中直接丢弃后续请求
     this.setData({ isLoading: true });
-    
-    const token = wx.getStorageSync('access_token');
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/redeem.php',
-      method: 'POST',
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      data: { exchange_code: exchangeCode },
-      success: (res: any) => {
-        this.setData({ isLoading: false });
-        
-        if (res.data.code === 200 && res.data.success === true) {
-          const data = res.data.data;
-          const now = new Date();
-          const timeStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
-          
-          this.setData({
-            showResultModal: true,
-            verifySuccess: true,
-            verifyMessage: `核销成功！\n志愿者：${data.volunteer_name || '未知'}\n兑换物品：${data.goods_name || '商品'}\n扣除积分：${data.points_spent || 0}分\n核销时间：${timeStr}`
-          });
-          
-          // 刷新统计
-          this.loadStats();
-        } else {
-          this.setData({
-            showResultModal: true,
-            verifySuccess: false,
-            verifyMessage: res.data.message || '核销失败'
-          });
-        }
-      },
-      fail: () => {
-        this.setData({ isLoading: false });
-        this.setData({
-          showResultModal: true,
-          verifySuccess: false,
-          verifyMessage: '网络错误，请重试'
-        });
-      }
-    });
+
+    try {
+      const result = await mallApi.adminVerify(rawCode);
+      const order = result.order || ({} as any);
+      const now = new Date();
+      const timeStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+      const header = result.status === 'already_verified' ? '该兑换码已核销' : '核销成功';
+      const points = mallApi.formatPoints(order.points_units);
+      this.setData({
+        showResultModal: true,
+        verifySuccess: true,
+        verifyMessage: `${header}\n兑换物品：${order.product_title || '商品'}\n扣除积分：${points}分\n核销时间：${timeStr}`,
+      });
+    } catch (err: any) {
+      this.setData({
+        showResultModal: true,
+        verifySuccess: false,
+        verifyMessage: this.mapVerifyError(err),
+      });
+    } finally {
+      this.setData({ isLoading: false });
+    }
+  },
+
+  // V2 verify 错误语义映射（与 workers/src/routes/mall.ts 后端合约一致）：
+  //   400 非法兑换码 / 401 未认证 / 403 无权限或缺失团队上下文 /
+  //   404 不存在或跨团队 / 409 RESERVED 不可核销 / 5xx(0) 服务端或网络失败。
+  mapVerifyError(err: any): string {
+    const status = err && err.status;
+    switch (status) {
+      case 400: return '兑换码格式无效，请确认二维码';
+      case 401: return '登录已过期，请重新登录';
+      case 403: return '无核销权限或未选择团队';
+      case 404: return '兑换码不存在或不属于当前团队';
+      case 409: return '该订单当前不可核销';
+      case 0: return '网络错误，请重试';
+      default: return (err && err.message) || '核销失败，请重试';
+    }
   },
 
   closeResultModal() {
     this.setData({ showResultModal: false });
-  },
-
-  formatTime(timeStr: string): string {
-    if (!timeStr) return '';
-    const date = new Date(timeStr);
-    return `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes()}`;
   },
 
   logout() {
@@ -198,7 +154,7 @@ Page({
           wx.removeStorageSync('isLoggedIn');
           wx.redirectTo({ url: '/pages/login-unified/index?role=admin' });
         }
-      }
+      },
     });
-  }
+  },
 });

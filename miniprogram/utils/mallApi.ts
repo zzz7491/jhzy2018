@@ -107,11 +107,20 @@ function buildError(status: number, body: any, isNetwork: boolean): MallApiError
   };
 }
 
+// 团队作用域：与 activityApi 一致，从本地存储读取 activeTeamPublicId 注入 X-Team-Id。
+// 商场所有端点（商品/兑换/订单/管理端核销）均为 TEAM_SCOPED，缺失 X-Team-Id 会被后端
+// tenantContextMiddleware 判为 teamScopeRequired → 403。此注入是 V2 核销接通的前提。
+function getActiveTeamId(): string {
+  return wx.getStorageSync('activeTeamPublicId') || '';
+}
+
 function request<T>(method: string, path: string, data?: any, base: string = MALL_API_BASE): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const token = getToken();
     const header: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) header['Authorization'] = `Bearer ${token}`;
+    const teamId = getActiveTeamId();
+    if (teamId) header['X-Team-Id'] = teamId;
 
     wx.request({
       url: base + path,

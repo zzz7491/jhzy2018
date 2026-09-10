@@ -207,8 +207,8 @@ async function main() {
     // 权限计数冻结值
     const permCount = get1(sqlite, 'SELECT COUNT(*) c FROM permissions').c;
     const rpCount = get1(sqlite, 'SELECT COUNT(*) c FROM role_permissions').c;
-    assert(permCount === 99, `S1: permissions = 99 (got ${permCount})`);
-    assert(rpCount === 284, `S1: role_permissions = 284 (got ${rpCount})`);
+    assert(permCount === 103, `S1: permissions = 103 (got ${permCount})`);
+    assert(rpCount === 291, `S1: role_permissions = 291 (got ${rpCount})`);
 
     const moCols2 = q(sqlite, 'PRAGMA table_info(mall_orders)').map((c) => c.name);
     assert(moCols2.includes('exchange_code'), 'S1: mall_orders.exchange_code exists (0021)');
@@ -228,8 +228,8 @@ async function main() {
     assert(mallBindingsFor('team_owner') === 1, `S1: team_owner mall bindings = 1 (got ${mallBindingsFor('team_owner')})`);
     assert(mallBindingsFor('team_admin') === 1, `S1: team_admin mall bindings = 1 (got ${mallBindingsFor('team_admin')})`);
     assert(mallBindingsFor('team_auditor') === 0, `S1: team_auditor mall bindings = 0 (got ${mallBindingsFor('team_auditor')})`);
-    assert(totalBindingsFor('volunteer') === 30, `S1: volunteer total bindings = 30 (got ${totalBindingsFor('volunteer')})`);
-    assert(totalBindingsFor('platform_super_admin') === 99, `S1: platform_super_admin total bindings = 99 (got ${totalBindingsFor('platform_super_admin')})`);
+    assert(totalBindingsFor('volunteer') === 27, `S1: volunteer total bindings = 27 (got ${totalBindingsFor('volunteer')})`);
+    assert(totalBindingsFor('platform_super_admin') === 103, `S1: platform_super_admin total bindings = 103 (got ${totalBindingsFor('platform_super_admin')})`);
   }
 
   // =========================================================================
