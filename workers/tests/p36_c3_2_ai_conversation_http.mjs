@@ -723,7 +723,7 @@ async function main() {
       diffs.join(' | '));
     check('L7 AI 只写 ai_conversations / ai_usage_logs',
       qa('SELECT public_id FROM ai_conversations').length > 0 && usageRows.length > 0);
-    check('L8 迁移链仍为 0029（无 0030）', migrationsLatest === '0029_p36_ai_foundation.sql', migrationsLatest);
+    check('L8 迁移链最新为 0030（P37 合法新增 analytics index migration）', migrationsLatest === '0030_analytics_index.sql', migrationsLatest);
     check('L9 未暴露 provider/model 给客户端（v1 为 HIDDEN）',
       scanned.every((s) => !JSON.stringify(s.json ?? {}).includes(MODEL_NAME)));
   }

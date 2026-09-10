@@ -433,7 +433,9 @@ section('AN, Z, AP–AR. repository / stage contract');
   const repoWrites = [...REPO_CODE.matchAll(/\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+([a-z_]+)/gi)].map((m) => m[1]);
   check('AN1 conversation 仓库只写 ai_conversations', repoWrites.length > 0 && repoWrites.every((t) => t === 'ai_conversations'));
   check('AN2 无 CREATE/ALTER/DROP（无 schema 变更）', !/\b(CREATE|ALTER|DROP)\s+(TABLE|INDEX)\b/i.test(REPO_CODE));
-  check('Z1 迁移链最新仍为 0029（无 0030）', migs[migs.length - 1] === '0029_p36_ai_foundation.sql' && !migs.some((f) => f.startsWith('0030')));
+  check('Z1 迁移链最新为 0030（P37 合法新增 analytics index migration，0029 仍在链上）',
+    migs[migs.length - 1] === '0030_analytics_index.sql' && migs.includes('0029_p36_ai_foundation.sql'),
+    migs[migs.length - 1]);
 
   const insertStart = REPO_CODE.indexOf('INSERT INTO ai_conversations');
   const insertBlock = REPO_CODE.slice(insertStart, REPO_CODE.indexOf('VALUES', insertStart));

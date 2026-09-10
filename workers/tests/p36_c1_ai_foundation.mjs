@@ -118,7 +118,23 @@ function insConv(over = {}) {
 section('A. 0029 migration exists & applies');
 assert(existsSync(join(MIGRATIONS_DIR, AI_MIGRATION)), 'A 0029_p36_ai_foundation.sql exists');
 assert(applied.includes(AI_MIGRATION), 'A 0029 is part of the applied migration chain');
-assert(applied[applied.length - 1] === AI_MIGRATION, 'A 0029 is the latest migration');
+{
+  const f0030 = '0030_analytics_index.sql';
+  const has0030 = applied.includes(f0030);
+  let ok0030 = has0030 && applied[applied.length - 1] === f0030;
+  if (has0030) {
+    const sql0030 = readFileSync(join(MIGRATIONS_DIR, f0030), 'utf8');
+    ok0030 =
+      ok0030 &&
+      !/CREATE TABLE|ALTER TABLE|ADD COLUMN/i.test(sql0030) &&
+      /idx_tm_team\s+ON\s+team_members\s*\(\s*team_id\s*,\s*join_status\s*\)/i.test(sql0030) &&
+      !/ai_conversations|ai_usage_logs/i.test(sql0030);
+  }
+  assert(
+    ok0030,
+    'A 0030_analytics_index.sql is the latest migration and is strictly an analytics index (no table/column/alter, no P36 AI schema touch)',
+  );
+}
 {
   let reapplied = true;
   try {

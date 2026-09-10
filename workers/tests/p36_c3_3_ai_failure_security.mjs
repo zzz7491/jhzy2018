@@ -760,7 +760,7 @@ async function main() {
     }
     check('L1 全部响应无 numeric/internal ID / provider / model / tokens', leak == null, leak ?? '');
     check('L1b 全部响应无密钥/上游/baseUrl/system prompt/raw context 子串', secretLeak == null, secretLeak ?? '');
-    check('L8 迁移链仍为 0029（无 0030）', migrationsLatest === '0029_p36_ai_foundation.sql', migrationsLatest);
+    check('L8 迁移链最新为 0030（P37 合法新增 analytics index migration）', migrationsLatest === '0030_analytics_index.sql', migrationsLatest);
     check('L9 未暴露 provider/model 给客户端', scanned.every((s) => !JSON.stringify(s.json ?? {}).includes(MODEL_NAME)));
     // RBAC 未变：ai.assist.use 仍存在且无新增权限
     const permCnt = q('SELECT COUNT(*) AS c FROM permissions WHERE code = ?', 'ai.assist.use')?.c ?? 0;
