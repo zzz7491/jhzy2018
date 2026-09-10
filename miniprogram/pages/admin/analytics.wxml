@@ -1,0 +1,68 @@
+<view class="container">
+  <view class="header">
+    <view class="title-row">
+      <text class="page-title">数据运营</text>
+      <text class="scope-badge">{{scope === 'team' ? '团队' : '平台'}}</text>
+    </view>
+    <text class="subtitle">运营概览</text>
+    <text class="period" wx:if="{{periodText}}">{{periodText}}</text>
+  </view>
+
+  <!-- 无权限：后端两条 scope 均 403 -->
+  <view class="empty" wx:if="{{showNoPermission}}">
+    <text class="empty-icon">🔒</text>
+    <text class="empty-title">无访问权限</text>
+    <text class="empty-desc">您当前没有数据运营查看权限</text>
+  </view>
+
+  <!-- TEAM 模式但无 active team -->
+  <view class="empty" wx:if="{{showSelectTeam}}">
+    <text class="empty-icon">👥</text>
+    <text class="empty-title">请先选择团队</text>
+    <text class="empty-desc">查看团队运营数据需要先选择团队</text>
+    <button class="primary-btn" bindtap="goSelectTeam">选择团队</button>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading" wx:if="{{loading && !showNoPermission && !showSelectTeam}}">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 错误 -->
+  <view class="error" wx:if="{{loadError}}">
+    <text class="error-text">{{loadError}}</text>
+    <button class="ghost-btn" bindtap="retry">重新加载</button>
+  </view>
+
+  <!-- 数据区 -->
+  <block wx:if="{{!loading && !loadError && !showNoPermission && !showSelectTeam && groups.length > 0}}">
+    <!-- 作用域切换（仅当两者均可用） -->
+    <view class="segment" wx:if="{{canTeam && canPlatform}}">
+      <view class="segment-tab {{scope === 'team' ? 'active' : ''}}" bindtap="switchScope" data-scope="team">团队</view>
+      <view class="segment-tab {{scope === 'platform' ? 'active' : ''}}" bindtap="switchScope" data-scope="platform">平台</view>
+    </view>
+
+    <!-- 时间范围 -->
+    <view class="segment">
+      <view class="segment-tab {{range === 'today' ? 'active' : ''}}" bindtap="switchRange" data-range="today">今日</view>
+      <view class="segment-tab {{range === '7d' ? 'active' : ''}}" bindtap="switchRange" data-range="7d">近7天</view>
+      <view class="segment-tab {{range === '30d' ? 'active' : ''}}" bindtap="switchRange" data-range="30d">近30天</view>
+      <view class="segment-tab {{range === 'month' ? 'active' : ''}}" bindtap="switchRange" data-range="month">本月</view>
+    </view>
+
+    <view class="group" wx:for="{{groups}}" wx:key="title" wx:for-item="g">
+      <text class="group-title">{{g.title}}</text>
+      <view class="metric-grid">
+        <view class="metric-card" wx:for="{{g.items}}" wx:key="key" wx:for-item="m">
+          <text class="metric-value">{{m.value}}</text>
+          <text class="metric-label">{{m.label}}</text>
+          <text class="metric-hint" wx:if="{{m.hint}}">{{m.hint}}</text>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <view class="footer-note">
+    <text>数据由服务端统一计算，仅展示聚合指标。</text>
+  </view>
+</view>

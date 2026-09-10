@@ -225,6 +225,14 @@
         <text class="quick-subtitle">申请/审批服务时长</text>
       </view>
 
+      <view class="quick-card" wx:if="{{canAnalytics}}" bindtap="goToAnalytics">
+        <view class="quick-icon" style="background-color: #f3e8ff;">
+          <text class="icon">📊</text>
+        </view>
+        <text class="quick-title">数据运营</text>
+        <text class="quick-subtitle">运营概览</text>
+      </view>
+
       <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/training/index">
         <view class="quick-icon" style="background-color: #e3f2fd;">
           <text class="icon">📚</text>

@@ -27,6 +27,14 @@ export interface PermissionProvider {
   isKnownPermission(code: string): Promise<boolean>;
   /** 当前用户是否被授权该 code（未知 code 直接返回 false，存在性由调用方另行判定）。 */
   hasPermission(auth: AuthContext, code: string): Promise<boolean>;
+  /**
+   * 解析"用户角色持有"的权限集合（PLATFORM ∪ TEAM(任意团队)，不按 active team 过滤）。
+   * 仅用于读-only 能力投影（如前端入口/作用域判定），不影响授权边界：
+   * 真实端点仍由 requirePermission + active team 强制。
+   * 与 getPermissions 的区别：本方法不剔除 scopeTeamId != activeTeam 的团队绑定，
+   * 因此可区分"持有团队权限但当前未选团队"（TEAM_CONTEXT_MISSING）与"无团队权限"（NO_PERMISSION）。
+   */
+  getPermissionsAcrossScopes(auth: AuthContext): Promise<Set<string>>;
 }
 
 export class D1PermissionProvider implements PermissionProvider {
@@ -88,6 +96,28 @@ export class D1PermissionProvider implements PermissionProvider {
     if (!(await this.isKnownPermission(code))) return false;
     const perms = await this.getPermissions(auth);
     return perms.has(code);
+  }
+
+  async getPermissionsAcrossScopes(auth: AuthContext): Promise<Set<string>> {
+    const set = new Set<string>();
+    // 关键差异：不调用 effectiveRoleCodes（其按 active team 过滤团队绑定），
+    // 而是取 auth.roles 的全部 role code（PLATFORM + 任意 TEAM 绑定，忽略 scopeTeamId）。
+    const codes = auth.roles.map((b) => b.role);
+    if (codes.length > 0) {
+      const placeholders = codes.map(() => '?').join(',');
+      const rows = await this.db
+        .prepare(
+          `SELECT DISTINCT p.code
+             FROM roles r
+             JOIN role_permissions rp ON rp.role_id = r.id
+             JOIN permissions p ON p.id = rp.permission_id
+            WHERE r.code IN (${placeholders})`,
+        )
+        .bind(...codes)
+        .all<{ code: string }>();
+      for (const r of rows.results ?? []) set.add(r.code);
+    }
+    return set;
   }
 }
 

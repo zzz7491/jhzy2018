@@ -7,6 +7,7 @@
 // - 旧 dashboard stats（admin_get_stats.php）保留为 OUT_OF_SCOPE / TECH_DEBT，不作为 v2 失败回退。
 
 import adminApi from '../../utils/adminApi';
+import analyticsApi from '../../utils/analyticsApi';
 
 Page({
   data: {
@@ -33,6 +34,9 @@ Page({
 
     loading: true,
     refreshing: false,
+
+    // P37-C2A：数据运营入口可见性（authoritative 能力投影；不按 role 硬编码）
+    canAnalytics: false,
 
     adminStats: {
       totalVolunteers: 0,
@@ -110,6 +114,7 @@ Page({
     });
 
     this.checkTeamContext();
+    this.loadAnalyticsCapability();
     this.refreshData();
   },
 
@@ -254,6 +259,23 @@ Page({
    */
   goToServiceRecords() {
     wx.navigateTo({ url: '/pages/admin/service-records/index' });
+  },
+
+  /** 拉取 authoritative 能力投影，决定「数据运营」入口可见性（不按 role 硬编码、不靠 403 探测）。 */
+  loadAnalyticsCapability() {
+    analyticsApi
+      .getCapabilities()
+      .then((caps) => {
+        this.setData({ canAnalytics: caps.team_view || caps.platform_view });
+      })
+      .catch(() => {
+        this.setData({ canAnalytics: false });
+      });
+  },
+
+  /** P37-C2：数据运营 Dashboard 入口。入口可见性由后端 analytics_capabilities 决定（不按 role 硬编码）。 */
+  goToAnalytics() {
+    wx.navigateTo({ url: '/pages/admin/analytics' });
   },
 
   goToRegisterReminder(e: any) {
