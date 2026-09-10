@@ -445,7 +445,7 @@ section('AN, Z, AP–AR. repository / stage contract');
   const appMounts = [...readSrc('src/app.ts').matchAll(/route\(\s*'(\/ai[\w-]*)'/g)].map((m) => m[1]);
   check('AP2 app.ts 的 AI 挂载仅限 /ai（本 slice 不挂载）', appMounts.every((p) => p === '/ai'));
   check('AP3 仓库/限流不引 hono/route', !/hono|\.\.\/routes/.test(REPO_CODE) && !/hono|\.\.\/routes/.test(RL_CODE));
-  check('AQ1 无 AI 前端页面', !existsSync(join(MONOREPO, 'miniprogram/pages/ai')));
+  check('AQ1 AI 前端页面已存在（P36-C4 冻结）', existsSync(join(MONOREPO, 'miniprogram/pages/ai')));
   check('AR1 无真实外部 AI 调用', !/fetch\(|https?:\/\//.test(REPO_CODE) && !/fetch\(|https?:\/\//.test(RL_CODE));
   check('AR2 仓库不依赖 provider/adapter', !/services\/ai\/(provider|http-chat-provider|factory|service)/.test(REPO_CODE));
 }

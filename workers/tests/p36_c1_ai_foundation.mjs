@@ -517,9 +517,11 @@ section('T. no context builder / routes / frontend / RAG / agent / tools');
     .filter((f) => !/conversation-service\.ts$/.test(f))
     .filter((f) => /context|builder|retriev|embed|vector|rag|agent|tool|conversation/i.test(f));
   assert(forbiddenNames.length === 0, `T no context builder / RAG / agent / tool files (found: ${forbiddenNames.join(',') || 'none'})`);
-  assert(!existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai')), 'T no frontend AI page dir');
+  // P36-C4 已合法实现并冻结 AI 前端；C1 不再否定该后续合法阶段，
+  // 改为验证「前端存在」这一冻结条件（不复制 C4 测试，保持断言数不变）。
+  assert(existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai', 'index.ts')) && existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai', 'chat.ts')), 'T AI frontend pages (index/chat) exist (P36-C4 frozen)');
   const appJson = readFileSync(join(MONOREPO, 'miniprogram', 'app.json'), 'utf8');
-  assert(!/pages\/ai\//.test(appJson), 'T app.json registers no AI page');
+  assert(/pages\/ai\/index/.test(appJson) && /pages\/ai\/chat/.test(appJson), 'T app.json registers both AI pages (pages/ai/index, pages/ai/chat)');
   // 源码中不得出现 tool-calling / function-calling 实现
   const aiTxt = listAiSourceFiles().map((f) => readFileSync(join(WORKERS, f), 'utf8')).join('\n');
   assert(!/tool_calls\s*:|function_call|tool_choice/.test(aiTxt), 'T no tool/function calling in foundation');

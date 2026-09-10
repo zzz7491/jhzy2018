@@ -628,7 +628,7 @@ section('附加：stage boundary');
   const appTs = readFileSync(join(WORKERS, 'src', 'app.ts'), 'utf8');
   const aiMounts = [...appTs.matchAll(/route\(\s*'(\/ai[\w-]*)'/g)].map((m) => m[1]);
   check('BD2 app.ts 只挂载 /ai 一次', aiMounts.length === 1 && aiMounts[0] === '/ai', aiMounts.join(','));
-  check('BD3 无 frontend AI 页面', !existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai')));
+  check('BD3 AI frontend 已存在（P36-C4 冻结，不再否定后续合法阶段）', existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai')));
   check('BD4 无 RAG / tool-calling 实现', !/function_call\b|embedding\s*[:=(]|vector_store|knowledge_retrieval/i.test(AI_TXT));
 }
 
