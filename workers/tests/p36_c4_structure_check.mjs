@@ -33,7 +33,7 @@ if (appJson) {
   const pages = appJson.pages || [];
   assert(pages.includes('pages/ai/index'), 'route pages/ai/index registered');
   assert(pages.includes('pages/ai/chat'), 'route pages/ai/chat registered');
-  assert(pages.length === 73, 'page count == 73 (P36 AI +2; P37-C2 analytics +1)', 'count=' + pages.length);
+  assert(pages.length === 68, 'page count == 68 (P36 AI +2; P37-C2 analytics +1; B2 orphan cleanup -5)', 'count=' + pages.length);
   const tb = appJson.tabBar;
   const tabs = (tb && tb.list) || [];
   assert(tabs.length === 4, 'tabBar has exactly 4 tabs (no 5th tab added)', 'count=' + tabs.length);

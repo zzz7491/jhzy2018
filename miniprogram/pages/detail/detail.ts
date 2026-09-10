@@ -29,7 +29,6 @@ Page({
     insuranceQRCode: 'https://api.jhzyfw.com/static/insurance-qr.jpg',
     // 签到相关
     isCheckinActive: false,
-    activeCheckinId: null,
     // 重复活动相关
     recurrenceInfo: null
   },
@@ -358,20 +357,6 @@ Page({
     } else {
       this.handleJoinClick();
     }
-  },
-
-  // 跳转到签到页面
-  goToCheckinPage() {
-    wx.navigateTo({
-      url: `/pages/activities/checkout-confirm/sign-confirm?activity_id=${this.data.activityId}&page_type=signin`
-    });
-  },
-
-  // 跳转到计时页面
-  goToTimerPage() {
-    wx.navigateTo({
-      url: `/pages/activities/timer/timer?activity_id=${this.data.activityId}&signin_id=${this.data.activeCheckinId || ''}`
-    });
   },
 
   // 点击报名按钮
