@@ -3,7 +3,7 @@
  *
  * 导出：provider-neutral 接口 / adapter / 工厂 / 版本化 prompt /
  *       业务数据块组装（context）/ 输入规范 / usage 记录 / 后端服务 /
- *       best-effort rate-limit foundation。
+ *       best-effort rate-limit foundation / conversation orchestration service。
  *
  * 仍【不含】：conversation routes / frontend / RAG / Agent / tool calling。
  * （conversation 持久化位于 repository 层：src/repository/ai-conversation.ts，不经本 barrel 导出。）
@@ -21,3 +21,4 @@ export * from './data-block';
 export * from './usage';
 export * from './service';
 export * from './rate-limit';
+export * from './conversation-service';

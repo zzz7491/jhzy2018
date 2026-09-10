@@ -42,6 +42,9 @@ export function fail(c: Context, err: unknown): Response {
     },
     request_id: requestIdOf(c),
   };
-  // S2-6g：状态集合纳入 409（业务状态冲突）；其余维持既有折叠策略。
-  return c.json(body, appErr.status as 400 | 401 | 403 | 404 | 409 | 500);
+  // S2-6g：状态集合纳入 409（业务状态冲突）；
+  // P36-C3-2：纳入 429（AI best-effort 成本护栏限流）；
+  // P36-C3-3：纳入 503（AI 不可用，provider/config/timeout 统一折叠）；
+  // 其余维持既有折叠策略。
+  return c.json(body, appErr.status as 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503);
 }

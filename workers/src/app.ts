@@ -37,6 +37,7 @@ import exams from './routes/exams'; // P32-P2：考试（start / resume / submit
 import certificates from './routes/certificates'; // P32-P2：证书（mine / detail / verify / template admin）
 import files from './routes/files'; // P33-P3A-2：文件基础设施（POST /files、GET /files/:filePublicId）
 import content from './routes/content'; // P33-P3B-2C：社区志愿者/团队路由（/api/v2/content/*）
+import ai from './routes/ai'; // P36-C3-2：嘉禾 AI V1（/api/v2/ai/*；4 个端点，ACTIVE_TEAM_REQUIRED）
 import adminContent from './routes/admin-content'; // P33-P3B-2C：社区管理端路由（/api/v2/admin/content/*）
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
@@ -80,6 +81,7 @@ export function createApp() {
   v2.route('/certificates', certificates); // P32-P2：/api/v2/certificates/*
   v2.route('/files', files); // P33-P3A-2：/api/v2/files/*（Community V1 图片上传 / TEAM-scoped 读取）
   v2.route('/content', content); // P33-P3B-2C：/api/v2/content/*（社区文章/评论/点赞/举报 SELF+TEAM）
+  v2.route('/ai', ai); // P36-C3-2：/api/v2/ai/*（conversation 4 端点；AI_CAN_MUTATE_BUSINESS_STATE = NO）
   v2.route('/admin/content', adminContent); // P33-P3B-2C：/api/v2/admin/content/*（社区审核/下架/删除）
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁

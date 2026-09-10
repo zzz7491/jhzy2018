@@ -24,6 +24,12 @@ export const ErrorCode = {
   // S2-6g（新增，纯增量）：业务状态冲突——重复报名 / 活动未开放报名 / 活动禁止取消。
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id。
   CONFLICT: 'CONFLICT',
+  // P36-C3-2（新增，纯增量）：AI best-effort 成本护栏（BEST_EFFORT_COST_GUARD）触发限流。
+  // HTTP 429；details 只返回窗口与安全 retry 建议，绝不返回计数明细 / 凭证 / provider 细节。
+  RATE_LIMITED: 'RATE_LIMITED',
+  // P36-C3-3（新增，纯增量）：AI provider / config / timeout 统一折叠为安全 503。
+  // 不泄露上游 body / 端点 / 凭证 / stack；details 仅携带稳定 reason token。
+  AI_UNAVAILABLE: 'AI_UNAVAILABLE',
 } as const;
 
 /** S2-6g：409 冲突的稳定业务 reason token（非敏感，可安全返回客户端）。 */
@@ -100,6 +106,9 @@ export const ConflictReason = {
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 审核人身份。
   ACTIVITY_APPROVAL_TRANSITION: 'activity_approval_transition', // 当前 audit_status 不允许该转换（无效状态跃迁）
   ACTIVITY_APPROVAL_RACE: 'activity_approval_race', // 并发转换：条件更新未命中（状态已被并发修改）
+  // P36-C3-2（新增，纯增量）：AI conversation CAS 冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 消息内容。
+  CONVERSATION_STALE: 'conversation_stale', // append 时 expectedMessagesRaw 与当前存储不一致（并发追加 / 基于旧快照）
 } as const;
 
 export type ConflictReasonValue = (typeof ConflictReason)[keyof typeof ConflictReason];
@@ -178,6 +187,34 @@ export function internalError(): AppError {
  */
 export function conflict(reason: ConflictReasonValue): AppError {
   return new AppError(ErrorCode.CONFLICT, 409, 'Resource state conflict', { reason });
+}
+
+/**
+ * AI 频率限制（P36-C3-2）：HTTP 429。
+ * - `AI_RATE_LIMIT_TYPE = BEST_EFFORT_COST_GUARD`——成本护栏，**不是**严格并发 quota。
+ * - details 仅携带稳定窗口 token + 安全 retry 建议秒数；不返回计数明细 / 上游信息 / 凭证。
+ */
+export function aiRateLimited(window: 'minute' | 'day', retryAfterSeconds: number): AppError {
+  return new AppError(ErrorCode.RATE_LIMITED, 429, 'Too many AI requests', {
+    window,
+    retry_after_seconds: String(Math.max(1, Math.floor(retryAfterSeconds))),
+  });
+}
+
+/** AI 不可用稳定 reason token（不暴露上游细节 / 端点 / 凭证 / stack）。 */
+export type AIUnavailableReason = 'ai_unavailable' | 'ai_timeout' | 'ai_upstream_error';
+
+/**
+ * AI 不可用（P36-C3-3）：provider / config / timeout → 统一 503。
+ * - message 固定「AI service unavailable」，不携带任何上游信息。
+ * - details.reason 仅允许以下稳定 token：
+ *     config_error   → ai_unavailable（无需向客户端区分配置错误细节）
+ *     timeout        → ai_timeout
+ *     provider_error → ai_upstream_error
+ * - 绝不返回：provider raw body / endpoint / API key / Authorization / stack / 内部异常 message。
+ */
+export function aiUnavailable(reason: AIUnavailableReason): AppError {
+  return new AppError(ErrorCode.AI_UNAVAILABLE, 503, 'AI service unavailable', { reason });
 }
 
 /**

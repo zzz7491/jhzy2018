@@ -622,10 +622,12 @@ section('AB. no business state mutation');
 section('附加：stage boundary');
 {
   const routeDir = join(WORKERS, 'src', 'routes');
+  // P36-C3-2 起：授权存在的 AI route 有且仅有 ai.ts（4 个冻结端点）。
   const aiRoutes = readdirSync(routeDir).filter((f) => /^ai/i.test(f));
-  check('BD1 无 AI route 文件', aiRoutes.length === 0, aiRoutes.join(','));
+  check('BD1 仅存在授权的 AI route 文件（ai.ts）', aiRoutes.length === 1 && aiRoutes[0] === 'ai.ts', aiRoutes.join(','));
   const appTs = readFileSync(join(WORKERS, 'src', 'app.ts'), 'utf8');
-  check('BD2 app.ts 未挂载 AI route', !/route\(\s*'\/ai/.test(appTs));
+  const aiMounts = [...appTs.matchAll(/route\(\s*'(\/ai[\w-]*)'/g)].map((m) => m[1]);
+  check('BD2 app.ts 只挂载 /ai 一次', aiMounts.length === 1 && aiMounts[0] === '/ai', aiMounts.join(','));
   check('BD3 无 frontend AI 页面', !existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai')));
   check('BD4 无 RAG / tool-calling 实现', !/function_call\b|embedding\s*[:=(]|vector_store|knowledge_retrieval/i.test(AI_TXT));
 }

@@ -477,10 +477,19 @@ section('S. no user-facing provider/model selection');
 {
   const routeDir = join(WORKERS, 'src', 'routes');
   const routeFiles = readdirSync(routeDir).filter((f) => f.endsWith('.ts'));
+  // P36-C3-2 起：授权存在的 AI route **有且仅有** routes/ai.ts（4 个端点）。
+  // 本断言保留初衷（禁止任何超出冻结清单的 AI 端点），只对已授权文件放行。
   const aiRoutes = routeFiles.filter((f) => /^ai/i.test(f) || /ai[-_]?(assistant|chat)/i.test(f));
-  assert(aiRoutes.length === 0, `S no AI route file (found: ${aiRoutes.join(',') || 'none'})`);
+  assert(
+    aiRoutes.length === 1 && aiRoutes[0] === 'ai.ts',
+    `S only authorized AI route file (found: ${aiRoutes.join(',') || 'none'})`,
+  );
   const appTs = readFileSync(join(WORKERS, 'src', 'app.ts'), 'utf8');
-  assert(!/route\(\s*'\/ai/.test(appTs) && !/from '\.\/routes\/ai/.test(appTs), 'S app.ts mounts no AI route');
+  const aiMounts = [...appTs.matchAll(/route\(\s*'(\/ai[\w-]*)'/g)].map((m) => m[1]);
+  assert(
+    aiMounts.length === 1 && aiMounts[0] === '/ai',
+    `S app.ts mounts exactly one AI route (/ai) (found: ${aiMounts.join(',') || 'none'})`,
+  );
   const cfg = readFileSync(join(WORKERS, 'src', 'config', 'ai.ts'), 'utf8');
   assert(/export function resolveAIConfig\(env:\s*Env\)/.test(cfg), 'S config resolved from Env only (no request/model input)');
   const aiTxt = listAiSourceFiles().map((f) => readFileSync(join(WORKERS, f), 'utf8')).join('\n');
@@ -501,8 +510,12 @@ section('T. no context builder / routes / frontend / RAG / agent / tools');
     }
     return out;
   };
+  // P36-C3-2 起：`conversation-service` 为授权的 AI 会话编排服务（不含 context builder /
+  // retriever / embedding / vector / rag / agent / tool calling）。对授权文件名放行，其余仍禁。
   const aiAll = walk(aiDir).map((f) => f.replace(/\\/g, '/'));
-  const forbiddenNames = aiAll.filter((f) => /context|builder|retriev|embed|vector|rag|agent|tool|conversation/i.test(f));
+  const forbiddenNames = aiAll
+    .filter((f) => !/conversation-service\.ts$/.test(f))
+    .filter((f) => /context|builder|retriev|embed|vector|rag|agent|tool|conversation/i.test(f));
   assert(forbiddenNames.length === 0, `T no context builder / RAG / agent / tool files (found: ${forbiddenNames.join(',') || 'none'})`);
   assert(!existsSync(join(MONOREPO, 'miniprogram', 'pages', 'ai')), 'T no frontend AI page dir');
   const appJson = readFileSync(join(MONOREPO, 'miniprogram', 'app.json'), 'utf8');

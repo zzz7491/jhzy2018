@@ -439,8 +439,11 @@ section('AN, Z, AP–AR. repository / stage contract');
   const insertBlock = REPO_CODE.slice(insertStart, REPO_CODE.indexOf('VALUES', insertStart));
   check('Z2 create 不主动写 status（用 DEFAULT）', !/\bstatus\b/.test(insertBlock));
 
-  check('AP1 无 AI HTTP route 文件', !existsSync(join(WORKERS, 'src/routes/ai.ts')));
-  check('AP2 app.ts 未挂载 AI route', !readSrc('src/app.ts').includes("'/ai'"));
+  // P36-C3-2 起：HTTP route 由独立 slice 交付；C3-1 仍【不】自带 route（仅确认尚未被本 slice 引入之外的东西）。
+  const aiRoutes = readdirSync(join(WORKERS, 'src/routes')).filter((f) => /^ai/i.test(f));
+  check('AP1 AI route 文件仅限授权的 ai.ts', aiRoutes.every((f) => f === 'ai.ts') && aiRoutes.length <= 1, aiRoutes.join(','));
+  const appMounts = [...readSrc('src/app.ts').matchAll(/route\(\s*'(\/ai[\w-]*)'/g)].map((m) => m[1]);
+  check('AP2 app.ts 的 AI 挂载仅限 /ai（本 slice 不挂载）', appMounts.every((p) => p === '/ai'));
   check('AP3 仓库/限流不引 hono/route', !/hono|\.\.\/routes/.test(REPO_CODE) && !/hono|\.\.\/routes/.test(RL_CODE));
   check('AQ1 无 AI 前端页面', !existsSync(join(MONOREPO, 'miniprogram/pages/ai')));
   check('AR1 无真实外部 AI 调用', !/fetch\(|https?:\/\//.test(REPO_CODE) && !/fetch\(|https?:\/\//.test(RL_CODE));
