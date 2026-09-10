@@ -1,0 +1,82 @@
+<!-- pages/ai/index.wxml —— 嘉禾 AI V1 会话列表 + 新建会话 -->
+<view class="ai-container safe-top">
+
+  <!-- 顶部标题 -->
+  <view class="ai-header">
+    <text class="ai-title">嘉禾 AI</text>
+    <text class="ai-subtitle">智能了解活动、服务记录、积分、成长与学习信息</text>
+  </view>
+
+  <!-- 无团队前置提示 -->
+  <view wx:if="{{!hasTeam}}" class="notice-card">
+    <text class="notice-text">使用嘉禾 AI 需要先选择一个服务团队</text>
+    <button class="notice-btn" size="mini" bindtap="goToTeams">去选择团队</button>
+  </view>
+
+  <!-- 新建会话输入 -->
+  <view wx:if="{{hasTeam}}" class="composer">
+    <textarea
+      class="composer-input"
+      placeholder="向嘉禾 AI 提问，例如：最近有哪些适合参加的活动？"
+      placeholder-class="composer-placeholder"
+      value="{{inputValue}}"
+      bindinput="onInput"
+      maxlength="{{maxLength}}"
+      auto-height
+      disabled="{{creating}}"
+    />
+    <button class="composer-send" bindtap="onCreateOrSend" disabled="{{creating}}">
+      {{creating ? '生成中…' : '发送'}}
+    </button>
+  </view>
+
+  <!-- 空状态：示例问题 -->
+  <view wx:if="{{hasTeam && !loading && list.length === 0 && !error}}" class="empty">
+    <text class="empty-icon">💡</text>
+    <text class="empty-text">还没有对话，开始向嘉禾 AI 提问吧</text>
+    <view class="example-list">
+      <view
+        wx:for="{{exampleQuestions}}"
+        wx:key="*this"
+        class="example-chip"
+        bindtap="onTapExample"
+        data-q="{{item}}"
+      >{{item}}</view>
+    </view>
+  </view>
+
+  <!-- 加载中 -->
+  <view wx:if="{{loading && list.length === 0}}" class="loading">
+    <text class="loading-text">加载中…</text>
+  </view>
+
+  <!-- 错误 + 重试 -->
+  <view wx:if="{{error}}" class="error-box">
+    <text class="error-text">{{error}}</text>
+    <button class="error-retry" size="mini" bindtap="onRetry">重试</button>
+  </view>
+
+  <!-- 会话列表 -->
+  <view wx:if="{{list.length > 0}}" class="conv-list">
+    <view
+      wx:for="{{list}}"
+      wx:key="public_id"
+      class="conv-item"
+      bindtap="goToChat"
+      data-id="{{item.public_id}}"
+    >
+      <view class="conv-main">
+        <text class="conv-title">{{item.title || '新对话'}}</text>
+        <text class="conv-time">{{item.timeText}}</text>
+      </view>
+      <text class="conv-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 加载更多 -->
+  <view wx:if="{{loading && list.length > 0}}" class="loading-more">
+    <text class="loading-text">加载更多…</text>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

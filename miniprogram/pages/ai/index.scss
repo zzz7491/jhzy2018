@@ -1,0 +1,211 @@
+/* pages/ai/index.scss —— 嘉禾 AI 会话列表 */
+.ai-container {
+  min-height: 100vh;
+  background: var(--color-bg-secondary);
+  padding: 24rpx;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
+.ai-header {
+  display: flex;
+  flex-direction: column;
+  padding: 16rpx 8rpx 24rpx;
+}
+
+.ai-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.ai-subtitle {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--color-text-light);
+}
+
+/* 无团队前置提示 */
+.notice-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff7f2;
+  border: 1rpx solid #ffd9c7;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.notice-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #c2410c;
+}
+
+.notice-btn {
+  margin: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 24rpx;
+}
+
+/* 新建会话输入 */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 16rpx;
+  box-shadow: var(--box-shadow-card);
+  margin-bottom: 24rpx;
+}
+
+.composer-input {
+  flex: 1;
+  min-height: 72rpx;
+  max-height: 200rpx;
+  font-size: 28rpx;
+  line-height: 1.5;
+  padding: 12rpx;
+}
+
+.composer-placeholder {
+  color: var(--color-text-light);
+}
+
+.composer-send {
+  margin: 0 0 0 12rpx;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 26rpx;
+  border-radius: 12rpx;
+  padding: 0 28rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+}
+
+.composer-send[disabled] {
+  opacity: 0.5;
+}
+
+/* 空状态 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 32rpx;
+}
+
+.empty-icon {
+  font-size: 64rpx;
+}
+
+.empty-text {
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: var(--color-text-secondary);
+}
+
+.example-list {
+  margin-top: 32rpx;
+  width: 100%;
+}
+
+.example-chip {
+  display: block;
+  background: #fff;
+  border: 1rpx solid var(--color-border);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+  color: var(--color-text-secondary);
+}
+
+/* 加载 / 错误 */
+.loading,
+.loading-more {
+  text-align: center;
+  padding: 32rpx;
+}
+
+.loading-text {
+  font-size: 26rpx;
+  color: var(--color-text-light);
+}
+
+.error-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 32rpx;
+}
+
+.error-text {
+  font-size: 26rpx;
+  color: #d4380d;
+  margin-bottom: 16rpx;
+}
+
+.error-retry {
+  margin: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 24rpx;
+}
+
+/* 会话列表 */
+.conv-list {
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+  box-shadow: var(--box-shadow-card);
+}
+
+.conv-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 24rpx;
+  border-bottom: 1rpx solid var(--color-border-light);
+}
+
+.conv-item:last-child {
+  border-bottom: none;
+}
+
+.conv-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-title {
+  font-size: 30rpx;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-time {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--color-text-light);
+}
+
+.conv-arrow {
+  font-size: 40rpx;
+  color: var(--color-text-light);
+  margin-left: 16rpx;
+}

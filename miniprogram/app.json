@@ -69,7 +69,9 @@
     "pages/community/index/index",
     "pages/admin/content/index",
     "pages/admin/content/edit",
-    "pages/admin/service-records/index"
+    "pages/admin/service-records/index",
+    "pages/ai/index",
+    "pages/ai/chat"
   ],
   "tabBar": {
     "color": "#999999",

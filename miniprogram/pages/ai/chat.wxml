@@ -1,0 +1,74 @@
+<!-- pages/ai/chat.wxml —— 嘉禾 AI V1 会话详情 -->
+<view class="chat-container safe-top">
+
+  <!-- 无团队前置提示 -->
+  <view wx:if="{{!hasTeam}}" class="notice-card">
+    <text class="notice-text">继续对话需要先选择一个服务团队</text>
+    <button class="notice-btn" size="mini" bindtap="goToTeams">去选择团队</button>
+  </view>
+
+  <!-- 会话不存在 -->
+  <view wx:if="{{notFound}}" class="center-state">
+    <text class="state-icon">🔍</text>
+    <text class="state-text">会话不存在或无可访问权限</text>
+  </view>
+
+  <!-- 首次加载 -->
+  <view wx:if="{{loading && messages.length === 0 && !notFound}}" class="center-state">
+    <text class="loading-text">加载中…</text>
+  </view>
+
+  <!-- 对话区 -->
+  <scroll-view
+    wx:if="{{hasTeam && !notFound}}"
+    class="msg-scroll"
+    scroll-y
+    scroll-with-animation
+    scroll-into-view="{{scrollIntoView}}"
+  >
+    <view class="msg-list">
+      <view
+        wx:for="{{messages}}"
+        wx:key="index"
+        class="msg-row {{item.isUser ? 'msg-user' : 'msg-ai'}}"
+      >
+        <view class="msg-bubble">
+          <text class="msg-content">{{item.content}}</text>
+          <text wx:if="{{item.sourceText}}" class="msg-source">{{item.sourceText}}</text>
+        </view>
+      </view>
+    </view>
+    <view id="ai-bottom-anchor" class="bottom-anchor"></view>
+  </scroll-view>
+
+  <!-- 409 stale 提示 -->
+  <view wx:if="{{stale}}" class="stale-bar">
+    <text class="stale-text">会话已更新，请重新加载后再试</text>
+    <button class="stale-btn" size="mini" bindtap="onReload">重新加载</button>
+  </view>
+
+  <!-- 通用错误 -->
+  <view wx:if="{{error}}" class="error-bar">
+    <text class="error-text">{{error}}</text>
+    <button class="error-retry" size="mini" bindtap="onReload">重试</button>
+  </view>
+
+  <!-- 输入区 -->
+  <view wx:if="{{hasTeam && !notFound}}" class="composer">
+    <textarea
+      class="composer-input"
+      placeholder="继续向嘉禾 AI 提问"
+      placeholder-class="composer-placeholder"
+      value="{{inputValue}}"
+      bindinput="onInput"
+      maxlength="{{maxLength}}"
+      auto-height
+      disabled="{{sending}}"
+    />
+    <button class="composer-send" bindtap="onSend" disabled="{{sending}}">
+      {{sending ? '发送中…' : '发送'}}
+    </button>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

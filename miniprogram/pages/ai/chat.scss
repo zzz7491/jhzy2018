@@ -1,0 +1,198 @@
+/* pages/ai/chat.scss —— 嘉禾 AI 会话详情 */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-bg-secondary);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+
+/* 无团队前置提示 */
+.notice-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff7f2;
+  border-bottom: 1rpx solid #ffd9c7;
+  padding: 20rpx 24rpx;
+}
+
+.notice-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #c2410c;
+}
+
+.notice-btn {
+  margin: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 24rpx;
+}
+
+/* 居中状态（加载 / 不存在） */
+.center-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60rpx;
+}
+
+.state-icon {
+  font-size: 64rpx;
+}
+
+.state-text {
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: var(--color-text-secondary);
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: var(--color-text-light);
+}
+
+/* 对话滚动区 */
+.msg-scroll {
+  flex: 1;
+  padding: 24rpx;
+}
+
+.msg-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-row {
+  display: flex;
+  margin-bottom: 24rpx;
+}
+
+.msg-user {
+  justify-content: flex-end;
+}
+
+.msg-ai {
+  justify-content: flex-start;
+}
+
+.msg-bubble {
+  max-width: 78%;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.msg-user .msg-bubble {
+  background: var(--color-primary);
+  color: #fff;
+  border-bottom-right-radius: 4rpx;
+}
+
+.msg-ai .msg-bubble {
+  background: #fff;
+  color: var(--color-text-primary);
+  border-bottom-left-radius: 4rpx;
+  box-shadow: var(--box-shadow-card);
+}
+
+.msg-content {
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.msg-source {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: var(--color-text-light);
+}
+
+.bottom-anchor {
+  height: 1rpx;
+}
+
+/* 409 / 错误条 */
+.stale-bar,
+.error-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 24rpx;
+  background: #fff7f2;
+  border-top: 1rpx solid #ffd9c7;
+}
+
+.error-bar {
+  background: #fff1f0;
+  border-top: 1rpx solid #ffccc7;
+}
+
+.stale-text,
+.error-text {
+  flex: 1;
+  font-size: 24rpx;
+  color: #c2410c;
+}
+
+.error-text {
+  color: #d4380d;
+}
+
+.stale-btn,
+.error-retry {
+  margin: 0 0 0 16rpx;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 22rpx;
+}
+
+/* 输入区 */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  background: #fff;
+  border-top: 1rpx solid var(--color-border);
+  padding: 16rpx;
+}
+
+.composer-input {
+  flex: 1;
+  min-height: 72rpx;
+  max-height: 200rpx;
+  font-size: 28rpx;
+  line-height: 1.5;
+  padding: 12rpx;
+  background: var(--color-bg-secondary);
+  border-radius: 12rpx;
+}
+
+.composer-placeholder {
+  color: var(--color-text-light);
+}
+
+.composer-send {
+  margin: 0 0 0 12rpx;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 26rpx;
+  border-radius: 12rpx;
+  padding: 0 28rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+}
+
+.composer-send[disabled] {
+  opacity: 0.5;
+}

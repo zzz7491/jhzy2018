@@ -242,6 +242,18 @@
   <text style="font-size:40rpx;color:#ccc;">›</text>
 </view>
 
+<!-- 嘉禾 AI 入口（P36-C4，内联样式，不改动 index.scss） -->
+<view style="margin:24rpx;background:#fff;border-radius:20rpx;padding:28rpx;display:flex;align-items:center;box-shadow:0 4rpx 16rpx rgba(0,0,0,0.05);" bindtap="goToAi">
+  <view style="width:80rpx;height:80rpx;border-radius:20rpx;background:linear-gradient(135deg,#FF6B35,#FF8A5B);display:flex;align-items:center;justify-content:center;margin-right:24rpx;">
+    <text style="font-size:40rpx;">🤖</text>
+  </view>
+  <view style="flex:1;">
+    <text style="font-size:32rpx;font-weight:700;color:#1a1a1a;display:block;">嘉禾 AI</text>
+    <text style="font-size:24rpx;color:#999;margin-top:6rpx;display:block;">智能了解活动、服务记录、积分与成长信息</text>
+  </view>
+  <text style="font-size:40rpx;color:#ccc;">›</text>
+</view>
+
 <!-- 热点活动轮播 -->
 <view class="hot-activities" wx:if="{{hotActivities.length > 0}}">
   <view class="section-title">
