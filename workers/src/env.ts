@@ -48,6 +48,24 @@ export interface Env {
    * 以证明「UPDATE + event INSERT」的真实原子性（§10 / §17-L）。生产环境（非 local）永不触发，无副作用。
    */
   JHZY_FAULT_INJECT?: string;
+  /**
+   * P36-C1：嘉禾 AI V1 基础层绑定声明。
+   *
+   * 纪律：
+   * - AI_API_KEY 只允许来自 Workers Secret（本文件仅做【存在性】声明，绝不读取值 / 打印 / 硬编码 / 写库）。
+   * - provider / model 一律来自 server config，业务代码不得硬编码任何供应商或模型名。
+   * - 未配置（缺省）时：resolveAIConfig 给出安全默认与 configured=false，绝不伪造生产配置。
+   *
+   * 详细默认值与钳制见 src/config/ai.ts。
+   */
+  AI_API_KEY?: string;
+  AI_BASE_URL?: string;
+  AI_PROVIDER?: string;
+  AI_MODEL?: string;
+  AI_TIMEOUT_MS?: string;
+  AI_MAX_OUTPUT_TOKENS?: string;
+  AI_RL_PER_MIN?: string;
+  AI_RL_PER_DAY?: string;
 }
 
 /** Hono 上下文变量（S2-5：requestId / auth / tenant 均由 middleware 注入）。 */
