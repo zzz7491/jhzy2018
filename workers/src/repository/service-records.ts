@@ -201,6 +201,13 @@ export interface AdjustmentRequestRow {
   service_record_public_id: string;
   team_id: number;
   requester_id: number;
+  /**
+   * P35-C3B：申请人「安全公开身份」投影（LEFT JOIN users）。
+   * 仅暴露 users.public_id（ULID）+ users.nickname（可空显示名）；
+   * 绝不含 numeric requester_id 的对外泄露——requester_id 仅本层内部使用（自审判定 / audit）。
+   */
+  requester_public_id: string | null;
+  requester_nickname: string | null;
   old_minutes_snapshot: number;
   old_points_awarded_units_snapshot: number;
   old_settlement_status_snapshot: number;
@@ -641,24 +648,40 @@ export class ServiceRecordRepository extends BaseRepository {
 
   /**
    * 按 public_id 取申请行（团队作用域）。跨团队 / 不存在 → null（调用方统一 404）。
+   *
+   * P35-C3B：LEFT JOIN users 取申请人「安全公开身份」（public_id + nickname）。
+   * 仍以 r.team_id = ? 收口团队隔离；users 为 PLATFORM_GLOBAL，仅取公开列，不扩大读取面。
    */
   async findAdjustmentByPublicId(publicId: string, teamId: number): Promise<AdjustmentRequestRow | null> {
     this.ensureTableRead('service_record_adjustment_requests');
+    this.ensureTableRead('users');
     return this.first<AdjustmentRequestRow>(
-      `SELECT * FROM service_record_adjustment_requests WHERE public_id = ? AND team_id = ?`,
+      `SELECT r.*,
+              u.public_id AS requester_public_id,
+              u.nickname  AS requester_nickname
+         FROM service_record_adjustment_requests r
+         LEFT JOIN users u ON u.id = r.requester_id
+        WHERE r.public_id = ? AND r.team_id = ?`,
       [publicId, teamId],
     );
   }
 
   /**
    * 列出某 service record 的全部修正申请（newest first）。团队作用域。
+   *
+   * P35-C3B：同样 LEFT JOIN users 投影申请人安全公开身份。排序键统一以 r. 限定。
    */
   async listAdjustmentRequests(serviceRecordPublicId: string, teamId: number): Promise<AdjustmentRequestRow[]> {
     this.ensureTableRead('service_record_adjustment_requests');
+    this.ensureTableRead('users');
     return this.all<AdjustmentRequestRow>(
-      `SELECT * FROM service_record_adjustment_requests
-        WHERE service_record_public_id = ? AND team_id = ?
-        ORDER BY requested_at DESC, id DESC`,
+      `SELECT r.*,
+              u.public_id AS requester_public_id,
+              u.nickname  AS requester_nickname
+         FROM service_record_adjustment_requests r
+         LEFT JOIN users u ON u.id = r.requester_id
+        WHERE r.service_record_public_id = ? AND r.team_id = ?
+        ORDER BY r.requested_at DESC, r.id DESC`,
       [serviceRecordPublicId, teamId],
     );
   }

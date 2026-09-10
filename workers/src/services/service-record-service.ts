@@ -68,8 +68,10 @@ export interface SettleResult {
 
 /**
  * P35-C2：服务时长修正申请的对外投影。
- * 刻意【不】暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15 投影纪律）；
- * 申请人/审批人身份本阶段不扩展为可泄露的显示名（§6：如安全显示名会扩大范围则本阶段不做）。
+ * 刻意【不】暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15 投影纪律）。
+ *
+ * P35-C3B：新增 requester 安全公开身份投影（public_id + display_name），
+ * 供管理端历史项安全展示申请人；绝不含任何 numeric 内部 id。
  */
 export interface AdjustmentRequestView {
   public_id: string;
@@ -85,6 +87,11 @@ export interface AdjustmentRequestView {
   applied_at: number | null;
   created_at: number;
   updated_at: number;
+  /**
+   * 申请人安全公开身份（P35-C3B）。display_name 取自 users.nickname（可空）。
+   * 极端情况下（users 行缺失 / 历史数据）为 null —— 调用方不得回退到 numeric id。
+   */
+  requester: { public_id: string; display_name: string | null } | null;
 }
 
 export class ServiceRecordService {
@@ -549,6 +556,11 @@ export class ServiceRecordService {
       applied_at: row.applied_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      // P35-C3B：仅以 public_id + nickname 暴露申请人；requester_id（numeric）绝不外泄。
+      requester:
+        row.requester_public_id == null
+          ? null
+          : { public_id: row.requester_public_id, display_name: row.requester_nickname ?? null },
     };
   }
 }

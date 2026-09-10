@@ -217,6 +217,14 @@
         <text class="quick-subtitle">内容审核/发布</text>
       </view>
 
+      <view class="quick-card" bindtap="goToServiceRecords">
+        <view class="quick-icon" style="background-color: #e8f0fe;">
+          <text class="icon">⏱️</text>
+        </view>
+        <text class="quick-title">服务时长调整</text>
+        <text class="quick-subtitle">申请/审批服务时长</text>
+      </view>
+
       <view class="quick-card" bindtap="gotoPage" data-url="/pages/admin/training/index">
         <view class="quick-icon" style="background-color: #e3f2fd;">
           <text class="icon">📚</text>

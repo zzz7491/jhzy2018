@@ -1,0 +1,136 @@
+<!--
+  P35-C3：服务时长人工调整「申请 → 双人审批」管理端页面。
+  - 主时长恒为「当前有效时长」（currentMinutes）；PENDING 的申请值只出现在待审核区，绝不写回主时长。
+  - 全部以 public_id 为键，不渲染任何 numeric 内部 ID。
+  - P35-C3B：申请人身份改为后端安全投影（requester.display_name / public_id），历史行展示「申请人」；
+    绝不展示 numeric requester_id（后端投影亦不提供）。
+  - P35-C3B：提交/审核能力来自后端 capabilities（canRequest / canReview），非 legacy role 推断。
+-->
+<view class="sr-page">
+  <view wx:if="{{!hasTeam}}" class="empty-tip">
+    <text>未选择团队，无法查看服务记录。</text>
+  </view>
+
+  <block wx:else>
+    <!-- 服务记录列表 -->
+    <view class="section">
+      <view class="section-title">服务记录（{{records.length}}）</view>
+      <view wx:if="{{loading}}" class="loading-text">加载中...</view>
+      <view wx:elif="{{records.length === 0}}" class="empty-tip">当前团队暂无服务记录</view>
+      <view wx:else class="record-list">
+        <view
+          wx:for="{{records}}"
+          wx:key="public_id"
+          class="record-item {{selected.public_id === item.public_id ? 'active' : ''}}"
+          bindtap="selectRecord"
+          data-id="{{item.public_id}}"
+        >
+          <view class="record-main">
+            <text class="record-minutes">当前有效时长：{{item.minutes}} 分钟</text>
+            <text class="record-date">{{item.display_date}}</text>
+          </view>
+          <text class="record-points">积分 {{item.points_awarded_units}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 选中记录的时长调整 -->
+    <block wx:if="{{selected}}">
+      <view class="section detail-card">
+        <view class="section-title">时长调整</view>
+        <view class="current-duration">
+          <text class="cd-label">当前时长</text>
+          <text class="cd-value">{{currentMinutes}} 分钟</text>
+        </view>
+
+        <!-- 待审核区：明确区分「当前有效时长」与「申请调整为」，绝不替换主时长 -->
+        <view wx:if="{{pendingAdjustment}}" class="pending-banner">
+          <text class="pending-title">待审核申请</text>
+          <text class="pending-line">申请人：{{pendingAdjustment.requester_label}}</text>
+          <text class="pending-line">当前时长：{{currentMinutes}} 分钟</text>
+          <text class="pending-line">申请调整为：{{pendingAdjustment.requested_minutes}} 分钟</text>
+          <text class="pending-line">状态：{{pendingAdjustment.status_label}}</text>
+          <text class="pending-line">原因：{{pendingAdjustment.reason}}</text>
+          <text class="pending-line">申请时间：{{pendingAdjustment.request_time}}</text>
+          <text class="pending-tip">已有待审核申请，暂不可再次提交。</text>
+        </view>
+
+        <!-- 申请表单（后端 capabilities.can_submit_adjustment 为真 且 无 PENDING 时可用） -->
+        <view wx:if="{{canRequest && !pendingAdjustment}}" class="form">
+          <view class="form-title">发起时长调整申请</view>
+          <view class="form-row">
+            <text class="form-label">新的分钟数</text>
+            <input
+              class="form-input"
+              type="number"
+              placeholder="0 - 525600"
+              value="{{requestMinutes}}"
+              bindinput="onRequestMinutesInput"
+            />
+          </view>
+          <view class="form-row">
+            <text class="form-label">原因</text>
+            <textarea
+              class="form-textarea"
+              placeholder="请填写调整原因（1-500 字）"
+              value="{{requestReason}}"
+              bindinput="onRequestReasonInput"
+              maxlength="500"
+            />
+            <text class="form-counter">{{requestReason.length}}/500</text>
+          </view>
+          <button class="btn-submit" bindtap="submitAdjustment" disabled="{{submitting}}">提交申请</button>
+        </view>
+        <!-- 仅审核能力（canReview 且非 canRequest，已从后端 capabilities 判定）：不展示提交入口 -->
+        <view wx:elif="{{capabilitiesLoaded && canReview && !canRequest && !pendingAdjustment}}" class="empty-tip">
+          当前身份仅可审核调整申请，不能发起新的调整申请。
+        </view>
+      </view>
+
+      <!-- 调整申请历史 -->
+      <view class="section">
+        <view class="section-title">调整申请历史（{{adjustments.length}}）</view>
+        <view wx:if="{{adjustments.length === 0}}" class="empty-tip">暂无调整申请</view>
+        <view wx:else class="history-list">
+          <view wx:for="{{adjustments}}" wx:key="public_id" class="history-item">
+            <view class="history-head">
+              <text class="history-status st-{{item.status}}">{{item.status_label}}</text>
+              <text class="history-time">{{item.request_time}}</text>
+            </view>
+            <text class="history-line">申请人：{{item.requester_label}}</text>
+            <text class="history-line">{{item.old_minutes_snapshot}} → {{item.requested_minutes}} 分钟</text>
+            <text class="history-line">原因：{{item.reason}}</text>
+            <view wx:if="{{item.can_approve}}" class="history-actions">
+              <button class="btn-approve" bindtap="approveAdjustment" data-id="{{item.public_id}}">通过</button>
+              <button class="btn-reject" bindtap="openRejectModal" data-id="{{item.public_id}}">拒绝</button>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <!-- 拒绝原因弹窗（§10：必填，trim 后 1–500） -->
+  <view wx:if="{{showRejectModal}}" class="modal-overlay">
+    <view class="confirm-dialog">
+      <view class="confirm-header">
+        <text class="confirm-title">拒绝调整申请</text>
+      </view>
+      <view class="confirm-content">
+        <text>请填写拒绝原因（必填，最多 500 字）：</text>
+        <textarea
+          class="reject-textarea"
+          placeholder="请输入拒绝原因"
+          value="{{rejectReason}}"
+          bindinput="onRejectInput"
+          maxlength="500"
+        />
+        <text class="reject-counter">{{rejectReason.length}}/500</text>
+      </view>
+      <view class="confirm-actions">
+        <button class="btn-cancel" bindtap="closeRejectModal">取消</button>
+        <button class="btn-confirm" bindtap="confirmReject">确认拒绝</button>
+      </view>
+    </view>
+  </view>
+</view>

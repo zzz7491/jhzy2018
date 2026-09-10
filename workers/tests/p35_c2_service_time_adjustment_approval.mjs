@@ -41,6 +41,8 @@
 //   AI  直调 repo 原语制造 optimistic SR UPDATE = 0 → changes=0，证明 db.batch 内无 partial commit
 //   AJ  approve × reject 并发（request 已 REJECTED）→ changes=0，证明无「请求已拒但时长被改」的部分提交
 //   AK  super_admin 自审（fixture seed requester_id=super_admin）→ 403 且零副作用（SELF_APPROVAL_BYPASS 不可达）
+//   AL  P35-C3B：requester 安全投影（public_id + nickname；无 numeric requester_id）+ capabilities
+//       由真实 permission 求值（service.record.adjust / service.record.review）驱动各角色能力矩阵
 //
 // 运行（在 workers/ 目录）：node tests/p35_c2_service_time_adjustment_approval.mjs
 // =============================================================================
@@ -139,6 +141,7 @@ async function main() {
 export { createApp } from './src/app';
 export { computePointsUnits, ServiceRecordRepository } from './src/repository/service-records';
 export { generateUlid } from './src/utils/crypto';
+export { computeAdjustmentCapabilities } from './src/routes/service-records';
 `;
   const entryPath = join(WORKERS_DIR, '.p35_c2_bundle_entry.ts');
   writeFileSync(entryPath, ENTRY);
@@ -787,6 +790,99 @@ export { generateUlid } from './src/utils/crypto';
       srState(sr.srPub).minutes === 60 && srState(sr.srPub).points_awarded_units === 100 && srState(sr.srPub).source === 'auto',
       `min=${srState(sr.srPub).minutes} pts=${srState(sr.srPub).points_awarded_units} src=${srState(sr.srPub).source}`);
     check('AK 无 audit 行', auditRows(sr.srPub).length === 0, `audits=${auditRows(sr.srPub).length}`);
+  }
+
+  // =========================================================================
+  // AL — P35-C3B：requester 安全投影 + capabilities（真实 permission 求值）
+  //   A  申请历史含 requester 安全身份（public_id + display_name）
+  //   B  投影不含 numeric requester_id
+  //   C  投影不含 numeric reviewer_id / team_id / id
+  //   D/E can_submit/can_review 来自真实 service.record.adjust / service.record.review
+  //   F/G team_auditor → review=true, submit=false
+  //   H   team_owner / team_admin → submit=true
+  //   I   platform_operator → submit=false / review=false（且无 team scope → 无能力面）
+  //   J   volunteer → submit=false / review=false（且 GET 历史 403）
+  //   K   GET 响应携带 capabilities；N/O 既有 approve 授权与自审不变
+  // =========================================================================
+  {
+    const sr = seedEffectiveSR(T.A, { minutes: 60 });
+    const reqRes = await requestAdjustment(sr.srPub, U.alice, T.A, 'team_admin', { requested_minutes: 90, reason: 'req-proj' });
+    check('AL 申请 200（team_admin 可提交）', reqRes.status === 200, `status=${reqRes.status}`);
+
+    const list = await listAdjustments(sr.srPub, U.bob, T.A, 'team_auditor');
+    check('AL 申请历史 200（team_auditor 有 view/review）', list.status === 200, `status=${list.status}`);
+    const items = (list.json && list.json.adjustments) || [];
+    const row = items[0] || {};
+    const alicePub = get1('SELECT public_id FROM users WHERE id=?', U.alice).public_id;
+
+    // A：requester 安全身份（LEFT JOIN users）
+    check(
+      'A 申请历史含 requester 安全身份（public_id + display_name）',
+      !!row.requester && row.requester.public_id === alicePub && row.requester.display_name === 'alice',
+      `requester=${JSON.stringify(row.requester)}`,
+    );
+    // B：无 numeric requester_id（且整行通过 banned-key 扫描）
+    check(
+      'B 投影不含 numeric requester_id',
+      !Object.prototype.hasOwnProperty.call(row, 'requester_id') && scanForBanned(row) == null,
+      `banned=${scanForBanned(row) || 'none'}`,
+    );
+    // C：无 numeric reviewer_id / team_id / id
+    check(
+      'C 投影不含 numeric reviewer_id / team_id / id',
+      !('reviewer_id' in row) && !('team_id' in row) && !('id' in row),
+      `keys=${Object.keys(row).join(',')}`,
+    );
+
+    // D/E–J：capabilities 来源 = 真实 permission 求值（auth.roles 经真实 roles→role_permissions 解析）
+    const authFor = (role) => ({
+      authenticated: true,
+      userId: U.alice,
+      teamId: T.A,
+      roles: [{ role, scopeTeamId: role.startsWith('platform_') ? null : T.A }],
+    });
+    const capAdmin = await M.computeAdjustmentCapabilities(ENV, authFor('team_admin'));
+    const capAuditor = await M.computeAdjustmentCapabilities(ENV, authFor('team_auditor'));
+    const capOwner = await M.computeAdjustmentCapabilities(ENV, authFor('team_owner'));
+    const capOperator = await M.computeAdjustmentCapabilities(ENV, authFor('platform_operator'));
+    const capVolunteer = await M.computeAdjustmentCapabilities(ENV, authFor('volunteer'));
+
+    check('D can_submit_adjustment 来自真实 service.record.adjust（team_admin=true）',
+      capAdmin.can_submit_adjustment === true, `submit=${capAdmin.can_submit_adjustment}`);
+    check('E can_review_adjustment 来自真实 service.record.review（team_admin=true）',
+      capAdmin.can_review_adjustment === true, `review=${capAdmin.can_review_adjustment}`);
+    check('F team_auditor → can_review=true', capAuditor.can_review_adjustment === true, `review=${capAuditor.can_review_adjustment}`);
+    check('G team_auditor → can_submit=false', capAuditor.can_submit_adjustment === false, `submit=${capAuditor.can_submit_adjustment}`);
+    check('H team_owner → can_submit=true', capOwner.can_submit_adjustment === true, `owner.submit=${capOwner.can_submit_adjustment}`);
+    check('H2 team_owner → can_review=true', capOwner.can_review_adjustment === true, `owner.review=${capOwner.can_review_adjustment}`);
+    check('I platform_operator → submit=false / review=false',
+      capOperator.can_submit_adjustment === false && capOperator.can_review_adjustment === false,
+      `op=${JSON.stringify(capOperator)}`);
+    check('J volunteer → submit=false / review=false',
+      capVolunteer.can_submit_adjustment === false && capVolunteer.can_review_adjustment === false,
+      `vol=${JSON.stringify(capVolunteer)}`);
+
+    // K：HTTP GET 响应携带 capabilities（team_auditor: review=true / submit=false）
+    check(
+      'K GET 响应携带 capabilities（team_auditor → review=true / submit=false）',
+      !!list.json && !!list.json.capabilities &&
+        list.json.capabilities.can_review_adjustment === true &&
+        list.json.capabilities.can_submit_adjustment === false,
+      `caps=${JSON.stringify(list.json && list.json.capabilities)}`,
+    );
+    // J2：volunteer 无 view/review → 无能力面（403）
+    const volList = await listAdjustments(sr.srPub, U.volley, T.A, 'volunteer');
+    check('J2 volunteer GET 申请历史 → 403（无 view/review，无能力面）', volList.status === 403, `status=${volList.status}`);
+    // I2：platform_operator 平台角色无 team scope → requireActor 更外层即拒（非 200）
+    const opList = await listAdjustments(sr.srPub, U.alice, T.A, 'platform_operator');
+    check('I2 platform_operator GET 申请历史 → 非 200（平台角色无 team scope，更外层即拒）',
+      opList.status !== 200, `status=${opList.status}`);
+
+    // N/O：既有 approve 授权（自审 403 / 独立审核人 200）保持不变
+    const selfAp = await approve(row.public_id, U.alice, T.A, 'team_admin');
+    check('N 自审 approve 仍 403（授权逻辑未改）', selfAp.status === 403, `status=${selfAp.status}`);
+    const ap = await approve(row.public_id, U.bob, T.A, 'team_auditor');
+    check('O 独立审核人 approve 仍 200（审批授权未改）', ap.status === 200, `status=${ap.status}`);
   }
 
   // =========================================================================

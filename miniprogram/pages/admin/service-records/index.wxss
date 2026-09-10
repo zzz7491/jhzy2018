@@ -1,0 +1,329 @@
+/* P35-C3：服务时长调整管理端页面样式（自包含，不依赖图片资源）。 */
+.sr-page {
+  padding: 24rpx;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.section {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 16rpx;
+}
+
+.empty-tip,
+.loading-text {
+  font-size: 26rpx;
+  color: #999999;
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+/* 记录列表 */
+.record-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.record-item:last-child {
+  border-bottom: none;
+}
+
+.record-item.active {
+  background-color: #fff3ee;
+  border-radius: 12rpx;
+  border-bottom: none;
+}
+
+.record-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.record-minutes {
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.record-date {
+  font-size: 22rpx;
+  color: #999999;
+  margin-top: 6rpx;
+}
+
+.record-points {
+  font-size: 24rpx;
+  color: #ff6b35;
+}
+
+/* 当前时长 */
+.current-duration {
+  display: flex;
+  align-items: baseline;
+  padding: 12rpx 0 20rpx;
+}
+
+.cd-label {
+  font-size: 26rpx;
+  color: #666666;
+  margin-right: 16rpx;
+}
+
+.cd-value {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #333333;
+}
+
+/* 待审核区 */
+.pending-banner {
+  background: #fff8e6;
+  border: 1rpx solid #ffe0a3;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #b8860b;
+  margin-bottom: 12rpx;
+}
+
+.pending-line {
+  font-size: 26rpx;
+  color: #7a5c00;
+  margin-top: 6rpx;
+}
+
+.pending-tip {
+  font-size: 24rpx;
+  color: #b8860b;
+  margin-top: 14rpx;
+}
+
+/* 表单 */
+.form-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 16rpx;
+}
+
+.form-row {
+  margin-bottom: 20rpx;
+}
+
+.form-label {
+  display: block;
+  font-size: 26rpx;
+  color: #666666;
+  margin-bottom: 10rpx;
+}
+
+.form-input,
+.form-textarea {
+  background: #f5f5f5;
+  border-radius: 10rpx;
+  padding: 16rpx;
+  font-size: 28rpx;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-textarea {
+  height: 160rpx;
+}
+
+.form-counter {
+  display: block;
+  text-align: right;
+  font-size: 22rpx;
+  color: #999999;
+  margin-top: 6rpx;
+}
+
+.btn-submit {
+  background: #ff6b35;
+  color: #ffffff;
+  font-size: 30rpx;
+  border-radius: 12rpx;
+  margin-top: 12rpx;
+}
+
+.btn-submit[disabled] {
+  background: #ffc4ab;
+  color: #ffffff;
+}
+
+/* 历史 */
+.history-item {
+  padding: 20rpx 16rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.history-status {
+  font-size: 24rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 20rpx;
+}
+
+.st-0 {
+  background: #fff8e6;
+  color: #b8860b;
+}
+
+.st-1 {
+  background: #e6f7e6;
+  color: #2e8b57;
+}
+
+.st-2 {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+.st-3 {
+  background: #eeeeee;
+  color: #888888;
+}
+
+.history-time {
+  font-size: 22rpx;
+  color: #999999;
+}
+
+.history-line {
+  display: block;
+  font-size: 26rpx;
+  color: #333333;
+  margin-top: 6rpx;
+}
+
+.history-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 16rpx;
+}
+
+.btn-approve,
+.btn-reject {
+  flex: 1;
+  font-size: 26rpx;
+  border-radius: 10rpx;
+}
+
+.btn-approve {
+  background: #2e8b57;
+  color: #ffffff;
+}
+
+.btn-reject {
+  background: #ffffff;
+  color: #c0392b;
+  border: 1rpx solid #e0a0a0;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-dialog {
+  width: 80%;
+  background: #ffffff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.confirm-header {
+  padding: 28rpx 24rpx 0;
+}
+
+.confirm-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333333;
+}
+
+.confirm-content {
+  padding: 20rpx 24rpx;
+}
+
+.confirm-content text {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.reject-textarea {
+  width: 100%;
+  height: 180rpx;
+  background: #f5f5f5;
+  border-radius: 10rpx;
+  padding: 16rpx;
+  font-size: 26rpx;
+  margin-top: 14rpx;
+  box-sizing: border-box;
+}
+
+.reject-counter {
+  display: block;
+  text-align: right;
+  font-size: 22rpx;
+  color: #999999;
+  margin-top: 8rpx;
+}
+
+.confirm-actions {
+  display: flex;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.btn-cancel,
+.btn-confirm {
+  flex: 1;
+  font-size: 30rpx;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+.btn-confirm {
+  color: #c0392b;
+  border-left: 1rpx solid #f0f0f0;
+}

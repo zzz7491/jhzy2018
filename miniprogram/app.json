@@ -68,7 +68,8 @@
     "pages/community/article-detail/article-detail",
     "pages/community/index/index",
     "pages/admin/content/index",
-    "pages/admin/content/edit"
+    "pages/admin/content/edit",
+    "pages/admin/service-records/index"
   ],
   "tabBar": {
     "color": "#999999",

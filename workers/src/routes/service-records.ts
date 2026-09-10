@@ -24,12 +24,46 @@
 
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
+import type { AuthContext } from '../types/auth';
 import { ServiceRecordService } from '../services/service-record-service';
 import { requirePermission } from '../middleware/rbac';
 import { authorizePermissionDecision } from '../services/permission-provider';
 import { ok } from '../utils/response';
 import { authRequired, invalidParam, forbidden } from '../utils/errors';
 import { isUlid } from '../utils/validation';
+
+/**
+ * P35-C3B：当前 actor 在「服务时长调整」上的能力投影。
+ *
+ * 【唯一来源】= 真实 permission evaluation（authorizePermissionDecision →
+ * D1PermissionProvider → user_roles/roles/role_permissions/permissions），
+ * 绝不按 role name 手工 hard-code，也绝不新造第二套 RBAC。
+ *
+ * 语义（与冻结 RBAC 目录一致）：
+ *   can_submit_adjustment ← service.record.adjust
+ *   can_review_adjustment ← service.record.review
+ *
+ * 【不是 authorization boundary】：本对象只用于前端显示层减少无效按钮；
+ * 真实写端点仍各自 requirePermission 强制（越权/自审/跨团队一律后端 403 兜底）。
+ */
+export interface AdjustmentCapabilities {
+  can_submit_adjustment: boolean;
+  can_review_adjustment: boolean;
+}
+
+export async function computeAdjustmentCapabilities(
+  env: Env,
+  auth: AuthContext,
+): Promise<AdjustmentCapabilities> {
+  const [adjust, review] = await Promise.all([
+    authorizePermissionDecision(env, auth, 'service.record.adjust'),
+    authorizePermissionDecision(env, auth, 'service.record.review'),
+  ]);
+  return {
+    can_submit_adjustment: adjust === 'allow',
+    can_review_adjustment: review === 'allow',
+  };
+}
 
 /**
  * ServiceRecord public_id 校验（本地实现，不修改 utils/validation.ts）。
@@ -225,7 +259,11 @@ serviceRecords.post(
  *
  * 权限 = service.record.view OR service.record.review（最小安全 OR；不扩大权限）。
  * 返回按 requested_at DESC（newest first），投影仅含 public_id 与业务字段，
- * 绝不暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15）。
+ * 绝不暴露 numeric requester_id / reviewer_id / team_id / id（§6 / §15）；
+ * P35-C3B：额外返回 requester 安全公开身份（public_id + display_name）。
+ *
+ * P35-C3B：响应同时携带 capabilities（当前 actor 的真实 permission 能力投影），
+ * 供管理端 UI 直接采用，取代此前的 legacy role 猜测。
  */
 serviceRecords.get(
   '/:serviceRecordPublicId/adjustments',
@@ -235,14 +273,14 @@ serviceRecords.get(
 
     // 权限：view OR review（二者任一即可；未知 code 由 authorizePermissionDecision 统一处理）。
     const viewDecision = await authorizePermissionDecision(c.env, auth, 'service.record.view');
-    if (viewDecision !== 'allow') {
-      const reviewDecision = await authorizePermissionDecision(c.env, auth, 'service.record.review');
-      if (reviewDecision !== 'allow') {
-        // view/review 均无授权：沿用 forbidden（view 路径若为 unknown_permission 已在上层转 500，
-        // 此处两 code 均属已知目录，按 forbidden 处理）。
-        throw forbidden();
-      }
+    const reviewDecision = await authorizePermissionDecision(c.env, auth, 'service.record.review');
+    if (viewDecision !== 'allow' && reviewDecision !== 'allow') {
+      // view/review 均无授权（两 code 均属已知目录 → 按 forbidden 处理）。
+      throw forbidden();
     }
+
+    // P35-C3B：能力投影（真实 permission evaluation；非授权边界）。
+    const capabilities = await computeAdjustmentCapabilities(c.env, auth);
 
     const serviceRecordPublicId = requireServiceRecordPublicId(c.req.param('serviceRecordPublicId'), 'serviceRecordPublicId');
 
@@ -253,7 +291,7 @@ serviceRecords.get(
     });
     const adjustments = await svc.listAdjustments(serviceRecordPublicId);
 
-    return ok(c, { adjustments });
+    return ok(c, { adjustments, capabilities });
   },
 );
 

@@ -170,6 +170,79 @@ export interface ServiceRecordView {
   activity_public_id: string;
 }
 
+// ===== P35-C3：服务时长人工调整「申请 → 双人审批」类型（对接 P35-C2 后端） =====
+
+/**
+ * P35-C2 冻结的 adjustment request 状态（service_record_adjustment_requests.status）。
+ * 0 PENDING / 1 APPROVED / 2 REJECTED / 3 CANCELLED。
+ * 本阶段不实现 cancel action，仅正确显示 CANCELLED。
+ */
+export const ADJUSTMENT_STATUS = {
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2,
+  CANCELLED: 3,
+} as const;
+
+/** 申请状态展示文案（必须覆盖 0/1/2/3）。 */
+export const ADJUSTMENT_STATUS_LABELS: Record<number, string> = {
+  0: '待审核',
+  1: '已批准',
+  2: '已拒绝',
+  3: '已取消',
+};
+
+/** 状态文案（未知值兜底为"未知"，绝不臆造为已批准）。 */
+export function getAdjustmentStatusLabel(status: number | null | undefined): string {
+  if (status === null || status === undefined) return '未知';
+  return ADJUSTMENT_STATUS_LABELS[status] || '未知';
+}
+
+/** reject reason 长度上限（与后端一致：trim 后 1–500）。 */
+export const ADJUSTMENT_REJECT_REASON_MAX = 500;
+/** 申请时长上限（与后端一致：0–525600 = 1 年）。 */
+export const ADJUSTMENT_MINUTES_MAX = 525600;
+
+/**
+ * P35-C2 后端 AdjustmentRequestView 的前端镜像（P35-C3B 增补 requester 安全身份）。
+ * 仅含 public_id 与业务字段——绝不包含 numeric requester_id / reviewer_id / team_id / id。
+ */
+export interface AdjustmentRequestView {
+  public_id: string;
+  service_record_public_id: string;
+  status: number;
+  requested_minutes: number;
+  reason: string;
+  old_minutes_snapshot: number;
+  old_points_awarded_units_snapshot: number;
+  old_settlement_status_snapshot: number;
+  requested_at: number;
+  reviewed_at: number | null;
+  applied_at: number | null;
+  created_at: number;
+  updated_at: number;
+  /**
+   * P35-C3B：申请人「安全公开身份」（后端 LEFT JOIN users 投影）。
+   * display_name 可为 null（users.nickname 可空）；缺失时不得回退到 numeric id。
+   */
+  requester: { public_id: string; display_name: string | null } | null;
+}
+
+/**
+ * P35-C3B：当前 actor 在「服务时长调整」上的能力投影（后端真实 permission 求值结果）。
+ * 仅供显示层使用；【不是】授权边界——写端点仍由后端 requirePermission 强制。
+ */
+export interface AdjustmentCapabilities {
+  can_submit_adjustment: boolean;
+  can_review_adjustment: boolean;
+}
+
+/** 提交调整申请的命令体（严格：后端会 400 拒绝任何额外字段）。 */
+export interface AdjustmentRequestCommand {
+  requested_minutes: number;
+  reason: string;
+}
+
 export interface Pagination {
   page: number;
   page_size: number;
@@ -522,6 +595,60 @@ export const adminApi = {
   /** GET /service-records —— 当前团队服务记录列表（摘要）。 */
   listServiceRecords(limit = 50): Promise<{ records: ServiceRecordView[] }> {
     return request<{ records: ServiceRecordView[] }>('GET', `/service-records?limit=${limit}`);
+  },
+
+  // ===================== 服务时长人工调整（P35-C3；团队作用域） =====================
+  // 对接 P35-C2 后端审批状态机：申请 → 第二人审批/拒绝 → 原子落地。
+  // 旧 direct adjust（POST /service-records/:id/adjust）已在 P35-C2 移除，前端不得再调用；
+  // 任何时长修改必须经「申请 → 审批」工作流，前端不臆造审批态/时长。
+
+  /** POST /service-records/:serviceRecordPublicId/adjustments —— 提交人工时长调整申请（权限 service.record.adjust）。 */
+  requestServiceRecordAdjustment(
+    serviceRecordPublicId: string,
+    cmd: AdjustmentRequestCommand,
+  ): Promise<{ adjustment: AdjustmentRequestView }> {
+    return request<{ adjustment: AdjustmentRequestView }>(
+      'POST',
+      `/service-records/${serviceRecordPublicId}/adjustments`,
+      cmd,
+    );
+  },
+
+  /**
+   * GET /service-records/:serviceRecordPublicId/adjustments —— 该服务记录的调整申请历史
+   * （权限 view OR review）。P35-C3B：响应同时携带后端 capabilities（真实 permission 能力），
+   * 前端据此驱动 canSubmit / canReview，不再按 legacy role 猜测 P35 权限。
+   */
+  listServiceRecordAdjustments(
+    serviceRecordPublicId: string,
+  ): Promise<{ adjustments: AdjustmentRequestView[]; capabilities: AdjustmentCapabilities | null }> {
+    return request<{ adjustments: AdjustmentRequestView[]; capabilities: AdjustmentCapabilities | null }>(
+      'GET',
+      `/service-records/${serviceRecordPublicId}/adjustments`,
+    );
+  },
+
+  /** POST /service-record-adjustments/:adjustmentPublicId/approve —— 审批通过并原子落地（权限 service.record.review）。 */
+  approveServiceRecordAdjustment(
+    adjustmentPublicId: string,
+  ): Promise<{ record: ServiceRecordView }> {
+    return request<{ record: ServiceRecordView }>(
+      'POST',
+      `/service-record-adjustments/${adjustmentPublicId}/approve`,
+      {},
+    );
+  },
+
+  /** POST /service-record-adjustments/:adjustmentPublicId/reject —— 拒绝（权限 service.record.review）。reason：trim 后 1–500。 */
+  rejectServiceRecordAdjustment(
+    adjustmentPublicId: string,
+    reason: string,
+  ): Promise<{ rejected: boolean }> {
+    return request<{ rejected: boolean }>(
+      'POST',
+      `/service-record-adjustments/${adjustmentPublicId}/reject`,
+      { reason },
+    );
   },
 
   // ===================== 培训管理（training.course.manage） =====================

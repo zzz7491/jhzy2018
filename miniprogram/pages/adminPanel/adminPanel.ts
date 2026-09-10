@@ -248,19 +248,12 @@ Page({
     wx.navigateTo({ url: '/pages/admin/activity-abc/index' });
   },
 
-  /** v2 服务记录摘要入口。 */
+  /**
+   * v2 服务记录入口 → 服务时长调整审批页（P35-C3）。
+   * 旧「摘要弹窗」升级为真实管理页（查看服务记录 / 发起调整申请 / 审批 / 拒绝）。
+   */
   goToServiceRecords() {
-    const records = (this as any)._serviceRecords || [];
-    if (!records.length) {
-      wx.showToast({ title: '当前团队暂无服务记录', icon: 'none' });
-      return;
-    }
-    wx.showModal({
-      title: `服务记录摘要（${records.length}）`,
-      content: `当前团队最近 ${records.length} 条服务记录已就绪。\n可在活动详情中查看，或稍后刷新。`,
-      showCancel: false,
-      confirmText: '知道了',
-    });
+    wx.navigateTo({ url: '/pages/admin/service-records/index' });
   },
 
   goToRegisterReminder(e: any) {
