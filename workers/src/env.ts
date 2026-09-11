@@ -66,6 +66,19 @@ export interface Env {
   AI_MAX_OUTPUT_TOKENS?: string;
   AI_RL_PER_MIN?: string;
   AI_RL_PER_DAY?: string;
+  /**
+   * P0-A：身份核验 Provider 选择（区分大小写不敏感）。
+   * 取值：TENCENT / ALIYUN / OTHER / MANUAL / FAKE。
+   * local 且无配置 → 默认 FAKE（确定性、无真实收费）。生产应显式配置供应商。
+   * 仅做【存在性】声明，绝不读取值 / 打印 / 硬编码。
+   */
+  IDENTITY_PROVIDER?: string;
+  /**
+   * P0-A：腾讯云身份核验密钥（仅当 IDENTITY_PROVIDER=TENCENT 时需要）。
+   * 必须来自 Workers Secret；本文件仅做【存在性】声明，绝不读取值 / 打印 / 硬编码 / 写库。
+   */
+  IDENTITY_TENCENT_SECRET_ID?: string;
+  IDENTITY_TENCENT_SECRET_KEY?: string;
 }
 
 /** Hono 上下文变量（S2-5：requestId / auth / tenant 均由 middleware 注入）。 */

@@ -81,6 +81,7 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   user_identities: 'USER_SCOPED',
   user_profiles: 'USER_SCOPED',
   volunteer_profiles: 'USER_SCOPED',
+  identity_verifications: 'USER_SCOPED', // P0-A：身份核验事实（单一事实来源），仅本人可读写
   user_preferences: 'USER_SCOPED',
   learning_records: 'USER_SCOPED',
   points_ledger: 'USER_SCOPED',

@@ -27,6 +27,13 @@ export const ErrorCode = {
   // P36-C3-2（新增，纯增量）：AI best-effort 成本护栏（BEST_EFFORT_COST_GUARD）触发限流。
   // HTTP 429；details 只返回窗口与安全 retry 建议，绝不返回计数明细 / 凭证 / provider 细节。
   RATE_LIMITED: 'RATE_LIMITED',
+  // P0-A（新增，纯增量）：志愿者身份核验域稳定错误码（不暴露供应商专有细节 / 身份证明文 / Secret）。
+  // 与既有 error envelope 一致，不创建第二套。HTTP：INVALID_INPUT=400 / IDENTITY_MISMATCH=409 /
+  // IDENTITY_PROVIDER_UNAVAILABLE=503 / IDENTITY_REVIEW_REQUIRED 由 200 响应体内 code 携带 / AUTH_REQUIRED=401(既有)。
+  INVALID_INPUT: 'INVALID_INPUT',
+  IDENTITY_MISMATCH: 'IDENTITY_MISMATCH',
+  IDENTITY_PROVIDER_UNAVAILABLE: 'IDENTITY_PROVIDER_UNAVAILABLE',
+  IDENTITY_REVIEW_REQUIRED: 'IDENTITY_REVIEW_REQUIRED',
   // P36-C3-3（新增，纯增量）：AI provider / config / timeout 统一折叠为安全 503。
   // 不泄露上游 body / 端点 / 凭证 / stack；details 仅携带稳定 reason token。
   AI_UNAVAILABLE: 'AI_UNAVAILABLE',
