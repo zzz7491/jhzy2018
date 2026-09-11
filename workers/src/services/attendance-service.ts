@@ -36,6 +36,7 @@ import {
   internalError,
   ConflictReason,
 } from '../utils/errors';
+import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
 /** 服务依赖（由路由层从 Context 组装，Service 不接触 HTTP 对象）。 */
 export interface AttendanceServiceDeps {
@@ -117,6 +118,8 @@ export class ActivityAttendanceService {
     location: AttendanceLocation | null = null,
   ): Promise<AttendanceView> {
     const { userId, teamId } = this.requireActor();
+    // P0-C：签到入口资格门（actor 本人必须已具备志愿者资格）。
+    await assertVolunteerQualified(this.db, this.auth, this.tenant, userId);
     const { activities, signups, attendance, participation } = this.repos();
 
     // 2) 活动 + 租户范围（Repository 内已强制 team_id = tenant.teamId AND deleted_at IS NULL）。
@@ -274,7 +277,7 @@ export class ActivityAttendanceService {
     //    duplicate checkout（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
     const now = Math.floor(Date.now() / 1000);
     const nonce = `checkout:${session.id}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
-    const settleStmts = this.srService.buildSettleStatementWithPoints(session.id, teamId, 'automatic', nonce, 'checkout', null);
+    const settleStmts = await this.srService.buildSettleStatementWithPoints(session.id, teamId, 'automatic', nonce, 'checkout', null);
     const ok = await attendance.checkOutAtomically(signup.id, userId, teamId, now, activity.id, {
       nonce,
       extraStatements: settleStmts,

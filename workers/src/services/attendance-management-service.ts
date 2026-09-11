@@ -217,7 +217,7 @@ export class AttendanceManagementService {
     const nonce = `review:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     let reviewExtra: D1PreparedStatement[] = [];
     if (decision === 'approve') {
-      reviewExtra = this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'review_approved', nonce, 'review_approve', actor.userId);
+      reviewExtra = await this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'review_approved', nonce, 'review_approve', actor.userId);
     } else {
       reviewExtra = await this.srService.buildRevokeStatementsForSessionWithPoints(sessionId, {
         reason: reason || 'review rejected',
@@ -281,7 +281,7 @@ export class AttendanceManagementService {
 
     // P22-P3：settlement 组合进同一 force-checkout db.batch（强事务）.
     const nonce = `force:${sessionId}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
-    const settleStmts = this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'automatic', nonce, 'force_checkout', null);
+    const settleStmts = await this.srService.buildSettleStatementWithPoints(sessionId, actor.teamId, 'automatic', nonce, 'force_checkout', null);
     const changes = await this.repo.forceCheckoutAtomically(
       sessionId,
       actor.teamId,

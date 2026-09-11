@@ -16,7 +16,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
-import { ExamRepository, type GradedAnswer } from '../repository/exam';
+import { ExamRepository, type ExamPaperRow, type GradedAnswer } from '../repository/exam';
 import { CertificateRepository } from '../repository/certificate';
 import { invalidParam, authRequired, teamScopeRequired, notFound, conflict, ConflictReason, internalError } from '../utils/errors';
 import { generateUlid } from '../utils/crypto';
@@ -31,6 +31,16 @@ export interface ExamServiceDeps {
 /** P32 冻结：training paper 及格线固定 90（schema 默认 60 仅作文档）。 */
 const TRAINING_PASS_SCORE = 90;
 const EXAM_STATUS_COMPLETED = 3;
+
+/**
+ * P0-C 冻结：INITIAL_VOLUNTEER 资格试卷的 production invariant。
+ * - 真实参与考试的题量必须恰为 20（在 start 抽题后校验 actual question count）。
+ * - 及格线强制 90（不依赖行内 pass_score，避免误配）。
+ * 仅对 exam_papers.purpose = 'INITIAL_VOLUNTEER' 生效；其它试卷行为不变。
+ */
+const INITIAL_VOLUNTEER_PURPOSE = 'INITIAL_VOLUNTEER';
+const INITIAL_VOLUNTEER_EXAM_QUESTION_COUNT = 20;
+const INITIAL_VOLUNTEER_PASS_SCORE = 90;
 
 export interface ExamAttemptView {
   session_public_id: string;
@@ -130,8 +140,16 @@ export class ExamService {
     if (questions.length !== rule.count) {
       throw invalidParam('pick_rule', `expected ${rule.count} questions but got ${questions.length}`);
     }
+    // P0-C：INITIAL_VOLUNTEER 资格试卷的 production invariant —— 真实抽到的题目必须恰为 20。
+    // 这是「实际参与该考试的题目集合」的可靠 backend authority point（start 抽题后、落库前）。
+    if (paper.purpose === INITIAL_VOLUNTEER_PURPOSE && questions.length !== INITIAL_VOLUNTEER_EXAM_QUESTION_COUNT) {
+      throw invalidParam(
+        'pick_rule',
+        `INITIAL_VOLUNTEER exam requires exactly ${INITIAL_VOLUNTEER_EXAM_QUESTION_COUNT} questions but got ${questions.length}`,
+      );
+    }
 
-    // 4) 原子 start（session + 20 pinned answers）
+    // 4) 原子 start（session + pinned answers）
     const now = this.nowSeconds();
     const outcome = await this.repo.startSessionAtomically(paper.id, teamId, userId, questions, now);
     return { attempt: await this.toAttemptView(outcome.sessionId, teamId) };
@@ -187,7 +205,7 @@ export class ExamService {
     }
 
     const score = Math.round((graded.filter((g) => g.isCorrect).length / graded.length) * paper.total_score);
-    const passScore = this.resolvePassScore(paper.pass_score);
+    const passScore = this.resolvePassScore(paper);
     const passed = score >= passScore;
 
     // 决定是否发证：passed && 无 active cert
@@ -245,9 +263,11 @@ export class ExamService {
     return { result: await this.buildResult(session.id, teamId, sessionPublicId) };
   }
 
-  private resolvePassScore(schemaPassScore: number): number {
-    // 冻结：training paper 及格线固定 90；schema 默认 60 仅作 doc。
-    return schemaPassScore > 0 ? schemaPassScore : TRAINING_PASS_SCORE;
+  private resolvePassScore(paper: Pick<ExamPaperRow, 'pass_score' | 'purpose'>): number {
+    // P0-C：INITIAL_VOLUNTEER 资格试卷及格线强制 90（production invariant，不依赖行内 pass_score）。
+    if (paper.purpose === INITIAL_VOLUNTEER_PURPOSE) return INITIAL_VOLUNTEER_PASS_SCORE;
+    // 其余试卷保持自身 pass_score（schema 默认 60 仅作 doc；非法 0 回退 TRAINING_PASS_SCORE）。
+    return paper.pass_score > 0 ? paper.pass_score : TRAINING_PASS_SCORE;
   }
 
   // ===== helpers =====
@@ -309,7 +329,7 @@ export class ExamService {
       submitted_at: session.submitted_at,
       duration_min: paper.duration_min,
       total_score: paper.total_score,
-      pass_score: this.resolvePassScore(paper.pass_score),
+      pass_score: this.resolvePassScore(paper),
       questions,
     };
   }

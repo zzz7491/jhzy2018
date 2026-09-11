@@ -291,7 +291,7 @@ export class AttendanceAnomalyService {
         });
       } else {
         // DISMISS：会话已签退且无未决 anomaly → automatic settlement EFFECTIVE（同批）。
-        anomalyExtra = this.srService.buildSettleStatementWithPoints(target.session_id, actor.teamId, 'automatic', nonce, 'anomaly_dismiss', null);
+        anomalyExtra = await this.srService.buildSettleStatementWithPoints(target.session_id, actor.teamId, 'automatic', nonce, 'anomaly_dismiss', null);
       }
     }
     const changes = await this.repo.resolveAnomalyAtomically(

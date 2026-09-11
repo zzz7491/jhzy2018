@@ -29,6 +29,7 @@ import { authorizePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { authRequired, teamScopeRequired, invalidParam } from '../utils/errors';
 import { requireUlidParam, parsePagination } from '../utils/validation';
+import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
 const ai = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
@@ -44,6 +45,9 @@ function requireAiAssist() {
     const tenant = c.get('tenant');
     if (tenant.teamId == null) throw teamScopeRequired();
     await authorizePermission(c.env, auth, AI_ASSIST_PERMISSION);
+    // P0-C：AI 能力资格门（actor 必须已具备志愿者资格）。
+    if (auth.userId == null) throw authRequired();
+    await assertVolunteerQualified(c.env.DB, auth, tenant, auth.userId);
     await next();
   });
 }

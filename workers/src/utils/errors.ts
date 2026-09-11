@@ -38,6 +38,9 @@ export const ErrorCode = {
   // HTTP：PHONE_INVALID_CODE=400 / PHONE_PROVIDER_UNAVAILABLE=503。
   PHONE_INVALID_CODE: 'PHONE_INVALID_CODE',
   PHONE_PROVIDER_UNAVAILABLE: 'PHONE_PROVIDER_UNAVAILABLE',
+  // P0-C（新增，纯增量）：志愿者资格门禁稳定错误码（不暴露三类缺失的任意内部细节）。
+  // HTTP 403；details.reasons 仅携带稳定 token（IDENTITY_REQUIRED / PHONE_REQUIRED / TRAINING_EXAM_REQUIRED）。
+  QUALIFICATION_REQUIRED: 'QUALIFICATION_REQUIRED',
   // P36-C3-3（新增，纯增量）：AI provider / config / timeout 统一折叠为安全 503。
   // 不泄露上游 body / 端点 / 凭证 / stack；details 仅携带稳定 reason token。
   AI_UNAVAILABLE: 'AI_UNAVAILABLE',
@@ -243,4 +246,22 @@ export function csrfFailed(): AppError {
  */
 export function identityConflict(): AppError {
   return new AppError(ErrorCode.IDENTITY_CONFLICT, 403, 'Authentication unavailable');
+}
+
+/**
+ * 志愿者资格门禁（P0-C）：HTTP 403。
+ * - message 固定「Volunteer qualification required」，不携带任何身份/手机/培训内部信息。
+ * - details.reasons = 缺失项稳定 token 逗号拼接（IDENTITY_REQUIRED / PHONE_REQUIRED / TRAINING_EXAM_REQUIRED）；
+ *   客户端据此精准引导至补齐步骤，不泄露任何 PII / 内部状态。
+ */
+export const QualificationReason = {
+  IDENTITY_REQUIRED: 'IDENTITY_REQUIRED',
+  PHONE_REQUIRED: 'PHONE_REQUIRED',
+  TRAINING_EXAM_REQUIRED: 'TRAINING_EXAM_REQUIRED',
+} as const;
+
+export function qualificationRequired(reasons: string[]): AppError {
+  return new AppError(ErrorCode.QUALIFICATION_REQUIRED, 403, 'Volunteer qualification required', {
+    reasons: reasons.join(','),
+  });
 }

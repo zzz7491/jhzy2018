@@ -21,6 +21,16 @@ import type { D1PreparedStatement } from '@cloudflare/workers-types';
 
 const UNIQUE_VIOLATION_RE = /unique\s+constraint\s+failed/i;
 
+/**
+ * P0-C 冻结：INITIAL_VOLUNTEER 资格试卷的数据/业务不变量。
+ * - purpose 标记仅允许 '' | 'INITIAL_VOLUNTEER'（列 CHECK 亦约束）。
+ * - 凡持久化为 INITIAL_VOLUNTEER 的试卷，pass_score 恒为 90（本 repo 写入路径强制；
+ *   迁移 0033 的 BEFORE 触发器在 DB 层拒绝不一致写入，见 0033）。
+ * 不影响全局默认 60 与普通（非 INITIAL）试卷。
+ */
+const INITIAL_VOLUNTEER_PURPOSE = 'INITIAL_VOLUNTEER';
+const INITIAL_VOLUNTEER_PASS_SCORE = 90;
+
 function isUniqueViolation(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');
   return UNIQUE_VIOLATION_RE.test(msg);
@@ -57,6 +67,7 @@ export interface ExamPaperRow {
   duration_min: number;
   max_attempts: number;
   status: number;
+  purpose: string; // '' | 'INITIAL_VOLUNTEER'（P0-C 资格标记；唯一性由 uq_exam_papers_initial_volunteer 保证）
   created_at: number;
   updated_at: number | null;
   deleted_at: number | null;
@@ -115,6 +126,8 @@ export interface ExamPaperInput {
   duration_min?: number;
   max_attempts?: number;
   status?: number;
+  /** P0-C 资格标记：''（普通）| 'INITIAL_VOLUNTEER'（初始必训资格试卷）。 */
+  purpose?: string;
 }
 
 // ===== 原子 start/submit 返回值 =====
@@ -364,11 +377,15 @@ export class ExamRepository extends BaseRepository {
     const courseId = cmd.course_public_id
       ? await this.findCourseIdByPublicId(teamId, cmd.course_public_id)
       : (cmd.course_id ?? null);
+    const purpose = cmd.purpose === INITIAL_VOLUNTEER_PURPOSE ? INITIAL_VOLUNTEER_PURPOSE : '';
+    // P0-C 不变量：INITIAL_VOLUNTEER 资格试卷及格线恒为 90（忽略入参；不改变全局默认 60）。
+    const passScore =
+      purpose === INITIAL_VOLUNTEER_PURPOSE ? INITIAL_VOLUNTEER_PASS_SCORE : (cmd.pass_score ?? 60);
     const publicId = generateUlid();
     await this.run(
       `INSERT INTO exam_papers
-         (public_id, team_id, title, course_id, pick_rule, total_score, pass_score, duration_min, max_attempts, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (public_id, team_id, title, course_id, pick_rule, total_score, pass_score, duration_min, max_attempts, status, created_at, updated_at, purpose)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         publicId,
         teamId,
@@ -376,12 +393,13 @@ export class ExamRepository extends BaseRepository {
         courseId,
         JSON.stringify(cmd.pick_rule),
         cmd.total_score ?? 100,
-        cmd.pass_score ?? 60,
+        passScore,
         cmd.duration_min ?? 60,
         cmd.max_attempts ?? 3,
         cmd.status ?? 1,
         now,
         now,
+        purpose,
       ],
     );
     return { public_id: publicId };
@@ -392,19 +410,34 @@ export class ExamRepository extends BaseRepository {
     const courseId = cmd.course_public_id
       ? await this.findCourseIdByPublicId(teamId, cmd.course_public_id)
       : (cmd.course_id ?? null);
+    const existing = await this.first<{ purpose: string }>(
+      `SELECT purpose FROM exam_papers WHERE team_id = ? AND public_id = ?`,
+      [teamId, paperPublicId],
+    );
+    // P0-C 不变量：有效 purpose = 入参（若提供）否则沿用现有；INITIAL_VOLUNTEER 试卷 pass_score 恒为 90
+    // （因此「把已标记试卷改成其它 pass_score」被强制回归 90，普通试卷仍取自身值 / 默认 60）。
+    const effectivePurpose =
+      cmd.purpose != null
+        ? (cmd.purpose === INITIAL_VOLUNTEER_PURPOSE ? INITIAL_VOLUNTEER_PURPOSE : '')
+        : (existing?.purpose ?? '');
+    const passScore =
+      effectivePurpose === INITIAL_VOLUNTEER_PURPOSE
+        ? INITIAL_VOLUNTEER_PASS_SCORE
+        : (cmd.pass_score ?? 60);
     const res = await this.run(
       `UPDATE exam_papers
-          SET title = ?, course_id = ?, pick_rule = ?, total_score = ?, pass_score = ?, duration_min = ?, max_attempts = ?, status = ?, updated_at = ?
+          SET title = ?, course_id = ?, pick_rule = ?, total_score = ?, pass_score = ?, duration_min = ?, max_attempts = ?, status = ?, purpose = ?, updated_at = ?
         WHERE team_id = ? AND public_id = ?`,
       [
         cmd.title,
         courseId,
         JSON.stringify(cmd.pick_rule),
         cmd.total_score ?? 100,
-        cmd.pass_score ?? 60,
+        passScore,
         cmd.duration_min ?? 60,
         cmd.max_attempts ?? 3,
         cmd.status ?? 1,
+        effectivePurpose,
         now,
         teamId,
         paperPublicId,

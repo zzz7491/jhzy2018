@@ -39,6 +39,7 @@ import {
   ConflictReason,
   forbidden,
 } from '../utils/errors';
+import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
 /** adjust 的 effective_minutes 上限（1 年 = 525600 分钟）：防御性上界，保证整数运算安全。 */
 const MAX_ADJUST_MINUTES = 525600;
@@ -186,14 +187,20 @@ export class ServiceRecordService {
    * P23-P3B：settlement + 积分三件套组合为同一批 statements（供 P22-P3 追加进 attendance db.batch）。
    * 顺序固定：settleStmt → S0 → S1 → S2；now 单一来源，确保积分与 settlement 时间语义一致。
    */
-  buildSettleStatementWithPoints(
+  async buildSettleStatementWithPoints(
     sessionId: number,
     teamId: number,
     mode: SettlementMode,
     gateNonce?: string | null,
     remark?: string | null,
     operatorId?: number | null,
-  ): D1PreparedStatement[] {
+  ): Promise<D1PreparedStatement[]> {
+    // P0-C 收敛点：基于 session 归属者（s.user_id）做资格门禁，覆盖 SELF checkout + admin force-checkout / review / anomaly dismiss 为他人 accrual 的旁路。
+    // 失败 → 403 QUALIFICATION_REQUIRED（details.reasons 携带缺失项）。
+    const sessionUserId = await this.repo.findSessionUserId(sessionId, teamId);
+    if (sessionUserId != null) {
+      await assertVolunteerQualified(this.db, this.auth, this.tenant, sessionUserId);
+    }
     const now = this.nowSeconds();
     const settleStmt = this.buildSettleStatement(sessionId, teamId, mode, gateNonce, { now });
     const pts = this.pointsRepo.buildServicePointsStatements({

@@ -29,6 +29,7 @@ import { ParticipationRepository, type ParticipationRow, type ParticipationPubli
 import { authRequired, conflict, notFound, internalError, invalidParam, ConflictReason } from '../utils/errors';
 import { isUlid } from '../utils/validation';
 import { generateUlid } from '../utils/crypto';
+import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
 /** 参与行视图（对外响应，与 ParticipationRow 同构）。 */
 export type ParticipationView = ParticipationRow;
@@ -209,6 +210,10 @@ export class ParticipationService {
       if (!s) throw notFound('Signup');
       signup = s;
     }
+
+    // P0-C：团队分配入口资格门（目标用户必须已具备志愿者资格，防团队分配绕过 SELF gate）。
+    const targetUserId = mode === 'team' ? signup.user_id : userId;
+    await assertVolunteerQualified(this.db, this.auth, this.tenant, targetUserId);
 
     // occurrence
     const occurrence = await participations.resolveOccurrence(input.occurrence_public_id, teamId);

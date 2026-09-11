@@ -23,6 +23,7 @@ import {
   ConflictReason,
 } from '../utils/errors';
 import { isUlid } from '../utils/validation';
+import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
 /** 鏈嶅姟渚濊禆锛堢敱璺敱灞備粠 Context 缁勮锛孲ervice 涓嶆帴瑙?HTTP 瀵硅薄锛夈€?*/
 export interface SignupServiceDeps {
@@ -84,6 +85,8 @@ export class ActivitySignupService {
    * optional 鈫?鍙甫鍙己锛況equired 鈫?缂?submission 409銆?   */
 async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Promise<SignupView> {
     const { userId } = this.requireActor();
+    // P0-C：报名入口资格门（actor 本人必须已具备志愿者资格）。
+    await assertVolunteerQualified(this.db, this.auth, this.tenant, userId);
     const { activities, signups } = this.repos();
 
     if (options.formSubmissionPublicId != null && !isUlid(options.formSubmissionPublicId)) {

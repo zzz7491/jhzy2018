@@ -406,6 +406,16 @@ export class ServiceRecordRepository extends BaseRepository {
     );
   }
 
+  /** P0-C：取会话归属用户 id（TEAM 作用域，仅作资格门禁输入；不泄露 cross-team 存在性）。 */
+  async findSessionUserId(sessionId: number, teamId: number): Promise<number | null> {
+    this.ensureTableRead('attendance_sessions');
+    const r = await this.first<{ user_id: number }>(
+      `SELECT user_id FROM attendance_sessions WHERE id = ? AND team_id = ?`,
+      [sessionId, teamId],
+    );
+    return r?.user_id ?? null;
+  }
+
   /**
    * 构建 revoke 语句集（[audit INSERT, revoke UPDATE]）。
    * 两条语句共享同一 PRE-state 谓词（settlement_status = 1），保证原子性：
