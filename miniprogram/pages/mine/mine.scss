@@ -1472,3 +1472,127 @@
   font-size: 40rpx;
   color: #ccc;
 }
+
+/* ===== P0-C 志愿者资格卡片（轻量展示；仅消费后端投影，不自算） ===== */
+.qualification-card {
+  margin-top: 24rpx;
+  padding: 24rpx 28rpx;
+  background: linear-gradient(135deg, #f8f9fa 0%, #eef1f6 100%);
+  border: 2rpx solid #eef0f3;
+  border-radius: 20rpx;
+}
+
+.qualification-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.qualification-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.qualification-status {
+  font-size: 24rpx;
+  font-weight: 500;
+  color: #fff;
+  padding: 6rpx 18rpx;
+  border-radius: 24rpx;
+}
+
+.qualification-status.ok {
+  background: #4CAF50;
+}
+
+.qualification-status.no {
+  background: #ffa502;
+}
+
+.qualification-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.q-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.q-label {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.q-state {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.q-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #c9ced6;
+}
+
+.q-dot.on {
+  background: #4CAF50;
+}
+
+.q-dot.off {
+  background: #c9ced6;
+}
+
+.q-text {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.q-text.on {
+  color: #4CAF50;
+  font-weight: 500;
+}
+
+.q-text.off {
+  color: #999;
+}
+
+/* 大字版 */
+.senior-mode .qualification-title {
+  font-size: 34rpx;
+}
+
+.senior-mode .q-label,
+.senior-mode .q-text {
+  font-size: 30rpx;
+}
+
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+  .qualification-card {
+    background: #2a3441;
+    border-color: #30475e;
+  }
+
+  .qualification-title {
+    color: #eeeeee;
+  }
+
+  .q-label {
+    color: #bbbbbb;
+  }
+
+  .q-dot.off {
+    background: #55606e;
+  }
+
+  .q-text.off {
+    color: #999999;
+  }
+}

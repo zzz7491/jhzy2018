@@ -146,6 +146,37 @@
       <text class="identity-icon">🛡️</text>
       <text class="identity-text">{{userIdentity}}</text>
     </view>
+
+    <!-- P0-C：志愿者资格状态（仅展示后端投影，不自算） -->
+    <view wx:if="{{volunteerQualification}}" class="qualification-card">
+      <view class="qualification-header">
+        <text class="qualification-title">志愿者资格</text>
+        <text class="qualification-status {{volunteerQualification.qualified ? 'ok' : 'no'}}">{{volunteerQualification.qualified ? '已具备资格' : '尚未完成'}}</text>
+      </view>
+      <view class="qualification-items">
+        <view class="q-item">
+          <text class="q-label">身份认证</text>
+          <view class="q-state">
+            <text class="q-dot {{volunteerQualification.identity_verified ? 'on' : 'off'}}"></text>
+            <text class="q-text {{volunteerQualification.identity_verified ? 'on' : 'off'}}">{{volunteerQualification.identity_verified ? '已完成' : '待完成'}}</text>
+          </view>
+        </view>
+        <view class="q-item">
+          <text class="q-label">微信手机号</text>
+          <view class="q-state">
+            <text class="q-dot {{volunteerQualification.phone_bound ? 'on' : 'off'}}"></text>
+            <text class="q-text {{volunteerQualification.phone_bound ? 'on' : 'off'}}">{{volunteerQualification.phone_bound ? '已完成' : '待完成'}}</text>
+          </view>
+        </view>
+        <view class="q-item">
+          <text class="q-label">初始培训考试</text>
+          <view class="q-state">
+            <text class="q-dot {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}"></text>
+            <text class="q-text {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}">{{volunteerQualification.initial_training_exam_passed ? '已完成' : '待完成'}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 
   <!-- 未登录状态 -->

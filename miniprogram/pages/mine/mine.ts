@@ -2,6 +2,7 @@ const app = getApp();
 import checkinService from '../../services/checkinService';
 import activityApi from '../../utils/activityApi';
 import phoneApi from '../../utils/phoneApi';
+import qualificationApi, { VolunteerQualification } from '../../utils/qualificationApi';
 
 Page({
   data: {
@@ -31,7 +32,10 @@ Page({
     activeAttendance: null,
 
     // 微信可信手机号绑定状态（P0-B；仅展示脱敏号码，空字符串=未知/未绑定）
-    wechatPhoneMask: ''
+    wechatPhoneMask: '',
+
+    // 志愿者资格状态（P0-C；仅消费后端投影，null=未加载/失败，前端绝不自算）
+    volunteerQualification: null as VolunteerQualification | null
   },
 
   pollingTimer: null, // 轮询定时器
@@ -108,6 +112,7 @@ Page({
       await this.loadUserData();
       await this.loadDashboardModules();
       this.loadUnreadCount();
+      this.loadVolunteerQualification();
       this.calculateMembershipDuration();
     }
     this.setData({ loading: false });
@@ -176,6 +181,21 @@ Page({
       return;
     }
     wx.navigateTo({ url: '/pages/phone-bind/phone-bind' });
+  },
+
+  // P0-C：加载志愿者资格状态（仅消费后端投影，不自算）。
+  loadVolunteerQualification() {
+    try {
+      const token = wx.getStorageSync('v2_access_token');
+      const expire = Number(wx.getStorageSync('v2_token_expire') || 0);
+      if (!token || expire < Date.now() + 30000) return; // 无有效 V2 会话则不强求
+      qualificationApi
+        .getStatus()
+        .then((q) => {
+          this.setData({ volunteerQualification: q });
+        })
+        .catch(() => { /* 忽略：资格状态读取失败不影响其它功能 */ });
+    } catch (e) { /* 忽略 */ }
   },
 
   // P0-B：刷新微信可信手机号绑定状态（仅在已有有效 V2 会话时；不强制 wx.login）
@@ -417,6 +437,7 @@ Page({
       await this.loadUserData();
       await this.loadDashboardModules();
       this.loadUnreadCount();
+      this.loadVolunteerQualification();
     }
     this.setData({ refreshing: false });
   },
