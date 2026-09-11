@@ -1,18 +1,50 @@
 <view class="container">
+  <!-- 顶部操作栏 -->
+  <view class="msg-header" wx:if="{{items.length > 0}}">
+    <text class="msg-header-title">站内消息</text>
+    <text class="msg-mark-all" wx:if="{{hasUnread}}" bindtap="onMarkAllRead">全部已读</text>
+  </view>
+
   <view class="message-list">
-    <block wx:for="{{notifications}}" wx:key="id">
-      <view class="message-item {{item.is_read ? 'read' : 'unread'}}" 
-            bindtap="markAsRead" 
+    <block wx:for="{{items}}" wx:key="id">
+      <view class="message-item {{item.read ? 'read' : 'unread'}}"
+            bindtap="onTapItem"
             data-id="{{item.id}}"
             data-index="{{index}}">
-        <view class="message-title">{{item.title}}</view>
-        <view class="message-content">{{item.content}}</view>
-        <view class="message-time">{{item.created_at}}</view>
+        <view class="msg-main">
+          <view class="message-title">{{item.title}}</view>
+          <view class="message-content">{{item.summary || '暂无摘要'}}</view>
+          <view class="message-time">{{formatTime(item.created_at)}}</view>
+        </view>
+        <view class="unread-dot" wx:if="{{!item.read}}"></view>
       </view>
     </block>
   </view>
-  
+
+  <!-- 加载 / 分页尾 / 空 / 错误 -->
   <view class="loading" wx:if="{{loading}}">加载中...</view>
-  <view class="no-more" wx:if="{{!hasMore && notifications.length > 0}}">没有更多了</view>
-  <view class="empty" wx:if="{{!loading && notifications.length === 0}}">暂无消息</view>
+  <view class="no-more" wx:if="{{!loading && hasMore === false && items.length > 0}}">没有更多了</view>
+  <view class="empty" wx:if="{{!loading && !error && items.length === 0}}">暂无消息</view>
+  <view class="error" wx:if="{{error}}">
+    <text>加载失败</text>
+    <text class="error-retry" bindtap="loadFirstPage">点击重试</text>
+  </view>
+
+  <!-- 详情浮层 -->
+  <view class="detail-mask" wx:if="{{detail || detailLoading}}" bindtap="closeDetail">
+    <view class="detail-panel" catchtap="noop">
+      <view wx:if="{{detailLoading}}" class="detail-loading">加载中...</view>
+      <block wx:elif="{{detail}}">
+        <view class="detail-title">{{detail.title}}</view>
+        <view class="detail-meta">
+          <text class="detail-category" wx:if="{{detail.category}}">{{detail.category}}</text>
+          <text class="detail-time">{{formatTime(detail.created_at)}}</text>
+        </view>
+        <scroll-view scroll-y class="detail-body">
+          <text>{{detail.body || '暂无正文'}}</text>
+        </scroll-view>
+        <view class="detail-close" bindtap="closeDetail">关闭</view>
+      </block>
+    </view>
+  </view>
 </view>

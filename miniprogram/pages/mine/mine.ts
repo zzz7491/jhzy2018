@@ -2,6 +2,7 @@ const app = getApp();
 import checkinService from '../../services/checkinService';
 import activityApi from '../../utils/activityApi';
 import phoneApi from '../../utils/phoneApi';
+import notificationApi from '../../utils/notificationApi';
 import qualificationApi, { VolunteerQualification } from '../../utils/qualificationApi';
 
 Page({
@@ -121,34 +122,22 @@ Page({
     this.setData({ loading: false });
   },
 
-  // 加载未读消息数量
+  // 加载未读消息数量（N0-B：改用 V2 /notifications/unread-count，切断 legacy PHP）
   loadUnreadCount() {
-    console.log('loadUnreadCount 开始执行');
     if (!this.data.isLoggedIn) {
-      console.log('未登录');
-      return;
-    }
-    const userId = this.data.userInfo?.id;
-    if (!userId) {
-      console.log('无userId');
       return;
     }
     const that = this;
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/get_unread_count.php',
-      data: { user_id: userId },
-      success: (res) => {
-        console.log('请求成功', res.data);
-        if (res.data && res.data.success) {
-          const unreadCount = res.data.unread_count || 0;
-          that.setData({ unreadCount });
-          that.updateTabBarBadge();
-        }
-      },
-      fail: (err) => {
-        console.log('请求失败', err);
-      }
-    });
+    notificationApi
+      .unreadCount()
+      .then((res) => {
+        const unreadCount = res && typeof res.unread === 'number' ? res.unread : 0;
+        that.setData({ unreadCount });
+        that.updateTabBarBadge();
+      })
+      .catch(() => {
+        // 读取失败不改变既有未读状态（不把失败当已读 / 未读事实）
+      });
   },
 
   // 开始轮询未读消息

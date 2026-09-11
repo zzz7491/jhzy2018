@@ -1,0 +1,160 @@
+.container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  padding: 20rpx 24rpx;
+  box-sizing: border-box;
+}
+
+.msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12rpx 8rpx 20rpx;
+}
+.msg-header-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #222;
+}
+.msg-mark-all {
+  font-size: 26rpx;
+  color: #ff6b35;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.message-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+.message-item.unread {
+  background: #fff7f2;
+}
+.message-item.read {
+  opacity: 0.78;
+}
+
+.msg-main {
+  flex: 1;
+  min-width: 0;
+}
+.message-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 8rpx;
+}
+.message-content {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.message-time {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 12rpx;
+}
+.unread-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #ff6b35;
+  margin-left: 16rpx;
+  margin-top: 8rpx;
+  flex-shrink: 0;
+}
+
+.loading,
+.no-more,
+.empty,
+.error {
+  text-align: center;
+  color: #999;
+  font-size: 26rpx;
+  padding: 40rpx 0;
+}
+.error-retry {
+  color: #ff6b35;
+  margin-left: 12rpx;
+}
+
+.detail-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+.detail-panel {
+  width: 100%;
+  background: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 36rpx 32rpx 48rpx;
+  box-sizing: border-box;
+  max-height: 80vh;
+}
+.detail-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 16rpx;
+}
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+.detail-category {
+  font-size: 22rpx;
+  color: #ff6b35;
+  background: #fff1e8;
+  border-radius: 8rpx;
+  padding: 4rpx 12rpx;
+}
+.detail-time {
+  font-size: 22rpx;
+  color: #999;
+}
+.detail-body {
+  max-height: 44vh;
+  font-size: 28rpx;
+  color: #444;
+  line-height: 1.7;
+}
+.detail-target {
+  margin-top: 28rpx;
+  color: #ff6b35;
+  font-size: 28rpx;
+}
+.detail-close {
+  margin-top: 20rpx;
+  text-align: center;
+  color: #999;
+  font-size: 28rpx;
+  padding: 16rpx 0;
+  border-top: 1rpx solid #eee;
+}
+.detail-loading {
+  text-align: center;
+  color: #999;
+  padding: 60rpx 0;
+}
