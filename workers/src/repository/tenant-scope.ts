@@ -30,6 +30,15 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   content_categories: 'PLATFORM_GLOBAL',
   message_templates: 'PLATFORM_GLOBAL',
   legacy_id_maps: 'PLATFORM_GLOBAL',
+  // N0-A：notifications 由 TEAM_SCOPED 重分类为 PLATFORM_GLOBAL。
+  // 理由（冻结：NOTIFICATION_TEAM_SCOPE = OPTIONAL）：
+  //   - 0034 起 team_id 可为 NULL（用户级 / 系统级通知无 team），TEAM_SCOPED guard
+  //     会在无 active team 时误拒（team_scope_required）。
+  //   - 通知内容是多收件人共享的【内容实体】，既不属于单用户也不属于单团队，
+  //     USER_SCOPED / TEAM_SCOPED 均不符合真实语义。
+  //   - 表级放宽【不等于】放开数据：所有查询必须 JOIN notification_recipients
+  //     并强制 nr.user_id = 当前用户（recipient 是唯一权威，见 N0-A §7/§8）。
+  notifications: 'PLATFORM_GLOBAL',
 
   // ===== TEAM_SCOPED (36) =====
   team_members: 'TEAM_SCOPED',
@@ -73,7 +82,6 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   content_reports: 'TEAM_SCOPED',
   content_attachments: 'TEAM_SCOPED',
   files: 'TEAM_SCOPED',
-  notifications: 'TEAM_SCOPED',
   ai_conversations: 'TEAM_SCOPED',
   ai_usage_logs: 'TEAM_SCOPED',
 
@@ -90,6 +98,9 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   growth_records: 'USER_SCOPED',
   user_badges: 'USER_SCOPED',
   sessions: 'USER_SCOPED',
+  // N0-A：每用户投递态（读/未读、归属）。IN_APP 通知的【唯一权威】= recipient.user_id，
+  // 与 notifications.team_id 无关（团队归属不是读取权限，见 N0-A §8）。
+  notification_recipients: 'USER_SCOPED',
 
   // ===== AUDIT_ONLY (7) =====
   level_change_logs: 'AUDIT_ONLY',
