@@ -82,6 +82,7 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   user_profiles: 'USER_SCOPED',
   volunteer_profiles: 'USER_SCOPED',
   identity_verifications: 'USER_SCOPED', // P0-A：身份核验事实（单一事实来源），仅本人可读写
+  phone_verifications: 'USER_SCOPED', // P0-B：微信可信手机号绑定事实（独立 SSOT），仅本人可读写
   user_preferences: 'USER_SCOPED',
   learning_records: 'USER_SCOPED',
   points_ledger: 'USER_SCOPED',

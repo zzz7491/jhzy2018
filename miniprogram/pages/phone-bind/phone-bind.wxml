@@ -1,0 +1,32 @@
+<!--pages/phone-bind/phone-bind.wxml-->
+<view class="phone-bind-container">
+  <view class="card">
+    <view class="title">微信可信手机号绑定</view>
+    <view class="desc">绑定后用于志愿者身份核验与重要通知。手机号经微信验证，服务端仅存储加密与脱敏信息，不展示完整号码。</view>
+
+    <view wx:if="{{loading}}" class="status-line">状态加载中…</view>
+
+    <block wx:else>
+      <view wx:if="{{bound}}" class="bound-box">
+        <text class="bound-label">已绑定微信手机号</text>
+        <text class="bound-mask">{{phone_mask}}</text>
+      </view>
+      <view wx:else class="unbound-box">
+        <text class="unbound-label">尚未绑定微信手机号</text>
+      </view>
+    </block>
+
+    <view wx:if="{{errorMsg}}" class="error-line">{{errorMsg}}</view>
+
+    <button
+      wx:if="{{!bound}}"
+      class="bind-btn"
+      open-type="getPhoneNumber"
+      bindgetphonenumber="onGetPhoneNumber"
+      loading="{{binding}}"
+      disabled="{{binding}}"
+    >{{binding ? '绑定中…' : '绑定微信手机号'}}</button>
+
+    <button wx:else class="back-btn" bindtap="goBack">完成</button>
+  </view>
+</view>

@@ -105,6 +105,19 @@
       </view>
     </view>
 
+    <!-- 微信可信手机号绑定（P0-B） -->
+    <view class="message-entry" bindtap="goToPhoneBind">
+      <view class="message-entry-left">
+        <text class="message-icon">📱</text>
+        <text class="message-title">微信手机号绑定</text>
+      </view>
+      <view class="message-entry-right">
+        <text wx:if="{{wechatPhoneMask}}" style="margin-right:12rpx;color:#FF6B35;">{{wechatPhoneMask}}</text>
+        <text wx:else style="margin-right:12rpx;color:#999;">未绑定</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- 积分入口（导航整合：原独立「积分」tab 并入个人中心） -->
     <view class="message-entry" bindtap="goToPointsCenter">
       <view class="message-entry-left">

@@ -1,6 +1,7 @@
 const app = getApp();
 import checkinService from '../../services/checkinService';
 import activityApi from '../../utils/activityApi';
+import phoneApi from '../../utils/phoneApi';
 
 Page({
   data: {
@@ -27,7 +28,10 @@ Page({
     avatarError: '',
     
     // 进行中的签到（只保留状态，不显示操作）
-    activeAttendance: null
+    activeAttendance: null,
+
+    // 微信可信手机号绑定状态（P0-B；仅展示脱敏号码，空字符串=未知/未绑定）
+    wechatPhoneMask: ''
   },
 
   pollingTimer: null, // 轮询定时器
@@ -163,6 +167,34 @@ Page({
   // 前往订阅设置页面
   goToSubscribe() {
     wx.navigateTo({ url: '/pages/subscribe/subscribe' });
+  },
+
+  // P0-B：前往微信可信手机号绑定页
+  goToPhoneBind() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/phone-bind/phone-bind' });
+  },
+
+  // P0-B：刷新微信可信手机号绑定状态（仅在已有有效 V2 会话时；不强制 wx.login）
+  loadWechatPhoneStatus() {
+    try {
+      const token = wx.getStorageSync('v2_access_token');
+      const expire = Number(wx.getStorageSync('v2_token_expire') || 0);
+      if (!token || expire < Date.now() + 30000) return; // 无有效 V2 会话则不强求
+      phoneApi
+        .getStatus()
+        .then((st) => {
+          this.setData({ wechatPhoneMask: st.bound && st.phone_mask ? st.phone_mask : '' });
+        })
+        .catch(() => {
+          /* 忽略：绑定状态读取失败不影响其它功能 */
+        });
+    } catch (e) {
+      /* 忽略 */
+    }
   },
 
   // 加载动态功能卡片

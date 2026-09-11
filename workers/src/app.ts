@@ -41,6 +41,7 @@ import ai from './routes/ai'; // P36-C3-2：嘉禾 AI V1（/api/v2/ai/*；4 个�
 import adminContent from './routes/admin-content'; // P33-P3B-2C：社区管理端路由（/api/v2/admin/content/*）
 import analytics from './routes/analytics'; // P37-C1：数据运营运营概览（/api/v2/analytics/*；team + platform 双 scope）
 import volunteer from './routes/volunteer'; // P0-A：志愿者身份核验（/api/v2/volunteer/identity/verify|status）
+import phone from './routes/phone'; // P0-B：微信可信手机号绑定（/api/v2/users/me/phone/wechat/bind|status）
 import authRoutes from './routes/auth';
 import testRoutes from './routes/__test';
 import { ok } from './utils/response';
@@ -87,6 +88,7 @@ export function createApp() {
   v2.route('/admin/content', adminContent); // P33-P3B-2C：/api/v2/admin/content/*（社区审核/下架/删除）
   v2.route('/analytics', analytics); // P37-C1：/api/v2/analytics/*（team + platform 运营概览，精确 2 端点）
   v2.route('/volunteer', volunteer); // P0-A：/api/v2/volunteer/identity/verify|status
+  v2.route('/users/me/phone', phone); // P0-B：/api/v2/users/me/phone/wechat/bind|status
   v2.route('/auth', authRoutes); // S2-6c-2：登录/登出/会话管理
   v2.route('/__test', testRoutes); // TEST-ONLY：处理器内部 local 门禁
   app.route('/api/v2', v2);

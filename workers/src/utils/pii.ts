@@ -86,6 +86,29 @@ export class PiiCrypto {
     if (!name) return '';
     return name[0] + '*'.repeat(Math.max(1, name.length - 1));
   }
+
+  /** 手机号 AES-256-GCM 加密（与真实姓名同密钥派生），返回 iv:ciphertext（base64url）。 */
+  async encryptPhone(plain: string): Promise<string> {
+    const key = await this.aesKey;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      new TextEncoder().encode(plain),
+    );
+    return `${b64url(iv)}:${b64url(new Uint8Array(ct))}`;
+  }
+
+  /** 手机号 HMAC 指纹（与身份证同密钥体系，HMAC-SHA256）。用于去重 / 幂等。 */
+  async hashPhone(phone: string): Promise<string> {
+    return hmacSha256Hex(this.hmacKey, phone);
+  }
+
+  /** 手机号脱敏：前 3 + **** + 后 4（11 位中国大陆手机号）。短号原样返回。 */
+  maskPhone(phone: string): string {
+    if (phone.length < 7) return phone;
+    return phone.slice(0, 3) + '****' + phone.slice(-4);
+  }
 }
 
 /** 身份证基础格式校验：17 位数字 + 末位（数字或 X）。 */

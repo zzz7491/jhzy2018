@@ -3,6 +3,7 @@
     "pages/login-unified/index",
     "pages/index/index",
     "pages/mine/mine",
+    "pages/phone-bind/phone-bind",
     "pages/register/register",
     "pages/quick-action/quick-action",
     "pages/training/training",

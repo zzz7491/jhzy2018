@@ -1,0 +1,85 @@
+.phone-bind-container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 40rpx 32rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.desc {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #888;
+  line-height: 1.6;
+}
+
+.status-line {
+  margin-top: 32rpx;
+  color: #999;
+  font-size: 28rpx;
+}
+
+.bound-box {
+  margin-top: 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32rpx;
+  background: #fff7f3;
+  border-radius: 16rpx;
+}
+
+.bound-label {
+  font-size: 26rpx;
+  color: #ff6b35;
+}
+
+.bound-mask {
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+  color: #1a1a1a;
+}
+
+.unbound-box {
+  margin-top: 32rpx;
+  text-align: center;
+  color: #999;
+  font-size: 28rpx;
+}
+
+.error-line {
+  margin-top: 24rpx;
+  color: #e54d42;
+  font-size: 26rpx;
+  text-align: center;
+}
+
+.bind-btn {
+  margin-top: 48rpx;
+  background: #ff6b35;
+  color: #fff;
+  border-radius: 999rpx;
+  font-size: 32rpx;
+}
+
+.back-btn {
+  margin-top: 48rpx;
+  background: #f0f0f0;
+  color: #333;
+  border-radius: 999rpx;
+  font-size: 32rpx;
+}
