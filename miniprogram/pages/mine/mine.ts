@@ -31,8 +31,10 @@ Page({
     // 进行中的签到（只保留状态，不显示操作）
     activeAttendance: null,
 
-    // 微信可信手机号绑定状态（P0-B；仅展示脱敏号码，空字符串=未知/未绑定）
+    // 微信可信手机号绑定状态（P0-B；wechatPhoneMask 非空=已绑定脱敏号码；
+    // wechatPhoneBound: null=未知/未查询, true=已绑定, false=权威未绑定）
     wechatPhoneMask: '',
+    wechatPhoneBound: null as boolean | null,
 
     // 志愿者资格状态（P0-C；仅消费后端投影，null=未加载/失败，前端绝不自算）
     volunteerQualification: null as VolunteerQualification | null
@@ -113,6 +115,7 @@ Page({
       await this.loadDashboardModules();
       this.loadUnreadCount();
       this.loadVolunteerQualification();
+      this.loadWechatPhoneStatus();
       this.calculateMembershipDuration();
     }
     this.setData({ loading: false });
@@ -198,19 +201,23 @@ Page({
     } catch (e) { /* 忽略 */ }
   },
 
-  // P0-B：刷新微信可信手机号绑定状态（仅在已有有效 V2 会话时；不强制 wx.login）
+  // P0-B：刷新微信可信手机号绑定状态（仅在已有有效 V2 会话时；不强制 wx.login）。
+  // 无会话/读取失败一律保持「未知」，绝不把失败当作权威「未绑定」。
   loadWechatPhoneStatus() {
     try {
       const token = wx.getStorageSync('v2_access_token');
       const expire = Number(wx.getStorageSync('v2_token_expire') || 0);
-      if (!token || expire < Date.now() + 30000) return; // 无有效 V2 会话则不强求
+      if (!token || expire < Date.now() + 30000) return; // 无有效 V2 会话 → 保持未知
       phoneApi
         .getStatus()
         .then((st) => {
-          this.setData({ wechatPhoneMask: st.bound && st.phone_mask ? st.phone_mask : '' });
+          this.setData({
+            wechatPhoneBound: !!st.bound,
+            wechatPhoneMask: st.bound && st.phone_mask ? st.phone_mask : '',
+          });
         })
         .catch(() => {
-          /* 忽略：绑定状态读取失败不影响其它功能 */
+          /* 忽略：读取失败不改变既有状态（不把失败当已绑定/未绑定） */
         });
     } catch (e) {
       /* 忽略 */
@@ -438,6 +445,7 @@ Page({
       await this.loadDashboardModules();
       this.loadUnreadCount();
       this.loadVolunteerQualification();
+      this.loadWechatPhoneStatus();
     }
     this.setData({ refreshing: false });
   },

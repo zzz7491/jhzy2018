@@ -113,7 +113,8 @@
       </view>
       <view class="message-entry-right">
         <text wx:if="{{wechatPhoneMask}}" style="margin-right:12rpx;color:#FF6B35;">{{wechatPhoneMask}}</text>
-        <text wx:else style="margin-right:12rpx;color:#999;">未绑定</text>
+        <text wx:elif="{{wechatPhoneBound === false}}" style="margin-right:12rpx;color:#999;">未绑定</text>
+        <text wx:else style="margin-right:12rpx;color:#bbb;">—</text>
         <text class="arrow">›</text>
       </view>
     </view>
