@@ -44,6 +44,14 @@ export interface ActivityAdminDeps {
 /** 驳回原因长度上限（P34-B §E 冻结：trim 后 1–500 字符）。 */
 export const REJECT_REASON_MAX_LENGTH = 500;
 
+/**
+ * 活动主地址长度上限（N0-E5A）。
+ *
+ * 人类可读地址（如「浙江省嘉兴市南湖区某某路 1 号」）以 200 字符为上限；
+ * 沿用本文件既有「常量 + trim 后判长」的字符串校验风格（对照 REJECT_REASON_MAX_LENGTH）。
+ */
+export const ACTIVITY_ADDRESS_MAX_LENGTH = 200;
+
 /** 审核结果最小 DTO（禁止 internal id / 审核人 numeric id，§14）。 */
 export interface ActivityApprovalView {
   activity_public_id: string;
@@ -105,6 +113,31 @@ export class ActivityAdminService {
     (occ.slots ?? []).forEach((s, i) => this.validateSlot(s, `${p}.slots[${i}]`));
   }
 
+  /**
+   * 活动主地址规范化（N0-E5A §4）——单一 SSOT。
+   *
+   * - undefined / null → null（未填写）
+   * - 非 string（number / object / array / bool）→ 400 INVALID_PARAM（不静默强转）
+   * - trim 后为空串 → null（空白输入等同未填写）
+   * - trim 后长度 > ACTIVITY_ADDRESS_MAX_LENGTH → 400
+   * - 其余 → trim 后的字符串
+   *
+   * 注意：只处理 address 本身；province / city / district / lat / lng 一律不参与，
+   * 也不做任何地址拼接（N0-E5A §3）。
+   */
+  private normalizeAddress(raw: unknown, field: string): string | null {
+    if (raw === undefined || raw === null) return null;
+    if (typeof raw !== 'string') {
+      throw invalidParam(field, 'must be a string or null');
+    }
+    const v = raw.trim();
+    if (v === '') return null;
+    if (v.length > ACTIVITY_ADDRESS_MAX_LENGTH) {
+      throw invalidParam(field, `must be <= ${ACTIVITY_ADDRESS_MAX_LENGTH} characters`);
+    }
+    return v;
+  }
+
   /** 创建命令整体校验（Beta 最小字段 + 嵌套结构）。 */
   validateCreate(cmd: CreateActivityCommand): void {
     if (typeof cmd.title !== 'string' || cmd.title.trim() === '') {
@@ -123,6 +156,8 @@ export class ActivityAdminService {
     if (cmd.quota !== undefined && (typeof cmd.quota !== 'number' || cmd.quota < 0)) {
       throw invalidParam('quota', 'must be >= 0');
     }
+    // N0-E5A：address 为 optional；类型 / 长度非法在 batch 之前抛出（DB 不留半成品）。
+    this.normalizeAddress(cmd.address, 'address');
     if (
       cmd.max_session_minutes !== undefined &&
       cmd.max_session_minutes !== null &&
@@ -149,6 +184,10 @@ export class ActivityAdminService {
     if (patch.quota !== undefined && (typeof patch.quota !== 'number' || patch.quota < 0)) {
       throw invalidParam('quota', 'must be >= 0');
     }
+    // N0-E5A：address 为 optional；显式 null / 空白串 → 清空为 NULL（见 normalizeAddress）。
+    if (patch.address !== undefined) {
+      this.normalizeAddress(patch.address, 'address');
+    }
     if (
       patch.max_session_minutes !== undefined &&
       patch.max_session_minutes !== null &&
@@ -166,7 +205,12 @@ export class ActivityAdminService {
     if (teamId == null) throw teamScopeRequired();
     const createdBy = this.ctx.auth.userId;
     if (createdBy == null) throw authRequired();
-    return this.repo.createActivityWithNested(cmd, teamId, createdBy);
+    // N0-E5A：规范化 address（trim / 空白 → null）后再入批；其余字段原样透传，contract 不变。
+    const normalized: CreateActivityCommand = {
+      ...cmd,
+      address: this.normalizeAddress(cmd.address, 'address'),
+    };
+    return this.repo.createActivityWithNested(normalized, teamId, createdBy);
   }
 
   async update(publicId: string, patch: ActivityScalarUpdate): Promise<void> {
@@ -176,7 +220,12 @@ export class ActivityAdminService {
       throw invalidParam('body', 'nested occurrence/position/slot reconfiguration is not supported in v1');
     }
     this.validateScalar(patch);
-    await this.repo.updateActivityScalar(publicId, patch);
+    // N0-E5A：仅当 address 出现在 patch 中才规范化 / 落库（不改变"未提供即不动"语义）。
+    const normalized: ActivityScalarUpdate = { ...patch };
+    if (patch.address !== undefined) {
+      normalized.address = this.normalizeAddress(patch.address, 'address');
+    }
+    await this.repo.updateActivityScalar(publicId, normalized);
   }
 
   // =======================================================================

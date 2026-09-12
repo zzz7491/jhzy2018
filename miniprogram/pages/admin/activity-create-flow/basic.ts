@@ -10,6 +10,7 @@ Page({
     formData: {
       title: '',
       description: '',
+      address: '',
       activity_date: '',
       start_time: '',
       end_time: '',
@@ -103,6 +104,10 @@ Page({
   /**
    * 构造 POST /activities 的 v2 payload（P31-P1A CreateActivityCommand）。
    *
+   * N0-E5A：新增 `address`（活动主地址，optional）。
+   * 只做 trim + 空串 → null；不拼接省市区、不引入地图 / GPS。
+   * 后端（ActivityAdminService.normalizeAddress）为唯一校验 SSOT（类型 / 上限 200）。
+   *
    * P34-C4：已移除 `status` 字段。
    * 发布字段属服务端权威（P34-C2）：create 恒为草稿（status=0 / audit_status=0），
    * 客户端提交 status 会被后端以 INVALID_PARAM 400 拒绝——这正是旧流程创建失败的根因。
@@ -116,6 +121,7 @@ Page({
     return {
       title: d.title.trim(),
       summary: d.description.trim() ? d.description.trim() : null,
+      address: d.address && d.address.trim() ? d.address.trim() : null,
       start_time: startTime,
       end_time: endTime,
       quota: quota > 0 ? quota : 0,

@@ -337,6 +337,9 @@ activities.post('/', requirePermission('activity.activity.create'), async (c) =>
   const cmd: CreateActivityCommand = {
     title: body.title as string,
     summary: (body.summary as string) ?? null,
+    // N0-E5A：活动主地址（optional）。此处只做"键不存在 → null"的缺省；
+    // trim / 空白归一化 / 类型与长度校验统一由 ActivityAdminService 收口（单一 SSOT）。
+    address: (body.address as string) ?? null,
     start_time: body.start_time as number,
     end_time: body.end_time as number,
     signup_deadline: (body.signup_deadline as number) ?? null,
@@ -372,6 +375,8 @@ activities.put('/:id', requirePermission('activity.activity.update'), async (c) 
   assertNoForbiddenPublicationFields(body);
 
   // 透传原始 body 给 service：由 service 层裁决嵌套字段拒绝 + 标量校验（§5 v1 仅标量）。
+  // N0-E5A：`address`（活动主地址）属标量 patch 的一部分，随 body 透传，
+  // 由 ActivityAdminService 负责 trim / 空白 → NULL / 类型与长度校验。
   const patch = body as ActivityScalarUpdate;
 
   const svc = new ActivityAdminService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });

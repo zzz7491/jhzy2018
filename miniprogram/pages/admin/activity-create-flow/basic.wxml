@@ -14,6 +14,11 @@
         <textarea class="textarea" placeholder="请输入活动详细内容、要求等" value="{{formData.description}}" data-field="description" bindinput="onInput" maxlength="1000"></textarea>
       </view>
 
+      <view class="form-item">
+        <text class="label">活动地点</text>
+        <input class="input" placeholder="请输入活动举办地址（选填）" value="{{formData.address}}" data-field="address" bindinput="onInput" maxlength="200"/>
+      </view>
+
       <view class="section-title">排班与时间</view>
 
       <view class="form-item required">

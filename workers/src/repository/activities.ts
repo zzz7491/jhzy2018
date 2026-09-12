@@ -35,6 +35,16 @@ export interface ActivityRow {
   team_id: number;
   title: string;
   summary: string | null;
+  /**
+   * 活动主地址（N0-E5A 激活）。
+   *
+   * 冻结契约（N0-E5A §3）：activities.address = 活动对报名者公开的【人类可读主地址】。
+   * - 列已存在于 0001_initial_schema.sql（此前 dormant：0 写 / 0 读）。
+   * - 本轮只激活 address；province / city / district / latitude / longitude /
+   *   geo_radius / checkin_config 一律保持 dormant，不得在本字段内拼接。
+   * - NULL = 未填写（展示层负责 fallback，不在此处伪造）。
+   */
+  address: string | null;
   start_time: number;
   end_time: number;
   signup_deadline: number | null;
@@ -68,6 +78,8 @@ export interface VolunteerActivityRow {
   public_id: string;
   title: string;
   summary: string | null;
+  /** 活动主地址（N0-E5A 激活）：志愿者可见活动同样下发；NULL = 未填写。 */
+  address: string | null;
   start_time: number;
   end_time: number;
   signup_deadline: number | null;
@@ -109,6 +121,8 @@ export interface OccurrenceInput {
 export interface CreateActivityCommand {
   title: string;
   summary?: string | null;
+  /** 活动主地址（N0-E5A）：optional；服务端 trim 后写入，空白 → NULL。 */
+  address?: string | null;
   start_time: number;
   end_time: number;
   signup_deadline?: number | null;
@@ -121,6 +135,8 @@ export interface CreateActivityCommand {
 export interface ActivityScalarUpdate {
   title?: string;
   summary?: string | null;
+  /** 活动主地址（N0-E5A）：optional；显式 null / 空白串 → 清空为 NULL。 */
+  address?: string | null;
   start_time?: number;
   end_time?: number;
   signup_deadline?: number | null;
@@ -197,7 +213,7 @@ export class ActivityRepository extends BaseRepository {
 
     const teamId = this.ctx.tenant.teamId;
     const items = await this.all<ActivityRow>(
-      `SELECT id, public_id, team_id, title, summary, start_time, end_time,
+      `SELECT id, public_id, team_id, title, summary, address, start_time, end_time,
               signup_deadline, quota, signed_count, status, max_session_minutes,
               audit_status, submitted_at, reviewed_at, reject_reason
          FROM activities
@@ -230,7 +246,7 @@ export class ActivityRepository extends BaseRepository {
     if (!isUlid(publicId)) throw notFound('Activity');
 
     const row = await this.first<ActivityRow>(
-      `SELECT id, public_id, team_id, title, summary, start_time, end_time,
+      `SELECT id, public_id, team_id, title, summary, address, start_time, end_time,
               signup_deadline, quota, signed_count, status, max_session_minutes,
               audit_status, submitted_at, reviewed_at, reject_reason
          FROM activities
@@ -253,7 +269,7 @@ export class ActivityRepository extends BaseRepository {
     const teamId = this.ctx.tenant.teamId;
     const where = `WHERE team_id = ? AND deleted_at IS NULL AND audit_status = 2 AND status IN (1,2,3,4)`;
     const items = await this.all<VolunteerActivityRow>(
-      `SELECT public_id, title, summary, start_time, end_time,
+      `SELECT public_id, title, summary, address, start_time, end_time,
               signup_deadline, quota, signed_count, status, audit_status, max_session_minutes
          FROM activities ${where}
         ORDER BY start_time DESC
@@ -275,7 +291,7 @@ export class ActivityRepository extends BaseRepository {
     if (!isUlid(publicId)) throw notFound('Activity');
 
     const row = await this.first<VolunteerActivityRow>(
-      `SELECT public_id, title, summary, start_time, end_time, signup_deadline,
+      `SELECT public_id, title, summary, address, start_time, end_time, signup_deadline,
               quota, signed_count, status, audit_status, max_session_minutes
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
@@ -369,15 +385,16 @@ export class ActivityRepository extends BaseRepository {
     const statements: { sql: string; params: unknown[] }[] = [
       {
         sql: `INSERT INTO activities
-                (public_id, team_id, title, summary, start_time, end_time,
+                (public_id, team_id, title, summary, address, start_time, end_time,
                  signup_deadline, quota, status, audit_status, max_session_minutes,
                  created_by, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params: [
           activityPublicId,
           teamId,
           cmd.title,
           cmd.summary ?? null,
+          cmd.address ?? null,
           cmd.start_time,
           cmd.end_time,
           cmd.signup_deadline ?? null,
@@ -459,6 +476,7 @@ export class ActivityRepository extends BaseRepository {
     };
     if (patch.title !== undefined) apply('title', patch.title);
     if (patch.summary !== undefined) apply('summary', patch.summary);
+    if (patch.address !== undefined) apply('address', patch.address);
     if (patch.start_time !== undefined) apply('start_time', patch.start_time);
     if (patch.end_time !== undefined) apply('end_time', patch.end_time);
     if (patch.signup_deadline !== undefined) apply('signup_deadline', patch.signup_deadline);

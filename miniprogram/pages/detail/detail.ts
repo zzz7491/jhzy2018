@@ -142,7 +142,9 @@ Page({
           points_reward: 0,
           description: a.summary || '',
           cover_image: '',
-          address: '待定',
+          // N0-E5A：读取 V2 正式「活动主地址」（activities.address，经 GET /activities/:id 下发）。
+          // 为空时 '待定' 仅为展示 fallback，不代表真实数据。
+          address: typeof a.address === 'string' && a.address.trim() ? a.address.trim() : '待定',
           signin_radius: 300,
         };
         activity.display_time = this.formatDisplayTime(activity.start_time, activity.end_time);
@@ -185,7 +187,8 @@ Page({
       activity.display_time = this.formatDisplayTime(activity.start_time, activity.end_time);
     }
 
-    activity.address = activity.location || '待定';
+    // N0-E5A：活动主地址为 activity.address（V2 已不存在 legacy activity.location）。
+    activity.address = activity.address || '待定';
     activity.current_participants = activity.current_participants || 0;
     activity.max_participants = activity.max_participants || 0;
     activity.points_reward = activity.points_reward || 0;
