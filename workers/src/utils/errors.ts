@@ -124,6 +124,10 @@ export const ConflictReason = {
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 审核人身份。
   ACTIVITY_APPROVAL_TRANSITION: 'activity_approval_transition', // 当前 audit_status 不允许该转换（无效状态跃迁）
   ACTIVITY_APPROVAL_RACE: 'activity_approval_race', // 并发转换：条件更新未命中（状态已被并发修改）
+  // N0-E0（新增，纯增量）：活动报名审核状态机冲突。
+  // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 审核人身份。
+  SIGNUP_REVIEW_TRANSITION: 'signup_review_transition', // 当前 review_status 不允许该转换（非 PENDING）
+  SIGNUP_REVIEW_RACE: 'signup_review_race', // 并发转换：条件更新未命中（状态已被并发修改）
   // P36-C3-2（新增，纯增量）：AI conversation CAS 冲突。
   // HTTP 409；details.reason 只携带稳定业务 token，不含 SQL / 表名 / 内部 id / 消息内容。
   CONVERSATION_STALE: 'conversation_stale', // append 时 expectedMessagesRaw 与当前存储不一致（并发追加 / 基于旧快照）

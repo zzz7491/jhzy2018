@@ -20,8 +20,10 @@ import {
   notFoundReason,
   teamScopeRequired,
   internalError,
+  invalidParam,
   ConflictReason,
 } from '../utils/errors';
+import { REJECT_REASON_MAX_LENGTH } from '../services/activity-admin-service';
 import { isUlid } from '../utils/validation';
 import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
@@ -43,6 +45,16 @@ export interface SignupView {
 
 export interface SignupCreateOptions {
   formSubmissionPublicId?: string;
+}
+
+/** N0-E0 审核结果最小 DTO（禁止暴露 internal reviewer user id）。 */
+export interface SignupReviewView {
+  signup: {
+    id: number;
+    review_status: number;
+    review_at: number;
+    review_reason: string | null;
+  };
 }
 
 /** 璇绘姇褰辫鍓紑鍏筹紙鐢?route 缁忕湡瀹?PermissionProvider 璁＄畻锛岄潪瑙掕壊鍚嶇‖缂栫爜锛夈€?*/
@@ -197,6 +209,95 @@ async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Pr
   }
 
   /** 娑堣垂绛栫暐瑙ｆ瀽锛氭棤 active binding 鈫?null锛堢瓑浠?policy none锛夈€?*/
+  /**
+   * N0-E0：报名审核状态机（PENDING(0) → APPROVED(1) / REJECTED(2)）。
+   *
+   * 纪律（用户 §3 / §5 / §7 / §13）：
+   * - 仅允许 PENDING → APPROVED 或 PENDING → REJECTED；其余跃迁一律禁止。
+   * - repository 条件 UPDATE 强制 `review_status = 0` guard，并以 `changes === 1` 判定本次跃迁真正成功；
+   *   重复 / 并发 / 跨团队 / 不存在均不产生第二次状态变化。
+   * - 不接通知（不调用 NotificationService）、不接微信（不调用 WeChatSubscribeAdapter）、不写 notification_deliveries。
+   * - 复用 ActivityAdminService 的 permission / tenant / transition / race / reason 校验风格，
+   *   但【不】复制 assertNotSelfReview（本轮未冻结 signup 自审产品规则，§5）。
+   * - review_by / review_at 全部服务端派生：review_by = 当前认证操作者；review_at = 服务端时间戳。
+   * - 前端不得传 team_id / user_id / review_by / review_at（§6 / §8）。
+   */
+  async reviewSignup(
+    activityPublicId: string,
+    signupId: number,
+    decision: 'approve' | 'reject',
+    rawReason?: unknown,
+  ): Promise<SignupReviewView> {
+    const { userId } = this.requireActor();
+
+    if (decision !== 'approve' && decision !== 'reject') {
+      throw invalidParam('decision', 'must be "approve" or "reject"');
+    }
+
+    // reason 归一化（镜像 ActivityAdminService.reject 风格）：
+    // - REJECT：reason 必填，trim 后 1..500；空 / 超长 → 400。
+    // - APPROVE：reason 可选；提供则 trim，空串归并为 NULL，1..500 长度校验。
+    let reviewReason: string | null = null;
+    if (decision === 'reject') {
+      if (typeof rawReason !== 'string') {
+        throw invalidParam('reason', 'required non-empty string (1..500 chars)');
+      }
+      const trimmed = rawReason.trim();
+      if (trimmed === '' || trimmed.length > REJECT_REASON_MAX_LENGTH) {
+        throw invalidParam('reason', `required non-empty string, max ${REJECT_REASON_MAX_LENGTH} chars`);
+      }
+      reviewReason = trimmed;
+    } else if (rawReason != null) {
+      if (typeof rawReason !== 'string') {
+        throw invalidParam('reason', 'must be string when provided');
+      }
+      const trimmed = rawReason.trim();
+      reviewReason = trimmed === '' ? null : trimmed;
+    }
+
+    const { activities, signups } = this.repos();
+
+    // 活动解析：TEAM_SCOPED（跨团队 / 不存在 → 404，不泄露存在性）。
+    const activity = await activities.findSignupTargetByPublicId(activityPublicId);
+    if (activity == null) throw notFound('Activity');
+
+    // 报名解析：TEAM_SCOPED 派生隔离（跨团队 / 不存在 → 404，不泄露存在性）。
+    const signup = await signups.findReviewableByIdForTeam(signupId, activity.id);
+    if (signup == null) throw notFound('Signup');
+
+    const targetReviewStatus =
+      decision === 'approve' ? SIGNUP_REVIEW_STATUS.APPROVED : SIGNUP_REVIEW_STATUS.REJECTED;
+    const now = Math.floor(Date.now() / 1000);
+
+    // 条件 UPDATE：review_status = 0 guard；仅真实命中 PENDING 行时 changes === 1。
+    const changes = await signups.updateReviewStatusWithMeta(
+      signup.id,
+      activity.id,
+      targetReviewStatus,
+      userId,
+      now,
+      reviewReason,
+    );
+    if (changes !== 1) {
+      // 区分后续：行已非 PENDING（重复 / 竞态后续请求）→ 409 transition；行消失 → 404。
+      const after = await signups.findReviewableByIdForTeam(signup.id, activity.id);
+      if (after == null) throw notFound('Signup');
+      if (after.review_status !== SIGNUP_REVIEW_STATUS.PENDING) {
+        throw conflict(ConflictReason.SIGNUP_REVIEW_TRANSITION);
+      }
+      throw conflict(ConflictReason.SIGNUP_REVIEW_RACE);
+    }
+
+    return {
+      signup: {
+        id: signup.id,
+        review_status: targetReviewStatus,
+        review_at: now,
+        review_reason: reviewReason,
+      },
+    };
+  }
+
   private async resolvePolicy(activityPublicId: string) {
     const { forms } = this.repos();
     return forms.resolveBindingForConsumer(this.tenant.teamId!, 'activity.signup', activityPublicId);
@@ -311,6 +412,7 @@ const sub = await forms.findSubmissionByPublicIdTeamScope(submissionPublicId, th
       activity_public_id: row.activity_public_id,
       user_public_id: row.user_public_id,
       signup: {
+        id: row.id,
         review_status: row.review_status,
         status: row.status,
         cancel_count: row.cancel_count,

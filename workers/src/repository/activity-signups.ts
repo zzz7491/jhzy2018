@@ -208,6 +208,63 @@ export class ActivitySignupRepository extends BaseRepository {
     return row;
   }
 
+  /**
+   * N0-E0：读取可审核报名行（TEAM_SCOPED 派生隔离 + 活动归属）。
+   * 用于审核前的「存在性 / 当前 review_status」判定：
+   * - 跨团队 / 不存在 / 不属于该活动 → null（统一 404，不泄露存在性）。
+   * - 返回行供 Service 判定当前状态是否为 PENDING。
+   */
+  async findReviewableByIdForTeam(signupId: number, activityId: number): Promise<ActivitySignupRow | null> {
+    this.ensureTableRead('activity_signups');
+    const teamId = this.requireTeamId();
+    const row = await this.first<ActivitySignupRow>(
+      `SELECT s.id, s.activity_id, s.user_id, s.review_status, s.status,
+              s.cancel_count, s.created_at, s.updated_at, s.form_submission_id
+         FROM activity_signups s
+         JOIN activities a ON a.id = s.activity_id
+        WHERE s.id = ? AND s.activity_id = ? AND a.team_id = ? AND a.deleted_at IS NULL`,
+      [signupId, activityId, teamId],
+    );
+    return row ?? null;
+  }
+
+  /**
+   * N0-E0：条件 UPDATE 写入审核结果。
+   * - 强制 TEAM_SCOPED（EXISTS activities.team_id = ?）。
+   * - 强制 review_status = 0 guard（仅 PENDING 允许跃迁）。
+   * - activity_id / signup id / review_by / review_at 全部服务端派生，绝不接受客户端 override。
+   * - 返回 changes：仅当真实命中 1 行（PENDING → APPROVED/REJECTED）时为 1。
+   *   重复请求 / 并发 / 跨团队 / 不存在 → 0（上层按 transition/race/404 处理）。
+   */
+  async updateReviewStatusWithMeta(
+    signupId: number,
+    activityId: number,
+    targetReviewStatus: number,
+    reviewBy: number,
+    reviewAt: number,
+    reviewReason: string | null,
+  ): Promise<number> {
+    this.ensureTableRead('activity_signups');
+    const teamId = this.requireTeamId();
+
+    const res = await this.run(
+      `UPDATE activity_signups
+          SET review_status = ?,
+              review_by = ?,
+              review_at = ?,
+              review_reason = ?,
+              updated_at = ?
+        WHERE id = ? AND activity_id = ? AND review_status = 0
+          AND EXISTS (
+            SELECT 1 FROM activities a
+             WHERE a.id = activity_signups.activity_id
+               AND a.team_id = ? AND a.deleted_at IS NULL
+          )`,
+      [targetReviewStatus, reviewBy, reviewAt, reviewReason, reviewAt, signupId, activityId, teamId],
+    );
+    return res.meta?.changes ?? 0;
+  }
+
   // =========================================================================
   // P21 —— Signup × Form Submission 绑定 / 重报 / 读投影（唯一写入口保持本文件）
   // =========================================================================

@@ -199,6 +199,51 @@ activities.delete('/:activityId/signups/me', requirePermission('signup.signup.ca
 });
 
 /**
+ * POST /api/v2/activities/:activityId/signups/:signupId/review —— 报名审核（N0-E0）。
+ *
+ * - 权限：signup.signup.review（D1 裁决；未认证 401 / 无授权 403）。
+ * - :activityId 为 ULID public_id（沿用既有活动路由契约，§9）。
+ * - :signupId 为报名行 integer id（由 signup-list API 经 signup.id 暴露，§9；不引入 public_id migration）。
+ * - decision = approve | reject；reject 时 reason 必填（trim 后 1..500），approve 时 reason 可选归并 NULL。
+ * - 前端不得传 operatorId / reviewBy / teamId / userId（服务端派生，§8）。
+ * - 不接通知 / 不接微信（§13）；仅写 review_status / review_by / review_at / review_reason / updated_at。
+ */
+activities.post(
+  '/:activityId/signups/:signupId/review',
+  requirePermission('signup.signup.review'),
+  async (c) => {
+    const auth = c.get('auth');
+    if (!auth.authenticated) throw authRequired();
+
+    const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
+    const rawSignupId = c.req.param('signupId');
+    const signupId = Number.parseInt(rawSignupId, 10);
+    if (!Number.isInteger(signupId) || signupId <= 0) {
+      throw invalidParam('signupId', 'must be a positive integer');
+    }
+
+    let decision: unknown;
+    let reason: unknown = undefined;
+    try {
+      const body = await c.req.json().catch(() => null);
+      if (body && typeof body === 'object' && !Array.isArray(body)) {
+        decision = (body as Record<string, unknown>).decision;
+        reason = (body as Record<string, unknown>).reason;
+      }
+    } catch {
+      throw invalidParam('request', 'invalid request body');
+    }
+    if (decision !== 'approve' && decision !== 'reject') {
+      throw invalidParam('decision', 'must be "approve" or "reject"');
+    }
+
+    const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+    const view = await service.reviewSignup(activityPublicId, signupId, decision as 'approve' | 'reject', reason);
+    return ok(c, { signup: view.signup });
+  },
+);
+
+/**
  * POST /api/v2/activities/:activityId/attendance/checkin —— 本人签到（S2-6h）。
  *
  * - 权限：attendance.record.checkin（D1 裁决；USER scope，volunteer / platform_super_admin 持有）。
