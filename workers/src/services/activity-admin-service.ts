@@ -13,6 +13,10 @@
  * - P34-C2：发布不再有 direct publish runtime path。唯一正式发布路径 = approve
  *   （audit_status PENDING → APPROVED 且 status → SIGNUP_OPEN）；
  *   创建恒为草稿（status=0 / audit_status=0），任何业务编辑统一回到草稿待审（UNIFORM RE-REVIEW）。
+ * - N0-F2：submit / approve / reject 三者改为「跃迁 + audit log（+ approve/reject 的 IN_APP 通知）
+ *   同一 db.batch 原子提交」（repository 层谓词门控，UPDATE 恒在最后）；不存在
+ *   「UPDATE 成功但 audit log / 通知失败」的部分成功窗口。发布审核结果通知仅 IN_APP
+ *   （WECHAT = DEFERRED，见 planPublicationNotification）。
  */
 
 import type { D1Database } from '@cloudflare/workers-types';
@@ -32,8 +36,12 @@ import {
   forbidden,
   conflict,
   ConflictReason,
+  internalError,
 } from '../utils/errors';
-import { ACTIVITY_AUDIT, type ActivityApprovalState } from '../repository/activities';
+import { ACTIVITY_AUDIT, ACTIVITY_STATUS, type ActivityApprovalState } from '../repository/activities';
+import { NotificationService, type NotificationCreationPlan } from './notification-service';
+import { buildActivityDetailTarget } from '../utils/notification-target';
+import type { NotificationInsertGate } from '../repository/notification';
 import type { RepositoryContext } from '../types/tenant';
 
 export interface ActivityAdminDeps {
@@ -65,10 +73,12 @@ export interface ActivityApprovalView {
 export class ActivityAdminService {
   private readonly repo: ActivityRepository;
   private readonly ctx: RepositoryContext;
+  private readonly db: D1Database;
 
   constructor(deps: ActivityAdminDeps) {
     this.repo = new ActivityRepository(deps);
     this.ctx = deps.ctx;
+    this.db = deps.db;
   }
 
   // ===== 嵌套结构校验（全部在 batch 之前完成）=====
@@ -266,7 +276,81 @@ export class ActivityAdminService {
     }
   }
 
-  /** POST submit：DRAFT / REJECTED → PENDING。 */
+  /**
+   * N0-F2：构造「活动发布审核结果」的 IN_APP 通知计划（业务域 → Notification Core）。
+   *
+   * 冻结契约（产品裁决：APPROVED/REJECTED 均 IN_APP=YES、WECHAT=DEFERRED）：
+   *   - event_type     = activity.publication.approved | activity.publication.rejected
+   *   - category       = activity
+   *   - entity         = business_entity_type 'activity' / business_entity_id = activities.id
+   *   - recipient      = activities.created_by 【ONLY】（绝不发给 submitted_by）
+   *   - team_id        = 当前 team 上下文（= activities.team_id）
+   *   - payload        = { activity_public_id, audit_status }，【禁止】放入 reject_reason
+   *   - target_page    = 服务端权威构造（内部 allowlist + ULID 校验）
+   *   - 多轮幂等键     = `activity.publication.<approved|rejected>:<activity_id>:<submit_audit_log_id>`
+   *                      （submit_audit_log_id = 当前 PENDING 轮次 content_audit_logs 中
+   *                        action='submit' 的最新 id = 轮次锚点）
+   *   - N0-F2 R1 修复：以稳定单调的 submit audit log id 取代 submitted_at 作为轮次锚点，
+   *     规避「同秒再审同决策」场景下两轮 submitted_at 相同导致 notification_recipients
+   *     idempotency_key UNIQUE 冲突、整批回滚、通知丢失 + 活动滞留 PENDING 的缺陷。
+   *   - `:u<userId>` 后缀仍由 NotificationService 统一生成（业务侧不复制该规则）
+   *
+   * 内容最小化：正文只在真实存在 reject_reason 时展示它（REJECTED），不伪造、不截断改义。
+   * 本方法只【构造】计划；执行由 reviewActivityAtomically 在同一 db.batch 内完成。
+   */
+  private planPublicationNotification(p: {
+    action: 'approve' | 'reject';
+    publicId: string;
+    activityId: number;
+    activityTitle: string;
+    createdBy: number;
+    /** N0-F2 R1：当前 PENDING 轮次的 submit audit log id（调用方已校验非空；缺失由调用方批前失败）。 */
+    submitAuditLogId: number;
+    operatorId: number;
+    rejectReason: string | null;
+    gate: NotificationInsertGate;
+  }): NotificationCreationPlan {
+    const approved = p.action === 'approve';
+    const auditStatus = approved ? ACTIVITY_AUDIT.APPROVED : ACTIVITY_AUDIT.REJECTED;
+    // N0-F2 R1：轮次锚点 = 当前 PENDING 轮次的 submit audit log id（content_audit_logs.id）。
+    // 同一 activity 跨轮（REJECTED→resubmit）submit 各自产生独立且单调的 audit log id，
+    // 即便两轮 submitted_at 落在同一 epoch 秒，锚点仍互不相同 → 幂等键不冲突（MULTI_ROUND_CONTRACT 修复）。
+    const idempotencyKey =
+      `activity.publication.${approved ? 'approved' : 'rejected'}:${p.activityId}:${p.submitAuditLogId}`;
+
+    const title = approved ? '活动审核通过' : '活动审核未通过';
+    const summary = approved
+      ? '您创建的活动已通过审核，现已开放报名'
+      : '您创建的活动未通过审核，请查看驳回原因';
+    const body = approved
+      ? `您创建的活动《${p.activityTitle}》已通过发布审核，现已开放报名。`
+      : `您创建的活动《${p.activityTitle}》未通过发布审核。驳回原因：${p.rejectReason ?? ''}。请修改后重新提交审核。`;
+
+    return new NotificationService({
+      db: this.db,
+      auth: this.ctx.auth,
+      tenant: this.ctx.tenant,
+    }).buildCreationPlan(
+      {
+        recipientUserIds: [p.createdBy],
+        idempotencyKey,
+        eventType: approved ? 'activity.publication.approved' : 'activity.publication.rejected',
+        category: 'activity',
+        title,
+        summary,
+        body,
+        teamId: this.ctx.tenant.teamId,
+        businessEntityType: 'activity',
+        businessEntityId: p.activityId,
+        targetPage: buildActivityDetailTarget(p.publicId),
+        payload: { activity_public_id: p.publicId, audit_status: auditStatus },
+        createdBy: p.operatorId,
+      },
+      p.gate,
+    );
+  }
+
+  /** POST submit：DRAFT / REJECTED → PENDING（跃迁 + audit log 同批原子，无 IN_APP 通知）。 */
   async submit(publicId: string): Promise<ActivityApprovalView> {
     const { operatorId } = this.requireActor();
     const state = await this.requireApprovalState(publicId);
@@ -276,22 +360,21 @@ export class ActivityAdminService {
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const changes = await this.repo.submitForApproval(publicId, operatorId, now);
-    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
-
-    await this.repo.insertActivityAuditLog({
+    // N0-F2 §3：gated audit log INSERT + guarded UPDATE 放入同一 db.batch，UPDATE 恒在最后。
+    const gate = this.repo.buildSubmitGate({ activityId: state.id, activityPublicId: publicId });
+    const changes = await this.repo.submitForApprovalAtomically({
       activityId: state.id,
-      action: 'submit',
-      fromAudit: state.audit_status,
-      toAudit: ACTIVITY_AUDIT.PENDING,
-      reason: null,
+      activityPublicId: publicId,
       operatorId,
       now,
+      fromAudit: state.audit_status,
+      gate,
     });
+    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
 
     return {
       activity_public_id: publicId,
-      status: 0,
+      status: ACTIVITY_STATUS.DRAFT,
       audit_status: ACTIVITY_AUDIT.PENDING,
       submitted_at: now,
       reviewed_at: null,
@@ -299,7 +382,7 @@ export class ActivityAdminService {
     };
   }
 
-  /** POST approve：仅 PENDING → APPROVED + SIGNUP_OPEN（唯一正式发布路径）。 */
+  /** POST approve：仅 PENDING → APPROVED + SIGNUP_OPEN（唯一正式发布路径 + IN_APP 通知，同批原子）。 */
   async approve(publicId: string): Promise<ActivityApprovalView> {
     const { operatorId } = this.requireActor();
     const state = await this.requireApprovalState(publicId);
@@ -309,23 +392,44 @@ export class ActivityAdminService {
     }
     this.assertNotSelfReview(state, operatorId);
 
-    const now = Math.floor(Date.now() / 1000);
-    const changes = await this.repo.approveForPublication(publicId, operatorId, now);
-    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
+    // N0-F2 R1-A：解析当前 PENDING 轮次 submit audit log id（批前；缺失 / 仅历史旧 log / 时间窗不符
+    // → 数据一致性缺失，批前失败）。submittedAt 透传 state.submitted_at（同源 now，见 §1 证明）。
+    const submitAuditLogId = await this.repo.findCurrentSubmitAuditLogId(state.id, state.submitted_at);
+    if (submitAuditLogId == null) throw internalError();
 
-    await this.repo.insertActivityAuditLog({
-      activityId: state.id,
+    const now = Math.floor(Date.now() / 1000);
+    const gate = this.repo.buildReviewGate({ activityId: state.id, activityPublicId: publicId });
+    const plan = this.planPublicationNotification({
       action: 'approve',
-      fromAudit: ACTIVITY_AUDIT.PENDING,
-      toAudit: ACTIVITY_AUDIT.APPROVED,
-      reason: null,
+      publicId,
+      activityId: state.id,
+      activityTitle: state.title,
+      createdBy: state.created_by,
+      submitAuditLogId,
       operatorId,
-      now,
+      rejectReason: null,
+      gate,
     });
+
+    // 单次原子 batch：[gated notification INSERT, gated recipient INSERT, gated audit log INSERT,
+    // guarded activities UPDATE(最后)]；跃迁真相以 UPDATE 的 changes === 1 判定。
+    const changes = await this.repo.reviewActivityAtomically({
+      action: 'approve',
+      activityId: state.id,
+      activityPublicId: publicId,
+      auditStatus: ACTIVITY_AUDIT.APPROVED,
+      status: ACTIVITY_STATUS.SIGNUP_OPEN,
+      reviewBy: operatorId,
+      reviewAt: now,
+      rejectReason: null,
+      gate,
+      notificationStatements: plan.statements,
+    });
+    if (changes !== 1) await this.throwReviewConflict(publicId);
 
     return {
       activity_public_id: publicId,
-      status: 1,
+      status: ACTIVITY_STATUS.SIGNUP_OPEN,
       audit_status: ACTIVITY_AUDIT.APPROVED,
       submitted_at: state.submitted_at,
       reviewed_at: now,
@@ -333,7 +437,7 @@ export class ActivityAdminService {
     };
   }
 
-  /** POST reject：仅 PENDING → REJECTED + DRAFT；reason 必填（trim 后 1–500）。 */
+  /** POST reject：仅 PENDING → REJECTED + DRAFT；reason 必填（trim 后 1–500）+ IN_APP 通知，同批原子。 */
   async reject(publicId: string, rawReason: unknown): Promise<ActivityApprovalView> {
     const { operatorId } = this.requireActor();
 
@@ -352,27 +456,61 @@ export class ActivityAdminService {
     }
     this.assertNotSelfReview(state, operatorId);
 
-    const now = Math.floor(Date.now() / 1000);
-    const changes = await this.repo.rejectForRevision(publicId, operatorId, now, reason);
-    if (changes !== 1) throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
+    // N0-F2 R1-A：解析当前 PENDING 轮次 submit audit log id（批前；缺失 / 仅历史旧 log / 时间窗不符
+    // → 数据一致性缺失，批前失败）。submittedAt 透传 state.submitted_at（同源 now，见 §1 证明）。
+    const submitAuditLogId = await this.repo.findCurrentSubmitAuditLogId(state.id, state.submitted_at);
+    if (submitAuditLogId == null) throw internalError();
 
-    await this.repo.insertActivityAuditLog({
-      activityId: state.id,
+    const now = Math.floor(Date.now() / 1000);
+    const gate = this.repo.buildReviewGate({ activityId: state.id, activityPublicId: publicId });
+    const plan = this.planPublicationNotification({
       action: 'reject',
-      fromAudit: ACTIVITY_AUDIT.PENDING,
-      toAudit: ACTIVITY_AUDIT.REJECTED,
-      reason,
+      publicId,
+      activityId: state.id,
+      activityTitle: state.title,
+      createdBy: state.created_by,
+      submitAuditLogId,
       operatorId,
-      now,
+      rejectReason: reason,
+      gate,
     });
+
+    const changes = await this.repo.reviewActivityAtomically({
+      action: 'reject',
+      activityId: state.id,
+      activityPublicId: publicId,
+      auditStatus: ACTIVITY_AUDIT.REJECTED,
+      status: ACTIVITY_STATUS.DRAFT,
+      reviewBy: operatorId,
+      reviewAt: now,
+      rejectReason: reason,
+      gate,
+      notificationStatements: plan.statements,
+    });
+    if (changes !== 1) await this.throwReviewConflict(publicId);
 
     return {
       activity_public_id: publicId,
-      status: 0,
+      status: ACTIVITY_STATUS.DRAFT,
       audit_status: ACTIVITY_AUDIT.REJECTED,
       submitted_at: state.submitted_at,
       reviewed_at: now,
       reject_reason: reason,
     };
+  }
+
+  /**
+   * 跃迁 0 行时的确定性判定（谓词落空 ⇒ 通知 / audit log 均 0 行，零副作用）：
+   *   - 行已不存在（跨团队 / 删除）→ 404；
+   *   - 行已非 PENDING（重复请求 / 竞态后续）→ 409 TRANSITION；
+   *   - 其余 → 409 RACE。
+   */
+  private async throwReviewConflict(publicId: string): Promise<never> {
+    const after = await this.repo.getApprovalState(publicId);
+    if (after === null) throw notFound('Activity');
+    if (after.audit_status !== ACTIVITY_AUDIT.PENDING) {
+      throw conflict(ConflictReason.ACTIVITY_APPROVAL_TRANSITION);
+    }
+    throw conflict(ConflictReason.ACTIVITY_APPROVAL_RACE);
   }
 }

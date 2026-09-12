@@ -70,14 +70,19 @@ function makeD1(sqlite) {
   return {
     prepare,
     async batch(stmts) {
+      // 真实 D1 db.batch() 返回 D1Result[]（每项含 meta.changes）；必须同形返回。
+      // N0-F2 起 submit/approve/reject 的原子批以 results[last].meta.changes 判定跃迁，
+      // 故此处补齐返回值（harness 保真修复，断言未改动）。
+      const out = [];
       sqlite.exec('BEGIN');
       try {
-        for (const s of stmts) await s.run();
+        for (const s of stmts) out.push(await s.run());
         sqlite.exec('COMMIT');
       } catch (e) {
         sqlite.exec('ROLLBACK');
         throw e;
       }
+      return out;
     },
   };
 }

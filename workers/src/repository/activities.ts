@@ -9,11 +9,13 @@
  *   见 repository/activity-signups.ts（S2-6g），必须 JOIN activities 派生隔离。
  */
 
+import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { BaseRepository } from './base';
 import { notFound, teamScopeRequired } from '../utils/errors';
 import { isUlid } from '../utils/validation';
 import { generateUlid } from '../utils/crypto';
 import type { Paginated } from '../types/api';
+import type { NotificationInsertGate } from './notification';
 
 /**
  * 报名所需的最小活动视图（S2-6g）。
@@ -207,9 +209,21 @@ export interface ActivityApprovalState {
   submitted_by: number | null;
   submitted_at: number | null;
   reviewed_by: number | null;
+  /**
+   * N0-F2：活动名称，供 IN_APP 审核结果通知正文使用（不进入任何 API 响应 DTO）。
+   * 与 ActivitySignupTarget.title 同一来源列，非新增列。
+   */
+  title: string;
 }
 
 export class ActivityRepository extends BaseRepository {
+  /** team_id 恒服务端派生（TEAM_SCOPED 铁律）；缺失 → 403 team scope required。 */
+  private requireTeamId(): number {
+    const teamId = this.ctx.tenant.teamId;
+    if (teamId == null) throw teamScopeRequired();
+    return teamId;
+  }
+
   /** 团队活动分页列表（TEAM_SCOPED：强制 team_id 隔离）。 */
   async listByMyTeam(page: number, pageSize: number, offset: number): Promise<Paginated<ActivityRow>> {
     this.ensureTableRead('activities');
@@ -520,7 +534,7 @@ export class ActivityRepository extends BaseRepository {
     if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
     if (!isUlid(publicId)) throw notFound('Activity');
     return this.first<ActivityApprovalState>(
-      `SELECT id, status, audit_status, created_by, submitted_by, submitted_at, reviewed_by
+      `SELECT id, status, audit_status, created_by, submitted_by, submitted_at, reviewed_by, title
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
       [publicId, this.ctx.tenant.teamId],
@@ -528,107 +542,119 @@ export class ActivityRepository extends BaseRepository {
   }
 
   /**
-   * 提交审核：DRAFT(0) / REJECTED(3) → PENDING(1)。
-   * 条件更新（WHERE audit_status IN (0,3)）+ changes 判定，杜绝 read → unchecked update 竞态。
-   * @returns 受影响行数（0 = 并发转换，由 service 转 409）。
+   * N0-F2 R1-A：取「当前 PENDING 审核轮次」对应的 submit audit log id（严格当前轮次锁定）。
+   *
+   * 数据契约（R1-A §1 已证明，非推测）：在 submitForApprovalAtomically 中，submit audit log 的
+   * created_at 与 activities.submitted_at 来自【同一个 now】值（submit() 行内单次计算、
+   * 同一 db.batch 内写入），类型同为 epoch 秒，故正常流程下两者恒等：
+   *     submit_log.created_at == activities.submitted_at
+   *
+   * 据此在 R1「MAX(created_at, id)」基础上追加【轮次时间窗谓词】
+   *     AND created_at = <当前 activity.submitted_at>
+   * 把候选严格收敛到当前 PENDING 轮次：
+   *   - 同秒多轮（Round1 submit@S → REJECTED → Round2 submit@S）：两轮 submit log 均
+   *     created_at=S，但 Round2 的 id 更大；ORDER BY id DESC → 取 Round2，绝不回退到 Round1；
+   *   - 历史旧 submit log（created_at ≠ 当前 submitted_at，例如数据不一致 / 异常回填）：
+   *     直接被谓词排除，不会误选为当前轮次；
+   *   - 缺失 / 时间窗不匹配 → 返回 null → 调用方批前 internalError（数据一致性缺失）。
+   *
+   * 该谓词依赖 §1 证明的同源契约；若未来提交路径破坏该契约（created_at 与 submitted_at 不再同源），
+   * 则本方法须随之修订，不得降级为「仅 MAX(created_at)」的宽松取最新（那会重新引入 R1-A 缺陷）。
+   *
+   * @param submittedAt 当前 PENDING activity 的 submitted_at（调用方从 state 透传，非重新读取）。
+   *                   可能为 null（DRAFT / 异常），此时 created_at = NULL 永不成立 → 返回 null → 批前失败。
+   * @returns 当前轮次 submit audit log 的 id；无匹配（缺失 / 仅历史旧 log / 时间窗不符）→ null。
+   *          调用方须据此显式失败为「数据一致性缺失」（批前，不写通知 / audit log / UPDATE）。
+   *
+   * 注意：content_audit_logs 为 AUDIT_ONLY 表，本方法不调用 ensureTableRead（与同文件
+   * buildGatedAuditLogStatement 写该表时一致），仅做 team_id 派生校验，避免破坏 team_auditor 审核路径。
    */
-  async submitForApproval(publicId: string, operatorId: number, now: number): Promise<number> {
-    this.ensureTableRead('activities');
+  async findCurrentSubmitAuditLogId(
+    activityId: number,
+    submittedAt: number | null,
+  ): Promise<number | null> {
     if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
-    if (!isUlid(publicId)) throw notFound('Activity');
-    const res = await this.run(
-      `UPDATE activities
-          SET audit_status = ?, status = ?,
-              submitted_by = ?, submitted_at = ?,
-              reviewed_by = NULL, reviewed_at = NULL, reject_reason = NULL,
-              updated_at = ?
-        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
-          AND audit_status IN (?, ?)`,
-      [
-        ACTIVITY_AUDIT.PENDING,
-        ACTIVITY_STATUS.DRAFT,
-        operatorId,
-        now,
-        now,
-        publicId,
-        this.ctx.tenant.teamId,
+    // R1-A 轮次时间窗谓词：仅接受 created_at == 当前 activity.submitted_at 的 submit log。
+    const row = await this.first<{ id: number }>(
+      `SELECT id
+         FROM content_audit_logs
+        WHERE target_type = 'activity'
+          AND target_id = ?
+          AND action = 'submit'
+          AND team_id = ?
+          AND created_at = ?
+        ORDER BY id DESC
+        LIMIT 1`,
+      [activityId, this.ctx.tenant.teamId, submittedAt],
+    );
+    return row?.id ?? null;
+  }
+
+  // =========================================================================
+  // N0-F2 —— 发布审核的谓词门控原子批（POST-state 单一真相仍为 guarded UPDATE）
+  //
+  // 为什么需要：本轮之前 submit/approve/reject 是「guarded UPDATE」+「content_audit_logs
+  // INSERT」两次独立 I/O，approve/reject 还要额外写 IN_APP 通知 → 存在
+  //   「UPDATE 成功但 audit log 失败」/「UPDATE 成功但通知缺失」/「通知成功但 UPDATE 失败」
+  // 三类部分成功窗口。本区块把三者收敛进同一个 db.batch。
+  //
+  // 结构（复刻 N0-E1 activity-signups.reviewSignupAtomically 的共享谓词范式）：
+  //   statements = [ ...notificationStatements, gated auditLog INSERT, guarded UPDATE ]
+  //   UPDATE 恒在【最后】。
+  //
+  // 正确性论证（确定性，非概率性）：
+  // 1) notification / content_audit_logs 语句只写各自的表，【不触碰】activities
+  //    → 不改变谓词 P 的真值；
+  // 2) db.batch 为单写事务、语句顺序执行并持 SQLite 写锁，批内无其它写者穿插；
+  // 3) 故 UPDATE 求值 P 时其真值与门控语句求值时的真值【必然相同】。
+  // 由 (1)(2)(3)：P 真 → 1 通知 + 1 recipient + 1 audit log + 1 行 UPDATE；
+  //              P 假 → 0 / 0 / 0 / 0。
+  // 任一语句发生真实 SQL 错误 → 整批回滚，不存在部分成功；本层不做任何补偿写。
+  // =========================================================================
+
+  /**
+   * 构造「共享 PRE-state 谓词 P」门控片段（供 Notification Core / audit log 组合使用）。
+   *
+   *   P := activities.id = ? ∧ activities.public_id = ? ∧ activities.team_id = ?
+   *        ∧ activities.deleted_at IS NULL ∧ activities.audit_status = 1 (PENDING)
+   *
+   * teamId 恒服务端派生，绝不接受客户端 override。
+   */
+  buildReviewGate(p: { activityId: number; activityPublicId: string }): NotificationInsertGate {
+    this.ensureTableRead('activities');
+    const teamId = this.requireTeamId();
+    return {
+      existsSql: `EXISTS (
+            SELECT 1 FROM activities g
+             WHERE g.id = ? AND g.public_id = ? AND g.team_id = ?
+               AND g.deleted_at IS NULL AND g.audit_status = ?
+          )`,
+      params: [p.activityId, p.activityPublicId, teamId, ACTIVITY_AUDIT.PENDING],
+    };
+  }
+
+  /** submit 的共享谓词：audit_status ∈ {DRAFT, REJECTED}。 */
+  buildSubmitGate(p: { activityId: number; activityPublicId: string }): NotificationInsertGate {
+    this.ensureTableRead('activities');
+    const teamId = this.requireTeamId();
+    return {
+      existsSql: `EXISTS (
+            SELECT 1 FROM activities g
+             WHERE g.id = ? AND g.public_id = ? AND g.team_id = ?
+               AND g.deleted_at IS NULL AND g.audit_status IN (?, ?)
+          )`,
+      params: [
+        p.activityId,
+        p.activityPublicId,
+        teamId,
         ACTIVITY_AUDIT.DRAFT,
         ACTIVITY_AUDIT.REJECTED,
       ],
-    );
-    return res.meta?.changes ?? 0;
+    };
   }
 
-  /**
-   * 审核通过：PENDING → APPROVED，并置为 SIGNUP_OPEN（唯一的正式发布路径）。
-   * @returns 受影响行数（0 = 并发转换）。
-   */
-  async approveForPublication(publicId: string, operatorId: number, now: number): Promise<number> {
-    this.ensureTableRead('activities');
-    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
-    if (!isUlid(publicId)) throw notFound('Activity');
-    const res = await this.run(
-      `UPDATE activities
-          SET audit_status = ?, status = ?,
-              reviewed_by = ?, reviewed_at = ?, reject_reason = NULL,
-              published_at = ?, updated_at = ?
-        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
-          AND audit_status = ?`,
-      [
-        ACTIVITY_AUDIT.APPROVED,
-        ACTIVITY_STATUS.SIGNUP_OPEN,
-        operatorId,
-        now,
-        now,
-        now,
-        publicId,
-        this.ctx.tenant.teamId,
-        ACTIVITY_AUDIT.PENDING,
-      ],
-    );
-    return res.meta?.changes ?? 0;
-  }
-
-  /**
-   * 驳回：PENDING → REJECTED，回到 DRAFT；published_at 保持 NULL。
-   * @returns 受影响行数（0 = 并发转换）。
-   */
-  async rejectForRevision(
-    publicId: string,
-    operatorId: number,
-    now: number,
-    reason: string,
-  ): Promise<number> {
-    this.ensureTableRead('activities');
-    if (this.ctx.tenant.teamId == null) throw teamScopeRequired();
-    if (!isUlid(publicId)) throw notFound('Activity');
-    const res = await this.run(
-      `UPDATE activities
-          SET audit_status = ?, status = ?,
-              reviewed_by = ?, reviewed_at = ?, reject_reason = ?,
-              updated_at = ?
-        WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
-          AND audit_status = ?`,
-      [
-        ACTIVITY_AUDIT.REJECTED,
-        ACTIVITY_STATUS.DRAFT,
-        operatorId,
-        now,
-        reason,
-        now,
-        publicId,
-        this.ctx.tenant.teamId,
-        ACTIVITY_AUDIT.PENDING,
-      ],
-    );
-    return res.meta?.changes ?? 0;
-  }
-
-  /**
-   * 活动发布审核审计日志（P34-C2 §10：复用 content_audit_logs，target_type='activity'）。
-   * 不修改 content_audit_logs schema；不写第二个含义重复的 publish 成功日志。
-   */
-  async insertActivityAuditLog(args: {
+  /** gated content_audit_logs INSERT（复用 BaseRepository 的单条 SQL 事实源语义）。 */
+  private buildGatedAuditLogStatement(p: {
     activityId: number;
     action: 'submit' | 'approve' | 'reject';
     fromAudit: number;
@@ -636,21 +662,180 @@ export class ActivityRepository extends BaseRepository {
     reason: string | null;
     operatorId: number;
     now: number;
-  }): Promise<void> {
-    await this.run(
-      `INSERT INTO content_audit_logs
-         (target_type, target_id, action, from_status, to_status, reason, operator_id, team_id, created_at)
-       VALUES ('activity', ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        args.activityId,
-        args.action,
-        ACTIVITY_AUDIT_LABEL[args.fromAudit] ?? String(args.fromAudit),
-        ACTIVITY_AUDIT_LABEL[args.toAudit] ?? String(args.toAudit),
-        args.reason,
-        args.operatorId,
-        this.ctx.tenant.teamId,
-        args.now,
-      ],
-    );
+    gate: NotificationInsertGate;
+  }): D1PreparedStatement {
+    const teamId = this.requireTeamId();
+    return this.db
+      .prepare(
+        `INSERT INTO content_audit_logs
+           (target_type, target_id, action, from_status, to_status, reason, operator_id, team_id, created_at)
+         SELECT 'activity', ?, ?, ?, ?, ?, ?, ?, ?
+          WHERE ${p.gate.existsSql}`,
+      )
+      .bind(
+        p.activityId,
+        p.action,
+        ACTIVITY_AUDIT_LABEL[p.fromAudit] ?? String(p.fromAudit),
+        ACTIVITY_AUDIT_LABEL[p.toAudit] ?? String(p.toAudit),
+        p.reason,
+        p.operatorId,
+        teamId,
+        p.now,
+        ...(p.gate.params as never[]),
+      );
   }
+
+  /**
+   * submit 原子批：gated audit log INSERT + guarded audit_status UPDATE（UPDATE 最后）。
+   * @returns UPDATE 实际变更行数（1=跃迁成功；0=谓词落空 → 调用方区分 404 / 409）。
+   */
+  async submitForApprovalAtomically(p: {
+    activityId: number;
+    activityPublicId: string;
+    operatorId: number;
+    now: number;
+    fromAudit: number;
+    gate: NotificationInsertGate;
+  }): Promise<number> {
+    this.ensureTableRead('activities');
+    const teamId = this.requireTeamId();
+
+    const auditLogStmt = this.buildGatedAuditLogStatement({
+      activityId: p.activityId,
+      action: 'submit',
+      fromAudit: p.fromAudit,
+      toAudit: ACTIVITY_AUDIT.PENDING,
+      reason: null,
+      operatorId: p.operatorId,
+      now: p.now,
+      gate: p.gate,
+    });
+
+    const updateStmt = this.db
+      .prepare(
+        `UPDATE activities
+            SET audit_status = ?, status = ?,
+                submitted_by = ?, submitted_at = ?,
+                reviewed_by = NULL, reviewed_at = NULL, reject_reason = NULL,
+                updated_at = ?
+          WHERE id = ? AND public_id = ? AND team_id = ? AND deleted_at IS NULL
+            AND audit_status IN (?, ?)`,
+      )
+      .bind(
+        ACTIVITY_AUDIT.PENDING,
+        ACTIVITY_STATUS.DRAFT,
+        p.operatorId,
+        p.now,
+        p.now,
+        p.activityId,
+        p.activityPublicId,
+        teamId,
+        ACTIVITY_AUDIT.DRAFT,
+        ACTIVITY_AUDIT.REJECTED,
+      );
+
+    const results = await this.db.batch([auditLogStmt, updateStmt]);
+    return Number(results[results.length - 1]?.meta?.changes ?? 0);
+  }
+
+  /**
+   * approve / reject 原子批：
+   *   [ ...notificationStatements, gated audit log INSERT, guarded activities UPDATE ]
+   *
+   * P34-C2 既有语义逐项保持：
+   *   - approve：audit_status→APPROVED、status→SIGNUP_OPEN、published_at=now、reject_reason=NULL；
+   *   - reject ：audit_status→REJECTED、status→DRAFT、reject_reason=reason、published_at 不动；
+   *   - 两者均写 reviewed_by / reviewed_at / updated_at。
+   *
+   * @returns UPDATE 实际变更行数（1=跃迁成功；0=谓词落空 → 调用方区分 404 / 409）。
+   */
+  async reviewActivityAtomically(p: {
+    action: 'approve' | 'reject';
+    activityId: number;
+    activityPublicId: string;
+    auditStatus: number;
+    status: number;
+    reviewBy: number;
+    reviewAt: number;
+    rejectReason: string | null;
+    gate: NotificationInsertGate;
+    notificationStatements: D1PreparedStatement[];
+  }): Promise<number> {
+    this.ensureTableRead('activities');
+    const teamId = this.requireTeamId();
+
+    const auditLogStmt = this.buildGatedAuditLogStatement({
+      activityId: p.activityId,
+      action: p.action,
+      fromAudit: ACTIVITY_AUDIT.PENDING,
+      toAudit: p.auditStatus,
+      reason: p.rejectReason,
+      operatorId: p.reviewBy,
+      now: p.reviewAt,
+      gate: p.gate,
+    });
+
+    const updateStmt =
+      p.action === 'approve'
+        ? this.db
+            .prepare(
+              `UPDATE activities
+                  SET audit_status = ?, status = ?,
+                      reviewed_by = ?, reviewed_at = ?, reject_reason = NULL,
+                      published_at = ?, updated_at = ?
+                WHERE id = ? AND public_id = ? AND team_id = ? AND deleted_at IS NULL
+                  AND audit_status = ?`,
+            )
+            .bind(
+              p.auditStatus,
+              p.status,
+              p.reviewBy,
+              p.reviewAt,
+              p.reviewAt, // published_at
+              p.reviewAt, // updated_at
+              p.activityId,
+              p.activityPublicId,
+              teamId,
+              ACTIVITY_AUDIT.PENDING,
+            )
+        : this.db
+            .prepare(
+              `UPDATE activities
+                  SET audit_status = ?, status = ?,
+                      reviewed_by = ?, reviewed_at = ?, reject_reason = ?,
+                      updated_at = ?
+                WHERE id = ? AND public_id = ? AND team_id = ? AND deleted_at IS NULL
+                  AND audit_status = ?`,
+            )
+            .bind(
+              p.auditStatus,
+              p.status,
+              p.reviewBy,
+              p.reviewAt,
+              p.rejectReason,
+              p.reviewAt, // updated_at
+              p.activityId,
+              p.activityPublicId,
+              teamId,
+              ACTIVITY_AUDIT.PENDING,
+            );
+
+    const results = await this.db.batch([...p.notificationStatements, auditLogStmt, updateStmt]);
+    return Number(results[results.length - 1]?.meta?.changes ?? 0);
+  }
+
+  // -------------------------------------------------------------------------
+  // N0-F2 移除说明（无替代 stub，直接不存在这些方法）：
+  //
+  //   旧 submitForApproval / approveForPublication / rejectForRevision 为
+  //   「guarded UPDATE」单次 I/O；旧 insertActivityAuditLog 为「独立 audit log INSERT」。
+  //   二者组合即产生 §3 明令禁止的部分成功窗口：
+  //     * UPDATE 成功但 audit log 失败；
+  //     * UPDATE 成功但 IN_APP 通知缺失。
+  //   本轮以 submitForApprovalAtomically / reviewActivityAtomically（同一 db.batch，
+  //   共享 PRE-state 谓词，UPDATE 恒在最后）完全取代，故这四个方法已从 runtime 移除。
+  //
+  //   P34-C2 语义（audit_status/status/reviewed_by/reviewed_at/reject_reason/published_at
+  //   的取值与守卫条件）逐项保留于上述原子方法内，不改变业务状态机。
+  // -------------------------------------------------------------------------
 }
