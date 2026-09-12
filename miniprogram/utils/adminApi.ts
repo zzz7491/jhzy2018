@@ -35,6 +35,11 @@ export interface ActivityRow {
   status: number;
   max_session_minutes: number | null;
   /**
+   * N0-E5A：活动主地址（人类可读）。N0-E5A-R1 起：admin list/detail 后端投影已返回该字段，
+   * 前端编辑弹窗的「活动地点」输入据此回填并保存（不再悬空）。NULL = 未填写。
+   */
+  address?: string | null;
+  /**
    * P34-C4：审批态字段（P34-C1/C2 冻结）。
    * 标注为可选：截至 P34-C4，admin list/detail 的后端投影尚未返回这些字段（见 P34-C4 blocker 报告）；
    * 仅 submit / approve / reject 的响应（ActivityApprovalView）会返回。前端按"有则显示"处理，不臆造。
@@ -89,6 +94,8 @@ export const ACTIVITY_REJECT_REASON_MAX = 500;
 export interface ActivityScalarUpdate {
   title?: string;
   summary?: string | null;
+  /** N0-E5A：活动主地址（optional；null / 空白 → 服务端归一为 NULL）。N0-E5A-R1 起前端编辑保存会发送。 */
+  address?: string | null;
   start_time?: number;
   end_time?: number;
   signup_deadline?: number | null;

@@ -189,7 +189,7 @@ Page({
       activity_date: this.formatDate(a.start_time),
       start_time: this.formatTime(a.start_time),
       end_time: this.formatTime(a.end_time),
-      location: '',
+      location: a.address || '',
       current_participants: a.signed_count,
       max_participants: a.quota,
       points_reward: 0,
@@ -264,7 +264,8 @@ Page({
             id: a.public_id,
             title: a.title,
             description: a.summary || '',
-            location: '',
+            // N0-E5A-R1：回填活动主地址到「活动地点」输入（此前恒为空串 → 编辑缺口）。
+            location: a.address || '',
             activity_date: this.formatDate(a.start_time),
             start_time: this.formatTime(a.start_time),
             end_time: this.formatTime(a.end_time),
@@ -354,6 +355,8 @@ Page({
     const patch: any = {
       title: form.title.trim(),
       summary: form.description ? form.description.trim() : null,
+      // N0-E5A-R1：发送活动主地址（「活动地点」输入）；空 / 空白 → null（服务端再做归一收口）。
+      address: form.location && form.location.trim() ? form.location.trim() : null,
       start_time: startTime,
       end_time: endTime,
       quota: Number(form.max_participants) || 0,
