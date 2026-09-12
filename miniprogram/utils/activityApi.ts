@@ -23,6 +23,12 @@ export interface TeamView {
   name: string;
 }
 
+/** 团队公开业务联系人（N0-E5B；对报名者公开的 PUBLIC BUSINESS DATA，非私人/认证电话）。 */
+export interface TeamPublicContact {
+  public_contact_name: string | null;
+  public_contact_phone: string | null;
+}
+
 export interface ActivityRow {
   public_id: string;
   title: string;
@@ -79,7 +85,7 @@ interface RequestOpts {
 }
 
 // 与 wx.request 的 method 枚举保持一致（string 无法赋值给该枚举）
-type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'TRACE' | 'CONNECT';
+type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'TRACE' | 'CONNECT';
 
 function request<T>(method: RequestMethod, path: string, data?: any, opts: RequestOpts = {}): Promise<T> {
   const base = opts.base || V2_BASE;
@@ -131,6 +137,25 @@ export const activityApi = {
       `/teams/${teamId}/join`,
       {},
       { teamScoped: false },
+    );
+  },
+
+  // ===================== 团队公开业务联系人（团队作用域，N0-E5B） =====================
+  // 需 team.settings.update 权限（team_admin / team_owner）；非管理员会收到 403/404。
+  /** GET /teams/:id/public-contact —— 读取团队公开业务联系人。 */
+  getTeamPublicContact(teamId: string): Promise<{ public_contact: TeamPublicContact }> {
+    return request<{ public_contact: TeamPublicContact }>('GET', `/teams/${teamId}/public-contact`);
+  },
+
+  /** PATCH /teams/:id/public-contact —— 更新团队公开业务联系人（只接受两个公开字段）。 */
+  updateTeamPublicContact(
+    teamId: string,
+    patch: { public_contact_name?: string | null; public_contact_phone?: string | null },
+  ): Promise<{ public_contact: TeamPublicContact }> {
+    return request<{ public_contact: TeamPublicContact }>(
+      'PATCH',
+      `/teams/${teamId}/public-contact`,
+      patch,
     );
   },
 

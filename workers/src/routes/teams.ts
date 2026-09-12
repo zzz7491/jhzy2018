@@ -8,6 +8,13 @@
  * - GET  /api/v2/teams/mine          —— 已登录用户「真正拥有 TEAM 作用域」的团队列表（SELF，不要求 X-Team-Id）。
  * - POST /api/v2/teams/:teamId/join —— 本人加入团队（SELF；服务端固定 member + volunteer scope；幂等）。
  *
+ * N0-E5B 新增（TEAM_PUBLIC_CONTACT，最小读写；复用 team.settings.update，不新增权限）：
+ * - GET   /api/v2/teams/:id/public-contact —— 读取团队公开业务联系人（TEAM 管理面，窄读）。
+ * - PATCH /api/v2/teams/:id/public-contact —— 更新团队公开业务联系人（TEAM 管理面，窄写）。
+ *   * 授权 = requirePermission('team.settings.update')（D1 裁决；team_admin / team_owner / 平台管理员持有）。
+ *   * 目标团队必须等于 active team，否则 404（禁止平台级任意改动 / 跨团队越权）。
+ *   * 只接受 public_contact_name / public_contact_phone；unknown 字段一律 400。
+ *
  * 纪律（用户 §R1 / §七 / §十三）：
  * - 客户端不得提交 user_id / role_id / role / team_member_id / team_role_code / scope_team_id；
  *   违反一律 400（最小信任面）。
@@ -19,6 +26,8 @@
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
 import { TeamRepository } from '../repository/teams';
+import { TeamContactService, PUBLIC_CONTACT_ALLOWED_FIELDS } from '../services/team-contact-service';
+import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { authRequired, invalidParam } from '../utils/errors';
 import { requireUlidParam } from '../utils/validation';
@@ -82,6 +91,59 @@ teams.post('/:teamId/join', async (c) => {
   const { status } = await repo.joinTeam(team.id, auth.userId);
 
   return ok(c, { status, team: { public_id: team.public_id, name: team.name } }, 200);
+});
+
+// =========================================================================
+// N0-E5B —— TEAM_PUBLIC_CONTACT 窄端点（团队公开业务联系人）
+//
+// 授权：team.settings.update（D1 裁决；复用既有冻结权限，不新增权限、不改权限目录）。
+// TeamContactService 把 team_id 收口为【当前 active team】，并要求 URL :id 等于该团队。
+// =========================================================================
+
+/** 允许的请求字段集合（unknown / forbidden 字段一律 400，禁止借 PATCH 篡改其他团队数据）。 */
+const PUBLIC_CONTACT_ALLOWED = new Set<string>(PUBLIC_CONTACT_ALLOWED_FIELDS);
+
+/** GET /api/v2/teams/:id/public-contact —— 读取团队公开业务联系人（窄读，仅两个公开字段）。 */
+teams.get('/:id/public-contact', requirePermission('team.settings.update'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+  const svc = new TeamContactService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const public_contact = await svc.getPublicContact(publicId);
+  return ok(c, { public_contact });
+});
+
+/**
+ * PATCH /api/v2/teams/:id/public-contact —— 更新团队公开业务联系人（窄写）。
+ * - body 仅接受 public_contact_name / public_contact_phone（可只其一；至少其一）。
+ * - 规范化 / 校验由 TeamContactService 收口（单一 SSOT）。
+ * - team_id 由服务端从 active team 派生；URL :id 必须等于 active team（跨团队 → 404）。
+ */
+teams.patch('/:id/public-contact', requirePermission('team.settings.update'), async (c) => {
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+
+  const publicId = requireUlidParam(c.req.param('id'), 'id');
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json();
+    if (body == null || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+  } catch {
+    throw invalidParam('request', 'invalid request body');
+  }
+
+  // 窄信任面：只接受两个公开字段，其余键一律 400（不静默忽略）。
+  for (const k of Object.keys(body)) {
+    if (!PUBLIC_CONTACT_ALLOWED.has(k)) {
+      throw invalidParam(k, 'unknown or forbidden field');
+    }
+  }
+
+  const svc = new TeamContactService({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+  const public_contact = await svc.updatePublicContact(publicId, body);
+  return ok(c, { public_contact });
 });
 
 export default teams;

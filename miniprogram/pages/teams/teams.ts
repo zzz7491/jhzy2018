@@ -8,7 +8,15 @@ Page({
     loading: true,
     currentTab: 0,
     tabs: ['我的团队', '团队活动'],
-    canCreateTeam: false  // 是否有创建团队的权限
+    canCreateTeam: false,  // 是否有创建团队的权限
+    // N0-E5B：团队公开业务联系人（TEAM_PUBLIC_CONTACT）编辑态。
+    activeTeamId: '',
+    activeTeamName: '',
+    contactEditable: false,   // 仅当当前用户对所选团队具备 team.settings.update 时显示
+    contactLoading: false,
+    contactSaving: false,
+    contactName: '',
+    contactPhone: ''
   },
 
   onLoad() {
@@ -108,10 +116,71 @@ Page({
   onSelectTeam(e: any) {
     const id = e.currentTarget.dataset.id;
     if (!id) return;
+    const name = e.currentTarget.dataset.name || '';
     wx.setStorageSync('activeTeamPublicId', id);
-    this.setData({ activeTeamId: id });
+    this.setData({ activeTeamId: id, activeTeamName: name, contactEditable: false });
     wx.showToast({ title: '已切换团队', icon: 'success', duration: 1200 });
+    this.loadPublicContact(id);
     this.loadTeamActivities();
+  },
+
+  // N0-E5B：读取所选团队的公开业务联系人。
+  // 仅具备 team.settings.update（team_admin / team_owner）者可读；403/404 时静默隐藏编辑区，
+  // 不打扰普通成员（不泄露团队是否存在 / 是否有权限）。
+  loadPublicContact(teamId: string) {
+    this.setData({ contactLoading: true, contactEditable: false });
+    activityApi
+      .getTeamPublicContact(teamId)
+      .then((res: any) => {
+        const c = (res && res.public_contact) || {};
+        this.setData({
+          contactName: c.public_contact_name || '',
+          contactPhone: c.public_contact_phone || '',
+          contactLoading: false,
+          contactEditable: true
+        });
+      })
+      .catch((err: any) => {
+        // 403（无权限 / 平台上下文）与 404（跨团队 / 不存在）都不展示编辑区，仅提示其他错误。
+        const silent = err && (err.status === 403 || err.status === 404);
+        this.setData({ contactLoading: false, contactEditable: false, contactName: '', contactPhone: '' });
+        if (!silent) {
+          wx.showToast({ title: (err && err.message) || '加载联系人失败', icon: 'none' });
+        }
+      });
+  },
+
+  onContactNameInput(e: any) {
+    this.setData({ contactName: e.detail.value });
+  },
+
+  onContactPhoneInput(e: any) {
+    this.setData({ contactPhone: e.detail.value });
+  },
+
+  // N0-E5B：保存团队公开业务联系人（窄写，仅两个公开字段；空白将在服务端归一为 NULL）。
+  savePublicContact() {
+    const teamId = this.data.activeTeamId;
+    if (!teamId || this.data.contactSaving) return;
+    this.setData({ contactSaving: true });
+    activityApi
+      .updateTeamPublicContact(teamId, {
+        public_contact_name: this.data.contactName,
+        public_contact_phone: this.data.contactPhone
+      })
+      .then((res: any) => {
+        const c = (res && res.public_contact) || {};
+        this.setData({
+          contactName: c.public_contact_name || '',
+          contactPhone: c.public_contact_phone || '',
+          contactSaving: false
+        });
+        wx.showToast({ title: '已保存', icon: 'success' });
+      })
+      .catch((err: any) => {
+        this.setData({ contactSaving: false });
+        wx.showToast({ title: (err && err.message) || '保存失败', icon: 'none' });
+      });
   },
 
   goToActivityDetail(e: any) {

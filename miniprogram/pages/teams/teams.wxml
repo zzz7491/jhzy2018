@@ -40,6 +40,7 @@
               wx:for="{{teams}}" 
               wx:key="id" 
               data-id="{{item.id}}" 
+              data-name="{{item.name}}"
               bindtap="onSelectTeam">
           <image class="team-avatar" src="{{item.avatar}}"></image>
           <view class="team-info">
@@ -51,6 +52,34 @@
               <text class="stat-item">👥 {{item.members}}人</text>
               <text class="stat-item">📊 {{item.activity_count}}次活动</text>
             </view>
+          </view>
+        </view>
+
+        <!-- N0-E5B：团队公开业务联系人（TEAM_PUBLIC_CONTACT）。仅当所选团队可编辑时显示。 -->
+        <view wx:if="{{activeTeamId && contactEditable}}" class="contact-card">
+          <view class="contact-header">
+            <text class="contact-title">团队公开联系人</text>
+            <text class="contact-team">{{activeTeamName}}</text>
+          </view>
+          <view class="contact-tip">该信息将向活动报名者公开，请填写可对外联系的业务联系人与联系电话。</view>
+          <view class="contact-field">
+            <text class="contact-label">公开联系人</text>
+            <input class="contact-input"
+                   value="{{contactName}}"
+                   placeholder="如：张老师 / 嘉禾志愿服务中心"
+                   maxlength="100"
+                   bindinput="onContactNameInput" />
+          </view>
+          <view class="contact-field">
+            <text class="contact-label">公开联系电话</text>
+            <input class="contact-input"
+                   value="{{contactPhone}}"
+                   placeholder="如：0571-88888888 或 13800000000"
+                   maxlength="32"
+                   bindinput="onContactPhoneInput" />
+          </view>
+          <view class="contact-save {{contactSaving ? 'disabled' : ''}}" bindtap="savePublicContact">
+            {{contactSaving ? '保存中...' : '保存公开联系人'}}
           </view>
         </view>
       </view>

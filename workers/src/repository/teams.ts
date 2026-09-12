@@ -21,6 +21,37 @@ export interface TeamRow {
   status: number;
   is_system: number;
   created_at: number;
+  /**
+   * 团队公开业务联系人名称（N0-E5B §THING18_CONTRACT = TEAM_PUBLIC_CONTACT）。
+   *
+   * NULL = 该团队尚未配置公开业务联系人（不是"未知"，也不继承 owner / user profile）。
+   * 数据分类 = PUBLIC BUSINESS DATA（对报名者公开），与身份认证数据严格分离。
+   */
+  public_contact_name: string | null;
+  /** 团队主动公开的业务联系电话（NULL = 未配置；非 trusted / identity phone）。 */
+  public_contact_phone: string | null;
+}
+
+/**
+ * 团队公开业务联系人的最小读视图（N0-E5B）。
+ *
+ * 刻意只含两个公开字段：这是未来 signup notification payload（thing18 / 联系电话）
+ * 的唯一权威来源，绝不携带 owner 私人电话 / trusted phone / identity / openid。
+ */
+export interface PublicContactRow {
+  public_contact_name: string | null;
+  public_contact_phone: string | null;
+}
+
+/**
+ * 团队公开业务联系人更新补丁（N0-E5B，窄更新）。
+ *
+ * 只允许两个字段；undefined = 不改动（partial update 语义）。
+ * 规范化 / 校验由 TeamContactService 收口（单一 SSOT）。
+ */
+export interface PublicContactPatch {
+  public_contact_name?: string | null;
+  public_contact_phone?: string | null;
 }
 
 export type JoinStatus = 'created' | 'existing';
@@ -32,7 +63,8 @@ export class TeamRepository extends BaseRepository {
     if (!isUlid(publicId)) throw notFound('Team');
 
     const row = await this.first<TeamRow>(
-      `SELECT id, public_id, name, short_name, intro, cert_status, status, is_system, created_at
+      `SELECT id, public_id, name, short_name, intro, cert_status, status, is_system, created_at,
+              public_contact_name, public_contact_phone
          FROM teams
         WHERE public_id = ? AND deleted_at IS NULL`,
       [publicId],
@@ -51,7 +83,8 @@ export class TeamRepository extends BaseRepository {
   async listMine(userId: number): Promise<TeamRow[]> {
     const now = Math.floor(Date.now() / 1000);
     return this.all<TeamRow>(
-      `SELECT t.public_id, t.name, t.short_name, t.intro, t.cert_status, t.status, t.is_system, t.created_at, t.id
+      `SELECT t.public_id, t.name, t.short_name, t.intro, t.cert_status, t.status, t.is_system, t.created_at, t.id,
+              t.public_contact_name, t.public_contact_phone
          FROM teams t
         WHERE t.deleted_at IS NULL
           AND EXISTS (
@@ -110,5 +143,62 @@ export class TeamRepository extends BaseRepository {
     ]);
 
     return { status: existingMember ? 'existing' : 'created' };
+  }
+
+  // =========================================================================
+  // N0-E5B：TEAM_PUBLIC_CONTACT（团队公开业务联系人）最小读写能力
+  //
+  // 说明：teams 为 PLATFORM_GLOBAL（可读），但【写】公开联系人必须限定在
+  //   调用方当前团队上下文内 —— 收口在 service 层（active team == 目标团队），
+  //   且本 repository 方法只接受服务端派生的 numeric teamId，绝不接受客户端提交。
+  // =========================================================================
+
+  /**
+   * 按 numeric teamId 读取团队公开业务联系人（N0-E5B-4 §E）。
+   *
+   * 未来 signup notification payload 的【唯一权威查询入口】：
+   *   activity.team_id（INTEGER NOT NULL REFERENCES teams(id)）→ 本方法。
+   * 只返回两个公开字段；不 JOIN 任何用户 / 身份 / 手机相关表，杜绝隐私回退。
+   *
+   * @returns 团队存在且未删除 → PublicContactRow（字段可为 NULL = 未配置）；否则 null。
+   */
+  async findPublicContactByTeamId(teamId: number): Promise<PublicContactRow | null> {
+    const row = await this.first<PublicContactRow>(
+      `SELECT public_contact_name, public_contact_phone
+         FROM teams
+        WHERE id = ? AND deleted_at IS NULL`,
+      [teamId],
+    );
+    return row ?? null;
+  }
+
+  /**
+   * 窄更新团队公开业务联系人（N0-E5B-2 §C1）。
+   *
+   * - 只写 public_contact_name / public_contact_phone 两列 + updated_at。
+   * - undefined = 不改动（partial update）；显式 null = 清空为 NULL。
+   * - 绝不触碰 teams 的其他列（不是任意 team profile patch）。
+   * - 只按 id 定位（teamId 由 service 从 active team 派生后传入）。
+   */
+  async updatePublicContact(teamId: number, patch: PublicContactPatch): Promise<void> {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (patch.public_contact_name !== undefined) {
+      sets.push('public_contact_name = ?');
+      params.push(patch.public_contact_name);
+    }
+    if (patch.public_contact_phone !== undefined) {
+      sets.push('public_contact_phone = ?');
+      params.push(patch.public_contact_phone);
+    }
+    if (sets.length === 0) return;
+
+    sets.push('updated_at = ?');
+    params.push(Math.floor(Date.now() / 1000));
+
+    await this.run(
+      `UPDATE teams SET ${sets.join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+      [...params, teamId],
+    );
   }
 }
