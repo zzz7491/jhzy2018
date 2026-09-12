@@ -9,7 +9,8 @@ import type { AuthContext, TenantScope } from '../types/auth';
  * - 四类 scope：PLATFORM_GLOBAL / TEAM_SCOPED / USER_SCOPED / AUDIT_ONLY。
  * - 禁止 team_id DEFAULT 0 哨兵；TEAM_SCOPED 必须有真实 team_id（或派生，见下）。
  *
- * 下表与 docs/architecture/D1-SCHEMA-TABLE-MATRIX.md §2 完全对应（63 表）。
+ * 下表与 docs/architecture/D1-SCHEMA-TABLE-MATRIX.md §2 对应（63 表；N0-C 追加 2 张 USER_SCOPED
+ * 投递域表：notification_delivery_identities / wechat_subscription_consents → 共 65 表）。
  */
 
 export const TABLE_SCOPE: Record<string, TenantScope> = {
@@ -101,6 +102,10 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   // N0-A：每用户投递态（读/未读、归属）。IN_APP 通知的【唯一权威】= recipient.user_id，
   // 与 notifications.team_id 无关（团队归属不是读取权限，见 N0-A §8）。
   notification_recipients: 'USER_SCOPED',
+  // N0-C：微信投递身份（raw openid 加密静态存储；仅本人可读写，见 0035）。
+  notification_delivery_identities: 'USER_SCOPED',
+  // N0-C：微信订阅授权同意（每用户 × 每模板的 ACCEPT/REJECT/BAN；仅本人可读写，见 0035）。
+  wechat_subscription_consents: 'USER_SCOPED',
 
   // ===== AUDIT_ONLY (7) =====
   level_change_logs: 'AUDIT_ONLY',

@@ -38,6 +38,13 @@ export interface Env {
    */
   IDENTITY_HMAC_KEY_PREVIOUS?: string;
   /**
+   * N0-C：微信投递身份（raw openid）静态加密密钥（AES-GCM）。
+   * 只允许来自 Workers Secret；本文件仅做【存在性】声明，绝不读取值 / 打印 / 硬编码 / 返回客户端。
+   * 未配置时：local 使用 TEST-ONLY 固定密钥（与 IDENTITY_HMAC_KEY 同约定）；非 local 缺密钥 → 500（配置错误）。
+   * 【禁止】把该值写入 wrangler.jsonc / source / frontend / test fixture（生产由 wrangler secret put 配置）。
+   */
+  DELIVERY_IDENTITY_ENC_KEY?: string;
+  /**
    * S2-6c-3：Session TTL 覆盖（IMPLEMENTATION DEFAULT = 小程序 30d / 管理端 12h）。
    * 均为【非敏感】普通 var（不是 Secret）：只影响会话时长，不含任何凭据。
    * 缺省 / 非法值 → 回落 config/session-ttl.ts 的安全默认，并受上下界钳制。

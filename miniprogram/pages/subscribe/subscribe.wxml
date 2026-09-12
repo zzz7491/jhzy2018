@@ -2,26 +2,32 @@
   <view class="header">
     <text class="title">消息订阅设置</text>
     <text class="desc">开启后，我们将通过微信通知您相关信息</text>
+    <text class="ready-tip" wx:if="{{!loading && !error && !ready}}">需先完成微信登录后方可授权</text>
   </view>
 
-  <view class="list">
+  <view class="list" wx:if="{{!error}}">
     <block wx:for="{{templates}}" wx:key="key">
       <view class="item">
         <view class="item-info">
           <text class="item-name">{{item.name}}</text>
+          <text class="item-state state-{{item.state}}">{{item.stateLabel}}</text>
         </view>
-        <switch 
-          checked="{{subscribed[item.key]}}" 
-          data-key="{{item.key}}" 
-          data-id="{{item.id}}"
-          bindchange="onSwitchChange"
-          color="#07c160"
-        />
+        <view class="btn-subscribe {{requesting === item.key ? 'busy' : ''}}"
+              data-key="{{item.key}}"
+              data-id="{{item.templateId}}"
+              bindtap="onRequestConsent">申请订阅</view>
       </view>
     </block>
+    <view class="empty" wx:if="{{!loading && templates.length === 0}}">暂无可订阅的消息</view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">加载中...</view>
+  <view class="error" wx:if="{{error}}">
+    <text>加载失败</text>
+    <text class="error-retry" bindtap="onRetry">点击重试</text>
   </view>
 
   <view class="footer">
-    <text class="footer-text">温馨提示：订阅后您将收到微信的服务通知</text>
+    <text class="footer-text">温馨提示：授权后您将收到微信的服务通知</text>
   </view>
 </view>

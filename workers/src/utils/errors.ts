@@ -44,6 +44,10 @@ export const ErrorCode = {
   // P36-C3-3（新增，纯增量）：AI provider / config / timeout 统一折叠为安全 503。
   // 不泄露上游 body / 端点 / 凭证 / stack；details 仅携带稳定 reason token。
   AI_UNAVAILABLE: 'AI_UNAVAILABLE',
+  // N0-C（新增，纯增量）：微信订阅授权域稳定错误码（不暴露 openid / 密文 / hash / 内部 id / Secret）。
+  // HTTP 400；「模板不存在」与「模板未启用」折叠为同一码，防模板枚举。
+  SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED: 'SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED',
+  SUBSCRIPTION_INVALID_STATE: 'SUBSCRIPTION_INVALID_STATE', // 非法授权状态（非 ACCEPT/REJECT/BAN）
 } as const;
 
 /** S2-6g：409 冲突的稳定业务 reason token（非敏感，可安全返回客户端）。 */
@@ -264,4 +268,26 @@ export function qualificationRequired(reasons: string[]): AppError {
   return new AppError(ErrorCode.QUALIFICATION_REQUIRED, 403, 'Volunteer qualification required', {
     reasons: reasons.join(','),
   });
+}
+
+/**
+ * N0-C：订阅模板未配置 / 未启用（HTTP 400）。
+ * - message 固定文案；不区分「不存在」「未启用」「template_id 与映射不符」，避免模板枚举。
+ * - 不返回任何 provider / 内部 id / Secret 信息。
+ */
+export function subscriptionTemplateNotConfigured(): AppError {
+  return new AppError(
+    ErrorCode.SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED,
+    400,
+    'Subscription template not configured',
+  );
+}
+
+/** N0-C：非法订阅授权状态（非 ACCEPT / REJECT / BAN）（HTTP 400）。 */
+export function subscriptionInvalidState(): AppError {
+  return new AppError(
+    ErrorCode.SUBSCRIPTION_INVALID_STATE,
+    400,
+    'Invalid subscription consent state',
+  );
 }

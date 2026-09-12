@@ -57,3 +57,59 @@
   font-size: 24rpx;
   color: #999;
 }
+
+/* ===== N0-C：订阅授权（用户主动申请）===== */
+.ready-tip {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #ff6b35;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.item-state {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #999;
+}
+.item-state.state-ACCEPT {
+  color: #07c160;
+}
+.item-state.state-REJECT {
+  color: #999;
+}
+.item-state.state-BAN {
+  color: #e64340;
+}
+
+.btn-subscribe {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  padding: 12rpx 28rpx;
+  font-size: 26rpx;
+  color: #fff;
+  background: #ff6b35;
+  border-radius: 32rpx;
+}
+.btn-subscribe.busy {
+  opacity: 0.5;
+}
+
+.loading,
+.empty,
+.error {
+  text-align: center;
+  color: #999;
+  font-size: 26rpx;
+  padding: 40rpx 0;
+}
+.error-retry {
+  color: #ff6b35;
+  margin-left: 12rpx;
+}

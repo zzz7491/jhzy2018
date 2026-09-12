@@ -21,7 +21,10 @@
 
 import { Hono, type Context } from 'hono';
 import type { Env, AppVars } from '../env';
+import type { AuthContext } from '../types/auth';
+import { buildTenantContext } from '../types/tenant';
 import { SessionService } from '../services/session-service';
+import { DeliveryIdentityService } from '../services/delivery-identity-service';
 import {
   wechatCodeToSession,
   resolveWechatIdentity,
@@ -174,6 +177,20 @@ auth.post('/wechat/login', async (c) => {
       token = created.token;
       expiresAt = created.expiresAt;
     }
+  }
+
+  // ④-c N0-C：登录交换期 raw openid 仍存在 → 尽力幂等 upsert 微信投递身份（最小 hook）。
+  //   绝不阻断登录：失败静默（不打印 openid / Secret）；legacy 老用户下次 refresh 补齐。
+  //   仅建立投递身份基础，不发送任何微信消息、不改变既有认证语义。
+  try {
+    const loginAuth: AuthContext = { authenticated: true, userId, role: null, teamId: null, roles: [] };
+    await new DeliveryIdentityService({
+      env: c.env,
+      auth: loginAuth,
+      tenant: buildTenantContext(loginAuth),
+    }).upsertFromWechatLogin({ userId, openid: wechat.openid });
+  } catch {
+    // best-effort：投递身份建立失败不影响认证（readiness 保持 false）。
   }
 
   // ⑤ 回读用户（首登建档后统一走一次查询，保证响应字段一致）

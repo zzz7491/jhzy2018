@@ -84,3 +84,59 @@ function hex(bytes: Uint8Array): string {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+// =============================================================================
+// N0-C：投递身份静态加密（AES-GCM，最小通用 crypto abstraction）
+//
+// 用途：notification_delivery_identities.encrypted_external_id（raw openid 静态加密）。
+// 纪律：
+//   - secret 由 Worker env（DELIVERY_IDENTITY_ENC_KEY）提供；本模块不读取 / 打印 / 硬编码生产密钥。
+//   - 明文（raw openid）绝不进入日志 / API 响应 / 错误信息；解密仅限可信 backend 路径。
+//   - 复用 Workers 原生 Web Crypto（与既有 hmacSha256Hex 同平台能力）。
+// =============================================================================
+
+/** 从任意长度 secret 派生 256-bit AES-GCM 密钥（SHA-256 KDF）。 */
+async function deriveAesGcmKey(secret: string): Promise<CryptoKey> {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+/**
+ * AES-GCM 加密（随机 96-bit IV）。
+ * 输出编码：`v1.<iv base64url>.<ciphertext base64url>`（自描述版本，便于将来轮换算法）。
+ */
+export async function aesGcmEncrypt(secret: string, plaintext: string): Promise<string> {
+  const key = await deriveAesGcmKey(secret);
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(plaintext),
+  );
+  return `v1.${base64urlEncode(iv)}.${base64urlEncode(new Uint8Array(ct))}`;
+}
+
+/**
+ * AES-GCM 解密（仅可信 backend 路径调用；结果明文绝不返回客户端 / 不进日志）。
+ * 非法格式 / 篡改 / 版本不符 → 抛错。
+ */
+export async function aesGcmDecrypt(secret: string, encoded: string): Promise<string> {
+  const parts = encoded.split('.');
+  if (parts.length !== 3 || parts[0] !== 'v1') throw new Error('invalid ciphertext format');
+  const iv = base64urlDecode(parts[1]);
+  const ct = base64urlDecode(parts[2]);
+  const key = await deriveAesGcmKey(secret);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
+/** base64url 解码（与 base64urlEncode 对称）。 */
+function base64urlDecode(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+  const bin = atob(b64 + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}

@@ -1,110 +1,124 @@
-// pages/subscribe/subscribe.js
+// pages/subscribe/subscribe.ts
+// N0-C 微信订阅授权页（WECHAT_SUBSCRIBE 授权基础）。
+//
+// 纪律：
+// - 授权必须由【用户主动点击】触发：绝不在 onLoad/onShow 自动弹窗、绝不循环骚扰、绝不自动重试。
+// - 模板目录来自 V2 后端（不再把前端硬编码 template id 当长期 SSOT）。
+// - 只上报 template_key / template_id / state；【不上报 openid】。
+// - 使用 V2 subscriptionApi；不调用任何 legacy PHP（get_subscribe_status.php / save_subscribe_status.php）。
+// - requestSubscribeMessage 调用成功 ≠ 授权成功：结果以微信真实返回（accept/reject/ban）为准。
+
+import subscriptionApi from '../../utils/subscriptionApi';
+import type { ConsentState, ConsentTemplateItem } from '../../utils/subscriptionApi';
+
+interface TemplateVM {
+  key: string;
+  templateId: string;
+  name: string;
+  state: ConsentState | null;
+  stateLabel: string;
+}
+
+const STATE_LABEL: Record<ConsentState, string> = {
+  ACCEPT: '已授权',
+  REJECT: '已拒绝',
+  BAN: '已屏蔽',
+};
+
+function labelFor(state: ConsentState | null): string {
+  return state ? STATE_LABEL[state] : '未授权';
+}
+
 Page({
   data: {
-    templates: [
-      { id: '_x9D2d6Ae7wuiewEp4XTPVsSd061O4lPaLreJdZQwM4', name: '报名结果提醒', key: 'signup' },
-      { id: 'eu4viO-Ex0YqXnVfXsRAAPOIFsZc_AC7LsVVW4ug8Yw', name: '实名认证通知', key: 'certify' },
-      { id: 'wQtwe8L7l-u6YFzMtHRbXNrXvZVRacbPGEZMgVTHMZ8', name: '活动变更通知', key: 'change' },
-      { id: 'JRKyGhoWQ9XNxt7_bAQxMgj8IoJTgs4qiQKo2vqhBa8', name: '活动培训提醒', key: 'training' },
-      { id: 'sGepFsMsjkIGL-ph7mjCNHb9aKG11sh89J55qB3bEok', name: '积分变动提醒', key: 'points' },
-      { id: 'PcOdV5nYPj89BY-b_C5n1FNjmq7G9mqQQBlQU1pEE9A', name: '核销成功通知', key: 'verify' },
-      { id: 'k6azwIXNr-D-u322U91vZXQet_MUtaLpqxtqDL6NG-A', name: '审核通过提醒', key: 'audit' },
-      { id: 'SrFXViQy2FVmi34qEtJmcbMPOR_cqNHn74zo0eA4eSA', name: '活动开始通知', key: 'start' },
-      { id: 'QVakhEJ7nDaB6seNZWBzPcn2HD4oL3Gdp8-VUw7UZTY', name: '签到提醒', key: 'checkin' },
-      { id: 'Lx4Vpm2T7TTdzXjy2XJS8-Uc6jnxan7vNlewfJSmTqk', name: '预约通知', key: 'book' },
-      { id: 'Pq6jAdefsEM5kRG6tFryCmA-ddWBwC8Gybe33DOpHFw', name: '新活动发布提醒', key: 'newActivity' }
-    ],
-    subscribed: {}
+    loading: false,
+    error: false,
+    ready: false,
+    templates: [] as TemplateVM[],
+    requesting: '', // 正在请求授权的 template key（防重复点击）
   },
 
   onLoad() {
-    this.loadSubscribedStatus()
+    this.loadStatus();
   },
 
-  // 从服务器加载订阅状态
-  loadSubscribedStatus() {
-    const token = wx.getStorageSync('access_token')
-    if (!token) {
-      const subscribed = wx.getStorageSync('subscribe_templates') || {}
-      this.setData({ subscribed })
-      return
+  async loadStatus() {
+    this.setData({ loading: true, error: false });
+    try {
+      const res = await subscriptionApi.status();
+      const itemMap: Record<string, ConsentState> = {};
+      (res.items || []).forEach((it) => {
+        itemMap[it.template_key] = it.consent_state;
+      });
+      const templates: TemplateVM[] = (res.templates || []).map((t: ConsentTemplateItem) => {
+        const state = itemMap[t.template_key] || null;
+        return {
+          key: t.template_key,
+          templateId: t.template_id,
+          name: t.title || t.template_key,
+          state,
+          stateLabel: labelFor(state),
+        };
+      });
+      this.setData({ templates, ready: !!res.delivery_identity_ready, loading: false });
+    } catch (e) {
+      this.setData({ loading: false, error: true });
     }
-    
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/get_subscribe_status.php',
-      method: 'GET',
-      header: { 'Authorization': `Bearer ${token}` },
-      success: (res) => {
-        if (res.data && res.data.success) {
-          const serverSubscribed = res.data.subscribed || {}
-          const localSubscribed = wx.getStorageSync('subscribe_templates') || {}
-          // 合并：服务器数据优先，但保留本地新开启的
-          const merged = { ...serverSubscribed, ...localSubscribed }
-          this.setData({ subscribed: merged })
-          wx.setStorageSync('subscribe_templates', merged)
-        } else {
-          const subscribed = wx.getStorageSync('subscribe_templates') || {}
-          this.setData({ subscribed })
+  },
+
+  onRetry() {
+    this.loadStatus();
+  },
+
+  // 用户主动点击「申请订阅」→ 仅该模板的微信授权弹窗（一次一模板，不循环、不自动重试）
+  onRequestConsent(e: any) {
+    const key: string = e.currentTarget.dataset.key;
+    const templateId: string = e.currentTarget.dataset.id;
+    if (!key || !templateId) return;
+    if (this.data.requesting) return; // 防抖：一次只处理一个授权请求
+
+    this.setData({ requesting: key });
+    wx.requestSubscribeMessage({
+      tmplIds: [templateId],
+      success: (res: any) => {
+        const raw = res ? res[templateId] : undefined;
+        // 微信真实返回：'accept' | 'reject' | 'ban'（'filter' 等其他值不构成授权结果，不上报）
+        let state: ConsentState | null = null;
+        if (raw === 'accept') state = 'ACCEPT';
+        else if (raw === 'reject') state = 'REJECT';
+        else if (raw === 'ban') state = 'BAN';
+
+        if (state == null) {
+          this.setData({ requesting: '' });
+          wx.showToast({ title: '未获得授权结果', icon: 'none' });
+          return;
         }
+        const finalState: ConsentState = state;
+        subscriptionApi
+          .recordConsent({ templateKey: key, templateId, state: finalState })
+          .then(() => {
+            this.applyState(key, finalState);
+            const title = finalState === 'ACCEPT' ? '授权成功' : finalState === 'REJECT' ? '已拒绝' : '已屏蔽';
+            wx.showToast({ title, icon: finalState === 'ACCEPT' ? 'success' : 'none' });
+          })
+          .catch(() => {
+            wx.showToast({ title: '保存失败，请重试', icon: 'none' });
+          })
+          .then(() => {
+            this.setData({ requesting: '' });
+          });
       },
       fail: () => {
-        const subscribed = wx.getStorageSync('subscribe_templates') || {}
-        this.setData({ subscribed })
-      }
-    })
+        this.setData({ requesting: '' });
+        wx.showToast({ title: '订阅请求失败', icon: 'none' });
+      },
+    });
   },
 
-  // 保存订阅状态到服务器
-  saveSubscribedStatus() {
-    const subscribed = this.data.subscribed
-    wx.setStorageSync('subscribe_templates', subscribed)
-    
-    const token = wx.getStorageSync('access_token')
-    if (token) {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/save_subscribe_status.php',
-        method: 'POST',
-        header: { 'Authorization': `Bearer ${token}` },
-        data: { subscribed: subscribed },
-        success: () => {
-          console.log('订阅状态已同步到服务器')
-        },
-        fail: () => {
-          console.log('同步失败，已保存到本地')
-        }
-      })
-    }
+  applyState(key: string, state: ConsentState) {
+    const templates = this.data.templates.map((t) =>
+      t.key === key ? { ...t, state, stateLabel: labelFor(state) } : t,
+    );
+    this.setData({ templates });
   },
-
-  onSwitchChange(e) {
-    const key = e.currentTarget.dataset.key
-    const templateId = e.currentTarget.dataset.id
-    const isChecked = e.detail.value
-    
-    if (isChecked) {
-      wx.requestSubscribeMessage({
-        tmplIds: [templateId],
-        success: (res) => {
-          if (res[templateId] === 'accept') {
-            const subscribed = this.data.subscribed
-            subscribed[key] = true
-            this.setData({ subscribed })
-            this.saveSubscribedStatus()
-            wx.showToast({ title: '订阅成功', icon: 'success' })
-          } else {
-            wx.showToast({ title: '您拒绝了订阅', icon: 'none' })
-          }
-        },
-        fail: () => {
-          wx.showToast({ title: '订阅失败', icon: 'none' })
-        }
-      })
-    } else {
-      const subscribed = this.data.subscribed
-      delete subscribed[key]
-      this.setData({ subscribed })
-      this.saveSubscribedStatus()
-      wx.showToast({ title: '已取消订阅', icon: 'success' })
-    }
-  }
-})
+});
