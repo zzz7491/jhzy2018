@@ -30,6 +30,13 @@ export interface Env {
    * 仅做【存在性】声明，绝不读取值 / 打印 / 硬编码。
    */
   WECHAT_PHONE_PROVIDER?: string;
+  /**
+   * N0-D：微信订阅消息 Provider 选择（区分大小写不敏感）。
+   * 取值：WECHAT / FAKE。
+   * local 且无配置 → 默认 FAKE（确定性、零外网）；非 local 无配置 → 默认 WECHAT（缺 Secret 安全降级）。
+   * 仅做【存在性】声明，绝不读取值 / 打印 / 硬编码。
+   */
+  WECHAT_SUBSCRIBE_PROVIDER?: string;
   IDENTITY_HMAC_KEY?: string;
   /**
    * S2-6c-4 OPEN-6：身份 HMAC 密钥【前一版】（用于密钥轮换双密钥过渡）。

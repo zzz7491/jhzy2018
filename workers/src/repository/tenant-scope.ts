@@ -106,6 +106,8 @@ export const TABLE_SCOPE: Record<string, TenantScope> = {
   notification_delivery_identities: 'USER_SCOPED',
   // N0-C：微信订阅授权同意（每用户 × 每模板的 ACCEPT/REJECT/BAN；仅本人可读写，见 0035）。
   wechat_subscription_consents: 'USER_SCOPED',
+  // N0-D：微信订阅消息投递事实 / 尝试记录（USER_SCOPED，见 0036）。
+  notification_deliveries: 'USER_SCOPED',
 
   // ===== AUDIT_ONLY (7) =====
   level_change_logs: 'AUDIT_ONLY',

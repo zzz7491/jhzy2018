@@ -90,7 +90,10 @@ export class SubscriptionConsentRepository extends BaseRepository {
        DO UPDATE SET template_id  = excluded.template_id,
                      consent_state = excluded.consent_state,
                      responded_at  = excluded.responded_at,
-                     updated_at    = excluded.updated_at`,
+                     updated_at    = excluded.updated_at,
+                     -- 一次性订阅语义：新的真实 ACCEPT = 一份新的一次性权利 → 重置消费锚点。
+                     -- REJECT/BAN 不清除（只有新的 ACCEPT 才代表新 entitlement），ELSE 保留原值。
+                     consumed_at   = CASE WHEN excluded.consent_state = 'ACCEPT' THEN NULL ELSE consumed_at END`,
       [p.userId, p.templateKey, p.templateId, p.state, p.now, p.now, p.now],
     );
   }
@@ -102,6 +105,36 @@ export class SubscriptionConsentRepository extends BaseRepository {
     return this.all<SubscriptionConsentRow>(
       `SELECT * FROM wechat_subscription_consents WHERE user_id = ? ORDER BY template_key ASC`,
       [userId],
+    );
+  }
+
+  /**
+   * N0-D：eligibility 用 —— ACCEPT 且尚未消费的一次性授权记录。
+   * 一次性订阅语义：consumed_at IS NULL 才视为可发送。
+   */
+  async findAcceptedUnconsumed(userId: number, templateKey: string): Promise<SubscriptionConsentRow | null> {
+    this.assertUserScoped();
+    this.ensureTableRead('wechat_subscription_consents');
+    return this.first<SubscriptionConsentRow>(
+      `SELECT * FROM wechat_subscription_consents
+        WHERE user_id = ? AND template_key = ? AND consent_state = 'ACCEPT' AND consumed_at IS NULL
+        LIMIT 1`,
+      [userId, templateKey],
+    );
+  }
+
+  /**
+   * N0-D：一次性订阅消费（成功投递或授权失效后写入），使后续 eligibility 不再误判为可发送。
+   * 不破坏既有幂等（UNIQUE(user_id, template_key)）；仅更新 consumed_at / updated_at。
+   */
+  async markConsumed(userId: number, templateKey: string, now: number): Promise<void> {
+    this.assertUserScoped();
+    this.ensureTableRead('wechat_subscription_consents');
+    await this.run(
+      `UPDATE wechat_subscription_consents
+        SET consumed_at = ?, updated_at = ?
+        WHERE user_id = ? AND template_key = ?`,
+      [now, now, userId, templateKey],
     );
   }
 }
