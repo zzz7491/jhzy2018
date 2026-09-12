@@ -17,6 +17,7 @@
  *   - 不返回 idempotency_key / deleted_at / payload_json 等内部字段给 API 层。
  */
 
+import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { BaseRepository } from './base';
 import { generateUlid } from '../utils/crypto';
 import { userScopeRequired } from '../utils/errors';
@@ -96,6 +97,21 @@ export interface CreateNotificationInput {
   createdAt?: number;
 }
 
+/**
+ * 通知插入门控片段（N0-E1）。
+ *
+ * 语义：一个自包含的 `EXISTS (...)` SQL 片段 + 其按序 params，由调用方（业务域 repository）
+ * 构造并在同一 db.batch 内作为「共享 PRE-state 谓词 P」。当 P 落空时，被门控的
+ * notifications / notification_recipients INSERT 各写 0 行（而非报错），从而与业务状态跃迁
+ * 保持「全成或全 0」的原子一致。
+ *
+ * 安全：片段由服务端代码构造（仅含 `?` 占位符），不含任何用户输入拼接。
+ */
+export interface NotificationInsertGate {
+  existsSql: string;
+  params: unknown[];
+}
+
 /** 判定错误是否为 notification_recipients.idempotency_key 的 UNIQUE 冲突（幂等命中）。 */
 function isIdempotencyConflict(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : err == null ? '' : String(err);
@@ -149,6 +165,101 @@ export class NotificationRepository extends BaseRepository {
   }
 
   /**
+   * 构造「通知内容 + 全部 recipient」的已 bind statement 序列（N0-E1 抽取；不含 db.batch）。
+   *
+   * 唯一权威 SQL 事实源：createIdempotent 与业务事件组合（ActivitySignupService.reviewSignup）
+   * 都经本方法取 statement，杜绝第二份 INSERT SQL 漂移。
+   *
+   * - gate == null（N0-A create() 路径）：`INSERT ... VALUES`，与既有行为逐字节一致。
+   * - gate != null（N0-E1 组合路径）：两条 INSERT 改为 `INSERT ... SELECT ... WHERE <gate>`，
+   *   使「共享谓词落空 ⇒ 0 行」而非报错；recipient 以同批已落地的通知行 EXISTS 为闸门
+   *   （gate 落空时通知行 0 行 → recipient 亦 0 行）。此处【无任何 ON CONFLICT / INSERT OR IGNORE】。
+   *
+   * 本方法【只构造、不执行】——执行方为 createIdempotent 或调用方的组合 db.batch。
+   */
+  buildCreateIdempotentStatements(p: {
+    input: CreateNotificationInput;
+    recipients: { userId: number; idempotencyKey: string }[];
+    gate?: NotificationInsertGate | null;
+  }): { statements: D1PreparedStatement[]; notifPublicId: string } {
+    if (p.recipients.length === 0) {
+      throw new Error('createIdempotent requires at least one recipient');
+    }
+    this.assertUserScoped();
+    this.ensureTableRead('notifications');
+    this.ensureTableRead('notification_recipients');
+
+    const gate = p.gate ?? null;
+    const notifPublicId = generateUlid();
+    const now = p.input.createdAt ?? Math.floor(Date.now() / 1000);
+
+    const notifCols = `(public_id, team_id, event_type, category, title, summary, body,
+              business_entity_type, business_entity_id, target_page, payload_json,
+              created_by, created_at)`;
+    const notifVals: unknown[] = [
+      notifPublicId,
+      p.input.teamId ?? null,
+      p.input.eventType,
+      p.input.category,
+      p.input.title,
+      p.input.summary ?? null,
+      p.input.body ?? null,
+      p.input.businessEntityType ?? null,
+      p.input.businessEntityId ?? null,
+      p.input.targetPage ?? null,
+      p.input.payload == null ? null : JSON.stringify(p.input.payload),
+      p.input.createdBy ?? null,
+      now,
+    ];
+
+    const stmts: D1PreparedStatement[] = [];
+    if (gate == null) {
+      stmts.push(
+        this.db
+          .prepare(`INSERT INTO notifications ${notifCols} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(...(notifVals as never[])),
+      );
+    } else {
+      stmts.push(
+        this.db
+          .prepare(
+            `INSERT INTO notifications ${notifCols}
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+              WHERE ${gate.existsSql}`,
+          )
+          .bind(...(notifVals as never[]), ...(gate.params as never[])),
+      );
+    }
+
+    for (const rc of p.recipients) {
+      if (gate == null) {
+        stmts.push(
+          this.db
+            .prepare(
+              `INSERT INTO notification_recipients
+                 (public_id, notification_id, user_id, read_at, created_at, idempotency_key)
+               VALUES (?, (SELECT id FROM notifications WHERE public_id = ?), ?, NULL, ?, ?)`,
+            )
+            .bind(generateUlid(), notifPublicId, rc.userId, now, rc.idempotencyKey),
+        );
+      } else {
+        stmts.push(
+          this.db
+            .prepare(
+              `INSERT INTO notification_recipients
+                 (public_id, notification_id, user_id, read_at, created_at, idempotency_key)
+               SELECT ?, (SELECT id FROM notifications WHERE public_id = ?), ?, NULL, ?, ?
+                WHERE EXISTS (SELECT 1 FROM notifications WHERE public_id = ?)`,
+            )
+            .bind(generateUlid(), notifPublicId, rc.userId, now, rc.idempotencyKey, notifPublicId),
+        );
+      }
+    }
+
+    return { statements: stmts, notifPublicId };
+  }
+
+  /**
    * 原子幂等创建（N0-A ATOMIC IDEMPOTENCY FINAL FIX）。
    *
    * 核心机制：D1 batch（单事务，miniflare 不支持 SQL BEGIN/COMMIT）原子写入
@@ -163,64 +274,19 @@ export class NotificationRepository extends BaseRepository {
    *
    * 幂等责任完全在 NotificationService / repository 层（DB UNIQUE + 原子回滚），
    * 不依赖 caller 侧去重。
+   *
+   * 语句构造委托 buildCreateIdempotentStatements（单一 SQL 事实源）；本方法仅负责执行 + 幂等收敛。
    */
   async createIdempotent(p: {
     input: CreateNotificationInput;
     recipients: { userId: number; idempotencyKey: string }[];
   }): Promise<{ notification: NotificationRow; created: boolean }> {
-    if (p.recipients.length === 0) {
-      throw new Error('createIdempotent requires at least one recipient');
-    }
-    this.assertUserScoped();
-    this.ensureTableRead('notifications');
-    this.ensureTableRead('notification_recipients');
-
+    // 先经 builder（含 recipients 非空 / USER_SCOPED / 表级 guard），再取 anchorKey。
+    const { statements, notifPublicId } = this.buildCreateIdempotentStatements(p);
     const anchorKey = p.recipients[0].idempotencyKey;
-    const notifPublicId = generateUlid();
-    const now = p.input.createdAt ?? Math.floor(Date.now() / 1000);
-
-    // 原子事务：先插通知内容（生成 public_id），再以子查询引用该 public_id 的 id
-    // 插全部 recipient。batch 内语句顺序执行且互可见；任一 recipient 命中 UNIQUE
-    // 则整批回滚，通知内容行不落库。此处【无任何 ON CONFLICT / INSERT OR IGNORE】。
-    const stmts = [
-      this.db
-        .prepare(
-          `INSERT INTO notifications
-             (public_id, team_id, event_type, category, title, summary, body,
-              business_entity_type, business_entity_id, target_page, payload_json,
-              created_by, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          notifPublicId,
-          p.input.teamId ?? null,
-          p.input.eventType,
-          p.input.category,
-          p.input.title,
-          p.input.summary ?? null,
-          p.input.body ?? null,
-          p.input.businessEntityType ?? null,
-          p.input.businessEntityId ?? null,
-          p.input.targetPage ?? null,
-          p.input.payload == null ? null : JSON.stringify(p.input.payload),
-          p.input.createdBy ?? null,
-          now,
-        ),
-    ];
-    for (const rc of p.recipients) {
-      stmts.push(
-        this.db
-          .prepare(
-            `INSERT INTO notification_recipients
-               (public_id, notification_id, user_id, read_at, created_at, idempotency_key)
-             VALUES (?, (SELECT id FROM notifications WHERE public_id = ?), ?, NULL, ?, ?)`,
-          )
-          .bind(generateUlid(), notifPublicId, rc.userId, now, rc.idempotencyKey),
-      );
-    }
 
     try {
-      await this.db.batch(stmts);
+      await this.db.batch(statements);
     } catch (err) {
       // 仅识别「notification_recipients.idempotency_key」UNIQUE 冲突 → 视为幂等命中。
       if (isIdempotencyConflict(err)) {

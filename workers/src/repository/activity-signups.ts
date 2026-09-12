@@ -17,7 +17,9 @@
  *   INSERT 抛出 UNIQUE 冲突时同样收敛为 409（不泄露 SQL 原文）。
  */
 
+import type { D1PreparedStatement } from '@cloudflare/workers-types';
 import { BaseRepository } from './base';
+import type { NotificationInsertGate } from './notification';
 import { notFound, teamScopeRequired, conflict, ConflictReason } from '../utils/errors';
 
 export interface ActivitySignupRow {
@@ -229,40 +231,89 @@ export class ActivitySignupRepository extends BaseRepository {
   }
 
   /**
-   * N0-E0：条件 UPDATE 写入审核结果。
-   * - 强制 TEAM_SCOPED（EXISTS activities.team_id = ?）。
-   * - 强制 review_status = 0 guard（仅 PENDING 允许跃迁）。
-   * - activity_id / signup id / review_by / review_at 全部服务端派生，绝不接受客户端 override。
-   * - 返回 changes：仅当真实命中 1 行（PENDING → APPROVED/REJECTED）时为 1。
-   *   重复请求 / 并发 / 跨团队 / 不存在 → 0（上层按 transition/race/404 处理）。
+   * N0-E1：构造「共享 PRE-state 谓词 P」门控片段（供 Notification Core 组合使用）。
+   *
+   *   P := signup.id = ? ∧ signup.activity_id = ? ∧ signup.review_status = 0
+   *        ∧ ∃activities(a.id = signup.activity_id ∧ a.team_id = ? ∧ a.deleted_at IS NULL)
+   *
+   * teamId 恒服务端派生（this.requireTeamId()），绝不接受客户端 override。
+   * 返回自包含 EXISTS(...) 片段 + params，供 buildCreateIdempotentStatements({gate}) 使用。
    */
-  async updateReviewStatusWithMeta(
-    signupId: number,
-    activityId: number,
-    targetReviewStatus: number,
-    reviewBy: number,
-    reviewAt: number,
-    reviewReason: string | null,
-  ): Promise<number> {
+  buildReviewGate(p: { signupId: number; activityId: number }): NotificationInsertGate {
+    this.ensureTableRead('activity_signups');
+    const teamId = this.requireTeamId();
+    return {
+      existsSql: `EXISTS (
+            SELECT 1 FROM activity_signups g
+              JOIN activities a ON a.id = g.activity_id
+             WHERE g.id = ? AND g.activity_id = ? AND g.review_status = 0
+               AND a.team_id = ? AND a.deleted_at IS NULL
+          )`,
+      params: [p.signupId, p.activityId, teamId],
+    };
+  }
+
+  /**
+   * N0-E1：单次 db.batch 原子落地「gated notification INSERT(s) + 条件 review UPDATE」。
+   *
+   * 结构（复刻 attendance-sessions.reviewSessionAtomically 的「共享 PRE-state 谓词」纪律）：
+   *   语句顺序 = [ ...notificationStatements, reviewUpdate ]，UPDATE 恒在【最后】。
+   *
+   * 正确性论证（确定性，非概率性）：
+   * 1) notification 语句只写 notifications / notification_recipients，【不触碰】
+   *    activity_signups / activities → 不改变 P 的真值；
+   * 2) db.batch 为单写事务、语句顺序执行并持 SQLite 写锁，批内无其它写者穿插；
+   * 3) 故 UPDATE 求值 P 时其真值与 notification 语句求值时【必然相同】。
+   * 由 (1)(2)(3)：P 真 → 恰好 1 通知 + 1 recipient + 1 行 UPDATE；P 假 → 0/0/0。
+   *
+   * 若任一语句发生【真实 SQL 错误】→ 整批回滚（已执行语句一并撤销），故不存在
+   * 「review 已提交而通知缺失」的窗口；本方法不做任何补偿写。
+   *
+   * 不依赖 review_at / review_by / POST-state 作为 notification gating 条件（§6）。
+   *
+   * @returns review UPDATE 实际变更行数（1=跃迁成功；0=谓词落空，调用方区分 404 / 409）。
+   */
+  async reviewSignupAtomically(p: {
+    signupId: number;
+    activityId: number;
+    targetReviewStatus: number;
+    reviewBy: number;
+    reviewAt: number;
+    reviewReason: string | null;
+    notificationStatements: D1PreparedStatement[];
+  }): Promise<number> {
     this.ensureTableRead('activity_signups');
     const teamId = this.requireTeamId();
 
-    const res = await this.run(
-      `UPDATE activity_signups
-          SET review_status = ?,
-              review_by = ?,
-              review_at = ?,
-              review_reason = ?,
-              updated_at = ?
-        WHERE id = ? AND activity_id = ? AND review_status = 0
-          AND EXISTS (
-            SELECT 1 FROM activities a
-             WHERE a.id = activity_signups.activity_id
-               AND a.team_id = ? AND a.deleted_at IS NULL
-          )`,
-      [targetReviewStatus, reviewBy, reviewAt, reviewReason, reviewAt, signupId, activityId, teamId],
-    );
-    return res.meta?.changes ?? 0;
+    const updateStmt = this.db
+      .prepare(
+        `UPDATE activity_signups
+            SET review_status = ?,
+                review_by = ?,
+                review_at = ?,
+                review_reason = ?,
+                updated_at = ?
+          WHERE id = ? AND activity_id = ? AND review_status = 0
+            AND EXISTS (
+              SELECT 1 FROM activities a
+               WHERE a.id = activity_signups.activity_id
+                 AND a.team_id = ? AND a.deleted_at IS NULL
+            )`,
+      )
+      .bind(
+        p.targetReviewStatus,
+        p.reviewBy,
+        p.reviewAt,
+        p.reviewReason,
+        p.reviewAt,
+        p.signupId,
+        p.activityId,
+        teamId,
+      );
+
+    const statements = [...p.notificationStatements, updateStmt];
+    const results = await this.db.batch(statements);
+    return Number(results[results.length - 1]?.meta?.changes ?? 0);
   }
 
   // =========================================================================

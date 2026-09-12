@@ -19,13 +19,15 @@
  * 再查询并返回既有通知。绝不遗留无 recipient 的孤儿通知行；非幂等 DB 错误一律抛出。
  */
 
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import {
   NotificationRepository,
+  type CreateNotificationInput,
   type NotificationCategory,
   type NotificationDetail,
+  type NotificationInsertGate,
   type NotificationListItem,
 } from '../repository/notification';
 import { authRequired, invalidParam, notFound } from '../utils/errors';
@@ -81,6 +83,16 @@ export interface CreateNotificationResult {
   recipients: { user_id: number; created: boolean }[];
 }
 
+/**
+ * 通知创建计划（N0-E1）：已 validated / normalized / idempotency-prepared 的
+ * prepared statement 序列 + 通知 public_id。仅供调用方 push 进自己的原子 db.batch；
+ * 本对象不含执行语义（NotificationService 不代为 db.batch）。
+ */
+export interface NotificationCreationPlan {
+  statements: D1PreparedStatement[];
+  notificationPublicId: string;
+}
+
 export interface NotificationServiceDeps {
   db: D1Database;
   auth: AuthContext;
@@ -106,8 +118,16 @@ export class NotificationService {
 
   // ===== 内部 domain capability（无公开 create 端点；由 N0-E 业务事件调用）=====
 
-  /** 创建通知 + 逐个收件人幂等投递（IN_APP）。 */
-  async create(cmd: CreateNotificationCommand): Promise<CreateNotificationResult> {
+  /**
+   * 命令校验 / 归一化 + recipient 幂等键派生（Notification Core 唯一事实源）。
+   *
+   * create() 与 buildCreationPlan() 共用本方法，确保「校验规则」与「`:u<userId>` 后缀生成」
+   * 只有一个实现（N0-E1 §4：业务侧不得复制 Notification Core 规则）。
+   */
+  private normalizeCommand(cmd: CreateNotificationCommand): {
+    input: CreateNotificationInput;
+    recipients: { userId: number; idempotencyKey: string }[];
+  } {
     const eventType = text(cmd.eventType, 'event_type', MAX_EVENT_TYPE);
     const title = text(cmd.title, 'title', MAX_TITLE);
     if (!CATEGORIES.includes(cmd.category)) {
@@ -127,9 +147,7 @@ export class NotificationService {
       idempotencyKey: `${key}:u${userId}`,
     }));
 
-    // 原子幂等创建：同 idempotency_key 重试 → 不产生孤儿通知 / 重复 recipient，
-    // 返回既有通知（created=false）；DB UNIQUE(idempotency_key) 为原子冲突守卫。
-    const { notification, created } = await this.repo.createIdempotent({
+    return {
       input: {
         teamId: cmd.teamId ?? null,
         eventType,
@@ -144,13 +162,43 @@ export class NotificationService {
         createdBy: cmd.createdBy ?? null,
       },
       recipients,
-    });
+    };
+  }
+
+  /** 创建通知 + 逐个收件人幂等投递（IN_APP）。 */
+  async create(cmd: CreateNotificationCommand): Promise<CreateNotificationResult> {
+    const { input, recipients } = this.normalizeCommand(cmd);
+
+    // 原子幂等创建：同 idempotency_key 重试 → 不产生孤儿通知 / 重复 recipient，
+    // 返回既有通知（created=false）；DB UNIQUE(idempotency_key) 为原子冲突守卫。
+    const { notification, created } = await this.repo.createIdempotent({ input, recipients });
 
     return {
       notification_id: notification.public_id,
       created,
       recipients: recipients.map((r) => ({ user_id: r.userId, created })),
     };
+  }
+
+  /**
+   * 构造「已校验 + 已归一化 + 幂等键已就绪」的通知创建计划（N0-E1 组合用）。
+   *
+   * - 与 create() 共用 normalizeCommand（校验 / 归一化 / `:u<userId>` 后缀 = 单一事实源）。
+   * - 返回已 bind 的 prepared statements，供调用方 push 进自己的原子 db.batch；本方法【不执行】batch。
+   * - gate 非空时通知 INSERT 受共享 PRE-state 谓词门控（由业务域构造），实现业务跃迁与
+   *   通知「全成或全 0」的同批原子。
+   */
+  buildCreationPlan(
+    cmd: CreateNotificationCommand,
+    gate?: NotificationInsertGate | null,
+  ): NotificationCreationPlan {
+    const { input, recipients } = this.normalizeCommand(cmd);
+    const { statements, notifPublicId } = this.repo.buildCreateIdempotentStatements({
+      input,
+      recipients,
+      gate: gate ?? null,
+    });
+    return { statements, notificationPublicId: notifPublicId };
   }
 
   // ===== 用户侧读取（全部 SELF / USER_SCOPED）=====

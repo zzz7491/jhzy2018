@@ -42,11 +42,17 @@ function ulid() {
 }
 
 // ---------- D1 适配器（node:sqlite 后端，复用 P34-C2 harness 形态）----------
+// 说明：N0-E1 起 review 写路径改用 db.batch()（与 attendance.reviewSessionAtomically 同构）。
+// 真实 D1 db.batch() 语义 = 单写事务 + 返回 D1Result[]（每项含 meta.changes）。
+// 本 double 如实镜像：#1 同步执行（批内不 await，杜绝并发请求交错 BEGIN）；
+// #2 返回 results 数组。若 double 与真实 D1 语义不符，测试失败反映的是 double 失真，而非产品缺陷。
 function makeD1(sqlite) {
   const prepare = (sql) => {
     let params = [];
     const stmt = {
       bind(...p) { params = p; return stmt; },
+      _params() { return params; },
+      _doRun(p) { return sqlite.prepare(sql).run(...p); },
       async all(...override) {
         const p = override.length ? override : params;
         return { results: sqlite.prepare(sql).all(...p) };
@@ -58,7 +64,7 @@ function makeD1(sqlite) {
       },
       async run(...override) {
         const p = override.length ? override : params;
-        const r = sqlite.prepare(sql).run(...p);
+        const r = stmt._doRun(p);
         return { meta: { changes: r.changes ?? 0, last_row_id: Number(r.lastInsertRowid ?? 0) } };
       },
     };
@@ -67,14 +73,19 @@ function makeD1(sqlite) {
   return {
     prepare,
     async batch(stmts) {
+      const out = [];
       sqlite.exec('BEGIN');
       try {
-        for (const s of stmts) await s.run();
+        for (const s of stmts) {
+          const r = s._doRun(s._params());
+          out.push({ meta: { changes: r.changes ?? 0, last_row_id: Number(r.lastInsertRowid ?? 0) } });
+        }
         sqlite.exec('COMMIT');
       } catch (e) {
         sqlite.exec('ROLLBACK');
         throw e;
       }
+      return out;
     },
   };
 }

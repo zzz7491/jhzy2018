@@ -24,6 +24,7 @@ import {
   ConflictReason,
 } from '../utils/errors';
 import { REJECT_REASON_MAX_LENGTH } from '../services/activity-admin-service';
+import { NotificationService } from '../services/notification-service';
 import { isUlid } from '../utils/validation';
 import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
 
@@ -269,17 +270,59 @@ async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Pr
       decision === 'approve' ? SIGNUP_REVIEW_STATUS.APPROVED : SIGNUP_REVIEW_STATUS.REJECTED;
     const now = Math.floor(Date.now() / 1000);
 
-    // 条件 UPDATE：review_status = 0 guard；仅真实命中 PENDING 行时 changes === 1。
-    const changes = await signups.updateReviewStatusWithMeta(
-      signup.id,
-      activity.id,
-      targetReviewStatus,
-      userId,
-      now,
-      reviewReason,
+    // N0-E1：业务事件契约（IN_APP only）。一次报名只产生 APPROVED 或 REJECTED 之一，
+    // 与本次唯一 PENDING 跃迁一一对应。
+    const approved = decision === 'approve';
+    const eventType = approved ? 'ACTIVITY_SIGNUP_APPROVED' : 'ACTIVITY_SIGNUP_REJECTED';
+    const baseIdempotencyKey = `activity.signup.${approved ? 'approved' : 'rejected'}:${signup.id}`;
+
+    // payload 只使用现存数据（最小化；不含 contact / checkin / phone / openid / nickname fallback）。
+    const payload: Record<string, unknown> = {
+      activity_public_id: activityPublicId,
+      signup_id: signup.id,
+    };
+    if (!approved && reviewReason != null) payload.review_reason = reviewReason;
+
+    // N0-E1：共享 PRE-state 谓词门（业务域构造）→ 通知创建计划（Notification Core 负责
+    // 校验 / 归一化 / `:u<userId>` 幂等键；业务侧不复制这些规则，§4）。
+    // 通知 INSERT + recipient INSERT + review UPDATE 放入同一 db.batch：
+    //   P 真 → 1 transition / 1 notification / 1 recipient；P 假 → 0 / 0 / 0。
+    const gate = signups.buildReviewGate({ signupId: signup.id, activityId: activity.id });
+    const notificationPlan = new NotificationService({
+      db: this.db,
+      auth: this.auth,
+      tenant: this.tenant,
+    }).buildCreationPlan(
+      {
+        recipientUserIds: [signup.user_id],
+        idempotencyKey: baseIdempotencyKey,
+        eventType,
+        category: 'activity',
+        title: approved ? '报名审核通过' : '报名未通过',
+        teamId: activity.team_id,
+        businessEntityType: 'activity_signup',
+        businessEntityId: signup.id,
+        targetPage: `/pages/detail/detail?id=${activityPublicId}`,
+        payload,
+        createdBy: userId,
+      },
+      gate,
     );
+
+    // 单次原子 batch：gated notification / recipient INSERT 在前，guarded review UPDATE 在最后；
+    // transition 真相以 UPDATE 的 changes === 1 判定。
+    const changes = await signups.reviewSignupAtomically({
+      signupId: signup.id,
+      activityId: activity.id,
+      targetReviewStatus,
+      reviewBy: userId,
+      reviewAt: now,
+      reviewReason,
+      notificationStatements: notificationPlan.statements,
+    });
     if (changes !== 1) {
       // 区分后续：行已非 PENDING（重复 / 竞态后续请求）→ 409 transition；行消失 → 404。
+      // 因共享谓词门控，此时通知 / recipient 均为 0 行（零副作用）。
       const after = await signups.findReviewableByIdForTeam(signup.id, activity.id);
       if (after == null) throw notFound('Signup');
       if (after.review_status !== SIGNUP_REVIEW_STATUS.PENDING) {
