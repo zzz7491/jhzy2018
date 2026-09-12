@@ -8,7 +8,7 @@
 //   - 不接触任何真实微信接口（REAL_WECHAT_SEND_CALLS=0）：通过全局 fetch 守卫证明零外网调用。
 //   - 通过 esbuild 将 TS adapter 及其依赖打包为自包含 ESM，再以 node:sqlite 充当 D1 内存数据库。
 //   - 注入 FakeWeChatSubscribeProvider（success / reject / network 三种确定性模式）。
-//   - 覆盖：11 个模板 schema 注册表、payload 校验、投递资格、一次性订阅消费、幂等、安全（不落明文 openid）。
+//   - 覆盖：12 个模板 schema 注册表（含 N0-E5C 新增 signupReview，旧 signup 退役 status=2）、payload 校验、投递资格、一次性订阅消费、幂等、安全（不落明文 openid）。
 // =============================================================================
 
 import { DatabaseSync } from 'node:sqlite';
@@ -151,16 +151,16 @@ function consent(userId, templateKey, state) {
   });
 }
 const now = 1000;
-await consent(1, 'signup', 'ACCEPT'); // 主路径
-await consent(2, 'signup', 'ACCEPT'); // 无身份
-await consent(3, 'signup', 'ACCEPT'); // 身份 REVOKED
-await consent(4, 'signup', 'REJECT');
-await consent(5, 'signup', 'BAN');
+await consent(1, 'signupReview', 'ACCEPT'); // 主路径
+await consent(2, 'signupReview', 'ACCEPT'); // 无身份
+await consent(3, 'signupReview', 'ACCEPT'); // 身份 REVOKED
+await consent(4, 'signupReview', 'REJECT');
+await consent(5, 'signupReview', 'BAN');
 // user6 无授权
 await consent(7, 'audit', 'ACCEPT'); // 模板停用测试
 await consent(7, 'ghost_tpl', 'ACCEPT'); // 非法模板 key 测试
-await consent(8, 'signup', 'ACCEPT'); // reject/network/subscription 测试
-await consent(9, 'signup', 'ACCEPT'); // 幂等测试
+await consent(8, 'signupReview', 'ACCEPT'); // reject/network/subscription 测试
+await consent(9, 'signupReview', 'ACCEPT'); // 幂等测试
 
 // -----------------------------------------------------------------------------
 // 6. 断言框架
@@ -213,7 +213,7 @@ function consentRow(userId, templateKey) {
 console.log('\n— S1 模板注册表 SSOT 完整性 —');
 {
   const keys = mod.WECHAT_TEMPLATE_KEYS;
-  check('S1.1 恰好 11 个模板', keys.length === 11, 'got ' + keys.length);
+  check('S1.1 恰好 12 个模板（含 N0-E5C 新增 signupReview）', keys.length === 12, 'got ' + keys.length);
   let allMatch = true;
   const mismatches = [];
   for (const k of keys) {
@@ -221,12 +221,19 @@ console.log('\n— S1 模板注册表 SSOT 完整性 —');
     const row = sqlite
       .prepare("SELECT wx_template_id, status FROM message_templates WHERE code = ? AND channel = 'wechat_subscribe'")
       .get(k);
-    if (!row || row.status !== 1 || row.wx_template_id !== reg.wxTemplateId) {
+    // N0-E5C：旧 signup 已退役（status=2，保留历史行），新 signupReview 必须 active（status=1）。
+    // 注册表与 DB 的 wx_template_id 一致即可，status 允许 1（启用）或 2（已退役）。
+    if (!row || (row.status !== 1 && row.status !== 2) || row.wx_template_id !== reg.wxTemplateId) {
       allMatch = false;
       mismatches.push(k + '=>' + JSON.stringify(row) + ' vs ' + reg.wxTemplateId);
     }
   }
-  check('S1.2 每个注册表 wx_template_id 与 message_templates 一致且 status=1', allMatch, mismatches.join(' | '));
+  check('S1.2 每个注册表 wx_template_id 与 message_templates 一致且 status∈{1,2}', allMatch, mismatches.join(' | '));
+  // N0-E5C 退役契约显式断言：新 signupReview 必 active；旧 signup 必退役（status=2，保留历史行不删除）。
+  const newRow = sqlite.prepare("SELECT status FROM message_templates WHERE code = 'signupReview' AND channel = 'wechat_subscribe'").get();
+  check('S1.2b signupReview 状态=1（active）', !!newRow && newRow.status === 1);
+  const oldRow = sqlite.prepare("SELECT status FROM message_templates WHERE code = 'signup' AND channel = 'wechat_subscribe'").get();
+  check('S1.2c 旧 signup 状态=2（已退役，保留历史行）', !!oldRow && oldRow.status === 2);
   // 所有字段 key 形态合法
   let allKeysOk = true;
   for (const k of keys) {
@@ -239,7 +246,7 @@ console.log('\n— S1 模板注册表 SSOT 完整性 —');
 
 console.log('\n— S2-S6 payload schema 校验 —');
 {
-  const signup = mod.WECHAT_TEMPLATE_SCHEMAS.signup;
+  const signup = mod.WECHAT_TEMPLATE_SCHEMAS.signupReview;
   const valid = samplePayload(signup);
   check('S2 合法 payload 通过', mod.validateWeChatPayload(signup, valid).ok === true);
   const extra = { ...valid, thing999: 'x' };
@@ -266,20 +273,20 @@ let user1Provider;
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
   user1Provider = provider;
-  const r = await adapter.send({ userId: 1, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 1, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S7.1 delivered=true', r.delivered === true, JSON.stringify(r));
   check('S7.2 status=DELIVERED', r.status === 'DELIVERED');
   check('S7.3 provider 被调用 1 次', provider.callCount === 1, 'callCount=' + provider.callCount);
   const d = lastDelivery(1);
   check('S7.4 投递记录 DELIVERED', d && d.status === 'DELIVERED');
   check('S7.5 provider_message_id 已持久化', !!d && typeof d.provider_message_id === 'string' && d.provider_message_id.length > 0);
-  check('S7.6 一次性授权已消费', consentRow(1, 'signup').consumed_at != null);
+  check('S7.6 一次性授权已消费', consentRow(1, 'signupReview').consumed_at != null);
 }
 
 console.log('\n— S8 无投递身份 → NOT_ELIGIBLE —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
-  const r = await adapter.send({ userId: 2, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 2, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S8.1 status=NOT_ELIGIBLE', r.status === 'NOT_ELIGIBLE', JSON.stringify(r));
   check('S8.2 provider 未被调用', provider.callCount === 0, 'callCount=' + provider.callCount);
 }
@@ -287,7 +294,7 @@ console.log('\n— S8 无投递身份 → NOT_ELIGIBLE —');
 console.log('\n— S9 身份 REVOKED → NOT_ELIGIBLE —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
-  const r = await adapter.send({ userId: 3, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 3, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S9.1 status=NOT_ELIGIBLE', r.status === 'NOT_ELIGIBLE', JSON.stringify(r));
   check('S9.2 provider 未被调用', provider.callCount === 0, 'callCount=' + provider.callCount);
 }
@@ -295,17 +302,17 @@ console.log('\n— S9 身份 REVOKED → NOT_ELIGIBLE —');
 console.log('\n— S10/S11 授权 REJECT / BAN → NOT_ELIGIBLE —');
 {
   const a1 = makeAdapter({ mode: 'success' });
-  const r1 = await a1.adapter.send({ userId: 4, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r1 = await a1.adapter.send({ userId: 4, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S10 REJECT → NOT_ELIGIBLE', r1.status === 'NOT_ELIGIBLE' && a1.provider.callCount === 0);
   const a2 = makeAdapter({ mode: 'success' });
-  const r2 = await a2.adapter.send({ userId: 5, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r2 = await a2.adapter.send({ userId: 5, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S11 BAN → NOT_ELIGIBLE', r2.status === 'NOT_ELIGIBLE' && a2.provider.callCount === 0);
 }
 
 console.log('\n— S12 无授权 → NOT_ELIGIBLE —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
-  const r = await adapter.send({ userId: 6, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 6, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S12 无 consent → NOT_ELIGIBLE', r.status === 'NOT_ELIGIBLE' && provider.callCount === 0);
 }
 
@@ -329,50 +336,50 @@ console.log('\n— S15 非法 payload → INVALID_PAYLOAD + 记录 —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
   const bad = { thing4: 'x' }; // 缺字段
-  const r = await adapter.send({ userId: 8, templateKey: 'signup', data: bad });
+  const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: bad });
   check('S15.1 status=INVALID_PAYLOAD', r.status === 'INVALID_PAYLOAD', JSON.stringify(r));
   check('S15.2 provider 未被调用', provider.callCount === 0);
   const d = lastDelivery(8);
   check('S15.3 生成 INVALID_PAYLOAD 记录', d && d.status === 'INVALID_PAYLOAD');
-  check('S15.4 授权未被消费', consentRow(8, 'signup').consumed_at == null);
+  check('S15.4 授权未被消费', consentRow(8, 'signupReview').consumed_at == null);
 }
 
 console.log('\n— S16 provider RECIPIENT_INVALID → PROVIDER_ERROR（不消费）—');
 {
   const { adapter, provider } = makeAdapter({ mode: 'reject', errcode: 40003 });
-  const r = await adapter.send({ userId: 8, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S16.1 status=PROVIDER_ERROR', r.status === 'PROVIDER_ERROR', JSON.stringify(r));
   check('S16.2 errorCode=40003', r.providerErrorCode === '40003', String(r.providerErrorCode));
   const d = lastDelivery(8);
   check('S16.3 记录 PROVIDER_ERROR + 安全 token', d && d.status === 'PROVIDER_ERROR' && d.provider_error_message === 'RECIPIENT_INVALID');
-  check('S16.4 授权未被消费（可重试）', consentRow(8, 'signup').consumed_at == null);
+  check('S16.4 授权未被消费（可重试）', consentRow(8, 'signupReview').consumed_at == null);
 }
 
 console.log('\n— S17 provider NETWORK → NETWORK_ERROR —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'network' });
-  const r = await adapter.send({ userId: 8, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S17.1 status=NETWORK_ERROR', r.status === 'NETWORK_ERROR', JSON.stringify(r));
   const d = lastDelivery(8);
   check('S17.2 记录 NETWORK_ERROR', d && d.status === 'NETWORK_ERROR' && d.provider_error_message === 'NETWORK_ERROR');
-  check('S17.3 授权未被消费', consentRow(8, 'signup').consumed_at == null);
+  check('S17.3 授权未被消费', consentRow(8, 'signupReview').consumed_at == null);
 }
 
 console.log('\n— S18 provider SUBSCRIPTION_NOT_AVAILABLE → PROVIDER_REJECTED + 消费 —');
 {
   const { adapter, provider } = makeAdapter({ mode: 'reject', errcode: 43101 });
-  const r = await adapter.send({ userId: 8, templateKey: 'signup', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S18.1 status=PROVIDER_REJECTED', r.status === 'PROVIDER_REJECTED', JSON.stringify(r));
   const d = lastDelivery(8);
   check('S18.2 记录 PROVIDER_REJECTED', d && d.status === 'PROVIDER_REJECTED' && d.provider_error_message === 'SUBSCRIPTION_NOT_AVAILABLE');
-  check('S18.3 授权已消费（防反复误投）', consentRow(8, 'signup').consumed_at != null);
+  check('S18.3 授权已消费（防反复误投）', consentRow(8, 'signupReview').consumed_at != null);
 }
 
 console.log('\n— S19 一次性订阅消费：成功后再发被拒 —');
 {
   // user1 已于 S7 成功投递并消费
   const { adapter, provider } = makeAdapter({ mode: 'success' });
-  const r = await adapter.send({ userId: 1, templateKey: 'signup', idempotencyKey: 'idem-user1-second', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup) });
+  const r = await adapter.send({ userId: 1, templateKey: 'signupReview', idempotencyKey: 'idem-user1-second', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S19.1 二次发送 NOT_ELIGIBLE', r.status === 'NOT_ELIGIBLE', JSON.stringify(r));
   check('S19.2 二次发送未再调用 provider（消费后短路）', provider.callCount === 0, 'callCount=' + provider.callCount);
 }
@@ -382,7 +389,7 @@ console.log('\n— S20 幂等：相同 idempotency_key 不重复发送 —');
   // user9：identity + signup ACCEPT；用非法 payload 触发 INVALID_PAYLOAD 记录（不消费授权），
   // 验证相同 idempotency_key 第二次发送被短路返回同一结果、provider 不被重复调用、仅一条记录。
   const a = makeAdapter({ mode: 'success' });
-  const p = { userId: 9, templateKey: 'signup', idempotencyKey: 'idem-user9-k1', data: { thing4: 'x' } };
+  const p = { userId: 9, templateKey: 'signupReview', idempotencyKey: 'idem-user9-k1', data: { thing4: 'x' } };
   const r1 = await a.adapter.send(p);
   const r2 = await a.adapter.send(p);
   check('S20.1 两次均 INVALID_PAYLOAD', r1.status === 'INVALID_PAYLOAD' && r2.status === 'INVALID_PAYLOAD', JSON.stringify(r1) + ' / ' + JSON.stringify(r2));
@@ -468,41 +475,41 @@ console.log('\n— S25 RE-CONSENT LIFECYCLE（一次性订阅重授权恢复）�
 {
   const { adapter, provider } = makeAdapter({ mode: 'success' });
   // 1. 确保 ACCEPT（user9 已在 seed 中 signup ACCEPT，且未被消费）
-  await consent(9, 'signup', 'ACCEPT');
-  check('S25.1 初始 ACCEPT 后 consumed_at == NULL', consentRow(9, 'signup').consumed_at == null);
+  await consent(9, 'signupReview', 'ACCEPT');
+  check('S25.1 初始 ACCEPT 后 consumed_at == NULL', consentRow(9, 'signupReview').consumed_at == null);
 
   // 2-3. 第一次 SUCCESS
   const r1 = await adapter.send({
     userId: 9,
-    templateKey: 'signup',
+    templateKey: 'signupReview',
     idempotencyKey: 'idem-rec-1',
-    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup),
+    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview),
   });
   check('S25.2 第一次 send DELIVERED', r1.status === 'DELIVERED', JSON.stringify(r1));
   check('S25.3 provider 第一次被调用', provider.callCount === 1, 'callCount=' + provider.callCount);
-  check('S25.4 第一次成功后 consumed_at != NULL', consentRow(9, 'signup').consumed_at != null);
+  check('S25.4 第一次成功后 consumed_at != NULL', consentRow(9, 'signupReview').consumed_at != null);
 
   // 4-5. 用户再次真实 ACCEPT（重授权）
-  await consent(9, 'signup', 'ACCEPT');
-  check('S25.5 再次 ACCEPT 后 consumed_at == NULL（权利恢复）', consentRow(9, 'signup').consumed_at == null);
+  await consent(9, 'signupReview', 'ACCEPT');
+  check('S25.5 再次 ACCEPT 后 consumed_at == NULL（权利恢复）', consentRow(9, 'signupReview').consumed_at == null);
 
   // 6-9. 第二次 SUCCESS
   const r2 = await adapter.send({
     userId: 9,
-    templateKey: 'signup',
+    templateKey: 'signupReview',
     idempotencyKey: 'idem-rec-2',
-    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup),
+    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview),
   });
   check('S25.6 第二次 send DELIVERED', r2.status === 'DELIVERED', JSON.stringify(r2));
   check('S25.7 provider 第二次被调用', provider.callCount === 2, 'callCount=' + provider.callCount);
-  check('S25.8 第二次成功后 consumed_at 再次 != NULL', consentRow(9, 'signup').consumed_at != null);
+  check('S25.8 第二次成功后 consumed_at 再次 != NULL', consentRow(9, 'signupReview').consumed_at != null);
 
   // 10-12. 第三次直接 send（无新 ACCEPT）
   const r3 = await adapter.send({
     userId: 9,
-    templateKey: 'signup',
+    templateKey: 'signupReview',
     idempotencyKey: 'idem-rec-3',
-    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signup),
+    data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview),
   });
   check('S25.9 第三次（无新 ACCEPT）NOT_ELIGIBLE', r3.status === 'NOT_ELIGIBLE', JSON.stringify(r3));
   check('S25.10 provider 未被第三次调用', provider.callCount === 2, 'callCount=' + provider.callCount);

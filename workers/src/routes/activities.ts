@@ -118,7 +118,7 @@ activities.post('/:activityId/signups', requirePermission('signup.signup.create'
     throw invalidParam('request', 'invalid request body');
   }
 
-  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
   const signup = await service.createOwn(activityPublicId, { formSubmissionPublicId });
 
   return ok(c, { signup }, 201);
@@ -143,7 +143,7 @@ activities.get('/:activityId/signups/me', requirePermission('signup.signup.creat
   const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
 
   const includeAnswers = await hasPerm(c, 'form.submission.read');
-  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
   const view = await service.getOwnSignupDetail(activityPublicId, {
     includeAnswers,
     includeLegacyFormData: includeAnswers,
@@ -158,7 +158,7 @@ activities.get('/:activityId/signups', requirePermission('signup.signup.review')
   const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
   const { page, pageSize } = parsePagination(c.req.query());
 
-  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
   const result = await service.listSignups(activityPublicId, page, pageSize);
   return ok(c, { signups: result.items });
 });
@@ -172,7 +172,7 @@ activities.get('/:activityId/signups/users/:userPublicId', requirePermission('si
   if (!isUlid(userPublicId)) throw invalidParam('userPublicId', 'must be a 26-char ULID');
 
   const includeAnswers = await hasPerm(c, 'form.submission.manage');
-  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
   const view = await service.getSignupDetailByUser(activityPublicId, userPublicId, {
     includeAnswers,
     includeLegacyFormData: includeAnswers,
@@ -192,7 +192,7 @@ activities.delete('/:activityId/signups/me', requirePermission('signup.signup.ca
   if (!auth.authenticated) throw authRequired();
 
   const activityPublicId = requireUlidParam(c.req.param('activityId'), 'activityId');
-  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+  const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
   const signup = await service.cancelOwn(activityPublicId);
 
   return ok(c, { signup });
@@ -237,7 +237,7 @@ activities.post(
       throw invalidParam('decision', 'must be "approve" or "reject"');
     }
 
-    const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant') });
+    const service = new ActivitySignupService({ db: c.env.DB, auth, tenant: c.get('tenant'), env: c.env });
     const view = await service.reviewSignup(activityPublicId, signupId, decision as 'approve' | 'reject', reason);
     return ok(c, { signup: view.signup });
   },

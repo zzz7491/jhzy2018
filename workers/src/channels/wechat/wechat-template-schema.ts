@@ -47,6 +47,23 @@ export interface WeChatTemplateSchema {
 }
 
 export const WECHAT_TEMPLATE_SCHEMAS: Record<string, WeChatTemplateSchema> = {
+  // N0-E5C：活动报名审核结果通知（No.4877）。
+  // 与旧 signup(No.620) 是完全不同的 provider contract（字段 key/类型/数量/语义均不同），
+  // 不复用旧 schema、不保留 thing11（签到地点，无真实数据源）、不添加联系人/电话/legacy 字段。
+  // 字段顺序固定：phrase1 审核结果 → thing2 活动名称 → thing4 活动地点 → time7 审批时间。
+  signupReview: {
+    templateKey: 'signupReview',
+    title: '活动报名审核结果通知',
+    templateNo: '4877',
+    wxTemplateId: 'PGRSuLr34NVlbNE3L33-Dtqm_ad9uG-WSrZ0ew4oYs8',
+    scene: '志愿活动报名审核结果通知',
+    fields: [
+      { businessLabel: '审核结果', providerKey: 'phrase1', type: 'phrase' },
+      { businessLabel: '活动名称', providerKey: 'thing2', type: 'thing' },
+      { businessLabel: '活动地点', providerKey: 'thing4', type: 'thing' },
+      { businessLabel: '审批时间', providerKey: 'time7', type: 'time' },
+    ],
+  },
   signup: {
     templateKey: 'signup',
     title: '报名结果提醒',

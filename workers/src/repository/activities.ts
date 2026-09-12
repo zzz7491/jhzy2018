@@ -27,6 +27,10 @@ export interface ActivitySignupTarget {
   status: number;
   allow_cancel: number;
   need_audit: number;
+  /** N0-E5C：WeChat payload 需活动名称（非负）。 */
+  title: string;
+  /** N0-E5C：WeChat payload 需活动地点（OPTIONAL，可 NULL → WeChat 跳过）。 */
+  address: string | null;
 }
 
 export interface ActivityRow {
@@ -315,7 +319,7 @@ export class ActivityRepository extends BaseRepository {
     if (!isUlid(publicId)) throw notFound('Activity');
 
     const row = await this.first<ActivitySignupTarget>(
-      `SELECT id, team_id, status, allow_cancel, need_audit
+      `SELECT id, team_id, status, allow_cancel, need_audit, title, address
          FROM activities
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL`,
       [publicId, this.ctx.tenant.teamId],

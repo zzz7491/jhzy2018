@@ -2,6 +2,7 @@
  * ActivitySignupService锛圫2-6g 鈫?S2-NEW-ARCH-P21锛夆€斺€?娲诲姩鎶ュ悕 use-case銆? *
  * P21 鎺ョ嚎锛歴ignup 鍙€滅粦瀹氣€漃20 宸?submitted 鐨?form submission锛堜笉鍒涘缓/涓嶅鍒惰〃鍗曢€昏緫锛夈€? * - consumer policy 鍒ゅ畾璧?form_bindings.consume_policy锛? none / 1 optional / 2 required锛夈€? * - 琛ㄥ崟缁戝畾 = repo 鍗曟潯鍘熷瓙 INSERT鈥ELECT / UPDATE鈥orrelated predicates锛実uard 鍏ㄥ惈锛屼互 changes 鍒ゅ畾銆? * - 鍙栨秷=鍘熻 status=2锛涢噸鎶?reactivation锛坰tatus=2鈫?锛夛紝缁濅笉 INSERT 绗簩琛岋紙UNIQUE(user_id,activity_id)锛夈€? * - 璇绘姇褰辨寜鏉冮檺瑁佸壀锛圫ELF / TEAM review / submission answers,legacy form_data 闅愮锛夈€? */
 import type { D1Database } from '@cloudflare/workers-types';
+import type { Env } from '../env';
 import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import { ActivityRepository } from '../repository/activities';
@@ -27,12 +28,24 @@ import { REJECT_REASON_MAX_LENGTH } from '../services/activity-admin-service';
 import { NotificationService } from '../services/notification-service';
 import { isUlid } from '../utils/validation';
 import { assertVolunteerQualified } from '../services/volunteer-qualification-service';
+import { WeChatSubscribeAdapter } from '../channels/wechat/wechat-subscribe-adapter';
+import { buildSignupReviewWeChatData } from './signup-review-wechat';
 
 /** 鏈嶅姟渚濊禆锛堢敱璺敱灞備粠 Context 缁勮锛孲ervice 涓嶆帴瑙?HTTP 瀵硅薄锛夈€?*/
 export interface SignupServiceDeps {
   db: D1Database;
   auth: AuthContext;
   tenant: TenantContext;
+  /**
+   * N0-E5C：WeChat 投递所需运行环境（提供 DB + provider 选择）。
+   * 可选——未提供则跳过 WeChat 投递（业务 review + IN_APP 不受影响）。
+   */
+  env?: Env;
+  /**
+   * N0-E5C：可注入的 WeChat 适配器（测试用，便于确定性控制 provider 行为）。
+   * 未注入且 env 存在时，Service 内部构造默认适配器；两者皆无则跳过 WeChat。
+   */
+  wechatAdapter?: WeChatSubscribeAdapter;
 }
 
 export interface SignupView {
@@ -70,11 +83,18 @@ export class ActivitySignupService {
   private readonly db: D1Database;
   private readonly auth: AuthContext;
   private readonly tenant: TenantContext;
+  /** N0-E5C：运行环境（可选）。 */
+  private readonly env?: Env;
+  /** N0-E5C：WeChat 适配器（可选；未注入且 env 存在时内部构造默认适配器）。 */
+  private readonly wechatAdapter?: WeChatSubscribeAdapter;
 
   constructor(deps: SignupServiceDeps) {
     this.db = deps.db;
     this.auth = deps.auth;
     this.tenant = deps.tenant;
+    this.env = deps.env;
+    this.wechatAdapter =
+      deps.wechatAdapter ?? (deps.env ? new WeChatSubscribeAdapter({ env: deps.env }) : undefined);
   }
 
   private requireActor(): { userId: number; teamId: number } {
@@ -329,6 +349,33 @@ async createOwn(activityPublicId: string, options: SignupCreateOptions = {}): Pr
         throw conflict(ConflictReason.SIGNUP_REVIEW_TRANSITION);
       }
       throw conflict(ConflictReason.SIGNUP_REVIEW_RACE);
+    }
+
+    // N0-E5C：best-effort WeChat 投递（AFTER_ATOMIC_COMMIT；绝不影响已成功的业务 / IN_APP）。
+    // 缺活动地址 / 无投递身份 / 无授权 / provider 失败 → 均不回滚、不报错。
+    if (this.wechatAdapter != null) {
+      try {
+        const data = buildSignupReviewWeChatData({
+          title: activity.title,
+          address: activity.address,
+          decision: approved ? 'approve' : 'reject',
+          reviewAt: now,
+        });
+        if (data != null) {
+          await this.wechatAdapter.send({
+            userId: signup.user_id,
+            templateKey: 'signupReview',
+            data,
+            page: `/pages/detail/detail?id=${activityPublicId}`,
+            idempotencyKey: `wechat:signup-review:${signup.id}:${approved ? 'approved' : 'rejected'}`,
+            notificationId: null,
+            recipientId: null,
+          });
+        }
+      } catch (e) {
+        // best-effort：任何异常都不影响已提交的 review + IN_APP。
+        console.error('[N0-E5C] best-effort WeChat delivery skipped (non-fatal):', e);
+      }
     }
 
     return {
