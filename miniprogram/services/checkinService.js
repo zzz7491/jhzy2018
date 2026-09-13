@@ -9,8 +9,7 @@ const API_BASE = 'https://api.jhzyfw.com/api';
 const request = (url, options = {}) => {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync('access_token');
-    console.log('checkinService请求token:', token); // 添加这行
-    
+
     wx.request({
       url: API_BASE + url,
       method: options.method || 'GET',
@@ -20,7 +19,6 @@ const request = (url, options = {}) => {
         'Authorization': token ? `Bearer ${token}` : ''
       },
       success: (res) => {
-        console.log('checkinService响应:', res); // 添加这行
         if (res.statusCode === 200) {
           resolve(res.data);
         } else if (res.statusCode === 401) {

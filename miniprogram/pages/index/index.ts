@@ -154,7 +154,7 @@ Page({
     
     const isValidLogin = isLoggedIn === true && token && token.length > 0 && userInfo && userInfo.id;
     
-    console.log('syncLoginStatus:', { isValidLogin, userInfo, token, isLoggedIn });
+    console.log('syncLoginStatus:', { isValidLogin, hasUserInfo: !!userInfo, hasToken: !!token, isLoggedIn });
     
     if (isValidLogin) {
       this.setData({

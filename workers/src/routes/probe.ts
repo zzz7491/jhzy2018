@@ -12,7 +12,20 @@ import type { Env, AppVars } from '../env';
  */
 const probe = new Hono<{ Bindings: Env; Variables: AppVars }>();
 
+/**
+ * S0-B1（P0-4）生产暴露面收口：probe 是 S2-4 基础设施探针，会回显 RBAC 拓扑计数
+ * 与 6 角色 code/scope，属未认证侦察面。生产环境一律 404，避免公开暴露。
+ *
+ * 复用【既有正式环境语义】env.ENVIRONMENT（由 wrangler.jsonc vars 注入，取值
+ * local/preview/production；与 middleware/auth.ts 的 isLocal 约定一致），不新增
+ * 任何环境模型 / 变量 / 权限 / RBAC。仅 local（及非 production 的既有环境）保持原行为。
+ */
+function isProduction(env: Env): boolean {
+  return (env.ENVIRONMENT ?? 'local') === 'production';
+}
+
 probe.get('/', async (c) => {
+  if (isProduction(c.env)) return c.notFound();
   const row = await c.env.DB.prepare(
     `SELECT
        (SELECT COUNT(*) FROM d1_migrations)   AS migrations,
@@ -35,6 +48,7 @@ probe.get('/', async (c) => {
 });
 
 probe.get('/roles', async (c) => {
+  if (isProduction(c.env)) return c.notFound();
   const res = await c.env.DB.prepare('SELECT code, name, scope FROM roles ORDER BY id')
     .all<{ code: string; name: string; scope: string }>();
   return c.json({
