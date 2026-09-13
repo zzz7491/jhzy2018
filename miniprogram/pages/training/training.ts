@@ -167,12 +167,19 @@ Page({
     }
   },
 
-  /** 从课程列表推导可参加的考试 paper（后端权威；取首个 eligible 且有 paper_public_id 的课程）。 */
+  /**
+   * 从课程列表推导可参加的考试 paper（后端权威）。
+   * M2：优先锁定 purpose='INITIAL_VOLUNTEER' 的课程（尊重 P0-C 冻结 purpose 语义），
+   * 不再以「首个 eligible 课程」或 required=1 推断，避免误选非初始资格课程。
+   * 无 INITIAL_VOLUNTEER 课程时回退到首个 eligible 课程，保持兼容。
+   */
   deriveExamEntry(courses: CourseView[]): { examEligible: boolean; examPaperPublicId: string } {
-    const eligible = courses.find((c) => c.exam && c.exam.paper_public_id && c.exam.eligible);
+    const initial = courses.find((c) => c.purpose === 'INITIAL_VOLUNTEER' && c.exam && c.exam.paper_public_id && c.exam.eligible);
+    const fallback = courses.find((c) => c.exam && c.exam.paper_public_id && c.exam.eligible);
+    const entry = initial || fallback;
     return {
-      examEligible: !!eligible,
-      examPaperPublicId: eligible?.exam?.paper_public_id || ''
+      examEligible: !!entry,
+      examPaperPublicId: entry?.exam?.paper_public_id || ''
     };
   },
 

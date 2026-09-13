@@ -90,14 +90,9 @@
         <view wx:else class="exam-disabled">
           <button class="exam-start-btn disabled" disabled>
             <text class="exam-icon">🔒</text>
-            <text>需完成所有课程才能考试</text>
+            <text>请先完成初始培训课程</text>
           </button>
-          <view class="exam-tip">
-            请先完成：
-            <text wx:if="{{!requiredCompleted}}">· 必修课 </text>
-            <text wx:if="{{!requiredCompleted && !electiveCompleted}}">和 </text>
-            <text wx:if="{{!electiveCompleted}}">· 至少1门选修课</text>
-          </view>
+          <view class="exam-tip">完成初始资格培训并通过结业考试（90分合格）后，即可报名活动</view>
         </view>
       </view>
     </view>
@@ -143,6 +138,7 @@
             <image src="{{item.cover_url || '/images/training/default-course.png'}}" class="cover-image" mode="aspectFill" />
             <view class="cover-overlay">
               <text class="difficulty-badge">{{item.required ? '必修' : '选修'}}</text>
+              <text wx:if="{{item.purpose === 'INITIAL_VOLUNTEER'}}" class="initial-badge">初始资格</text>
               <text class="duration-badge">{{item.required_minutes}}分钟</text>
             </view>
           </view>

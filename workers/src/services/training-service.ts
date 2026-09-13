@@ -275,6 +275,7 @@ export class TrainingService {
     summary: string | null;
     required: number;
     required_minutes: number;
+    purpose?: string; // P0-C：INITIAL_VOLUNTEER 资格标记（只读投影；不改写路径）
     projectName?: string;
     status: number;
     created_at: number;
@@ -294,6 +295,7 @@ export class TrainingService {
       summary: course.summary,
       required: course.required,
       required_minutes: course.required_minutes,
+      purpose: course.purpose ?? '', // P0-C：INITIAL_VOLUNTEER 资格标记（只读投影；前端据此锁定初始资格课程）
       cover_url: null,
       status: course.status,
       lesson_count: lessons,

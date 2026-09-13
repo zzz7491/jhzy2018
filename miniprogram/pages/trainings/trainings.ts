@@ -1,4 +1,4 @@
-import { trainingApi, hasTeamContext, type MyProgressItem, type CertificateView, type CourseView } from '../../utils/trainingApi';
+import { trainingApi, hasTeamContext, type CertificateView, type CourseView } from '../../utils/trainingApi';
 
 // pages/trainings/trainings.ts（P32-P3 / P32-P3A 遗留考试交接页）
 // 旧版：依赖外部 exam.jhzyfw.com（webview + PHP 接口 + PDF 下载）。
@@ -76,25 +76,17 @@ Page({
         trainingApi.listCourses(1, 100)
       ]);
 
-      // 考试资格：必修全部完成 且 至少一门选修完成
-      const items: MyProgressItem[] = progressRes.items || [];
-      const required = items.filter((i) => i.required === 1);
-      const elective = items.filter((i) => i.required === 0);
-      const requiredCompleted = required.length > 0 && required.every((i) => i.completed);
-      const electiveCompleted = elective.length > 0 && elective.some((i) => i.completed);
-      const progressEligible = requiredCompleted && electiveCompleted;
-
       // 培训证书：cert_type === 'training' 视为考试合格凭证
       const certs: CertificateView[] = certRes.certificates || [];
       const certificate = certs.find((c) => c.cert_type === 'training') || null;
 
-      // 志愿者考试发现（P32-P3A）：从后端课程数据取首个「有 paper 且 eligible」的课程。
+      // M2：志愿者考试发现（后端权威）—— 锁定 purpose='INITIAL_VOLUNTEER' 的课程，
+      // 不再以 required=1 / 选修完成 推断资格（尊重 P0-C 冻结 purpose 语义）。
       const courses: CourseView[] = coursesRes.items || [];
-      const eligibleCourse = courses.find((c) => c.exam && c.exam.paper_public_id && c.exam.eligible);
-      const examPaperPublicId = eligibleCourse?.exam?.paper_public_id || '';
-
-      // 最终考试资格：进度满足 且 后端确实下发了可参加的 paper。
-      const examEligible = progressEligible && !!examPaperPublicId;
+      const initialCourse = courses.find((c) => c.purpose === 'INITIAL_VOLUNTEER' && c.exam && c.exam.paper_public_id);
+      const examPaperPublicId = initialCourse?.exam?.paper_public_id || '';
+      // 资格闸门完全由「INITIAL_VOLUNTEER 课程是否完成（后端 exam.eligible 编码）」决定，前端不自算。
+      const examEligible = !!(initialCourse && initialCourse.exam && initialCourse.exam.eligible);
 
       this.setData({
         examEligible,

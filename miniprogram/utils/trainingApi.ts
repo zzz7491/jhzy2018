@@ -23,6 +23,7 @@ export interface CourseView {
   summary: string | null;
   required: number; // 1=必修 0=选修
   required_minutes: number;
+  purpose?: string; // P0-C：INITIAL_VOLUNTEER 资格标记（只读；前端据此锁定初始资格课程，不以 required 推断）
   cover_url: string | null;
   status: number;
   lesson_count: number;

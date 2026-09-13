@@ -182,6 +182,16 @@ Page({
     wx.navigateTo({ url: '/pages/identity-verify/identity-verify' });
   },
 
+  // M2：前往初始培训（资格投影中 initial_training_exam_passed 的落地动作）。
+  // 进入学习培训列表，由后端 purpose='INITIAL_VOLUNTEER' 标记定位初始资格课程；前端绝不自算资格。
+  goToInitialTraining() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/training/training' });
+  },
+
   // P0-C：加载志愿者资格状态（仅消费后端投影，不自算）。
   loadVolunteerQualification() {
     try {
