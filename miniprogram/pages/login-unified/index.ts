@@ -119,7 +119,6 @@ Page({
               username: userInfoData?.real_name || userInfoData?.username,
               real_name: userInfoData?.real_name,
               phone: userInfoData?.phone,
-              openid: userInfoData?.openid || openid,
               points: userInfoData?.current_points || 0,
               volunteer_id: userInfoData?.volunteer_id,
               activity_count: userInfoData?.activity_count || 0,

@@ -130,10 +130,10 @@ check('password length rule preserved', register.includes('value.length >= 6 && 
 check('protocol gate preserved', register.includes('if (!this.data.agreeProtocol) {'));
 check('loading guard preserved', register.includes('if (this.data.loading) return;'));
 
-// ---------- F. Option B 未触碰（只读证明） ----------
+// ---------- F. 跨文件边界守卫（原 "Option B 未触碰" 时点性证明；其 openid 字段断言已由 P0-3 S2A 推翻并移除） ----------
+// login-unified 的 userInfo.openid 存储契约自 P0-3 S2A 起由 tests/security_p0_userinfo_openid_storage.mjs 管辖。
 {
   const loginUnified = readFileSync(F_LOGIN_UNIFIED, 'utf8');
-  check('OPTION_B: login-unified userInfo.openid field untouched', loginUnified.includes('openid: userInfoData?.openid || openid,'));
   check('OPTION_B: login-unified storage write untouched', loginUnified.includes("wx.setStorageSync('userInfo',"));
   check('OPTION_B: login-unified openid network handoff untouched', loginUnified.includes('&openid=${encodeURIComponent(openid)}'));
 }
