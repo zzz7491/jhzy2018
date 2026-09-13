@@ -171,6 +171,7 @@ Page({
         });
 
         if (this.data.isLoggedIn) {
+          this.fetchSignupForm();
           this.checkSignupStatus();
           this.loadAttendanceStatus();
         }

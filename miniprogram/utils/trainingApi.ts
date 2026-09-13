@@ -7,6 +7,8 @@
 // 若未选择团队（activeTeamPublicId 为空），所有请求会收到 TEAM_SCOPE_REQUIRED(403)，
 // 页面层据此提示「请先选择团队」并跳转团队选择页（不 fallback 到 PHP）。
 
+import { ensureV2Session } from './auth-v2';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export interface ApiError {
@@ -110,8 +112,13 @@ export interface CertificateView {
   snapshot?: string | null;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
+async function getToken(): Promise<string> {
+  // V2 会话独立存于 v2_access_token（auth-v2.ts）；绝不依赖 legacy access_token（PHP 令牌）。
+  try {
+    return await ensureV2Session();
+  } catch {
+    return '';
+  }
 }
 
 function getActiveTeamId(): string {

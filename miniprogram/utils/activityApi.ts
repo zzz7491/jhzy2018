@@ -9,6 +9,7 @@
 //   X-Team-Id 取自 wx.getStorageSync('activeTeamPublicId')，由 teams 页「选择团队」写入。
 
 import { generateUlid } from './ulid';
+import { ensureV2Session } from './auth-v2';
 
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
@@ -62,8 +63,13 @@ export interface ServiceRecordView {
   [key: string]: unknown;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
+async function getToken(): Promise<string> {
+  // V2 会话独立存于 v2_access_token（auth-v2.ts）；绝不依赖 legacy access_token（PHP 令牌）。
+  try {
+    return await ensureV2Session();
+  } catch {
+    return '';
+  }
 }
 
 function getActiveTeamId(): string {
