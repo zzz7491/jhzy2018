@@ -363,4 +363,58 @@
     </view>
   </view>
 
+  <!-- 报名动态表单弹窗（M3 / P20） -->
+  <view wx:if="{{showFormModal}}" class="form-modal">
+    <view class="modal-mask" catchtap="closeFormModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">填写报名信息</text>
+        <text class="close-btn" catchtap="closeFormModal">×</text>
+      </view>
+
+      <scroll-view scroll-y class="form-scroll">
+        <block wx:for="{{signupForm.fields}}" wx:key="key" wx:for-item="field">
+          <view class="form-field">
+            <text class="form-label">{{field.label}}{{field.required ? ' *' : ''}}</text>
+
+            <input wx:if="{{field.type === 'text' || field.type === 'phone' || field.type === 'email' || field.type === 'id_text' || field.type === 'date'}}"
+              class="form-input" placeholder="{{field.placeholder || ''}}"
+              value="{{formAnswers[field.key]}}"
+              data-key="{{field.key}}" bindinput="onFormInput" />
+
+            <input wx:elif="{{field.type === 'number'}}" type="digit" class="form-input"
+              placeholder="{{field.placeholder || ''}}" value="{{formAnswers[field.key]}}"
+              data-key="{{field.key}}" bindinput="onFormInput" />
+
+            <textarea wx:elif="{{field.type === 'textarea'}}" class="form-textarea"
+              placeholder="{{field.placeholder || ''}}" value="{{formAnswers[field.key]}}"
+              data-key="{{field.key}}" bindinput="onFormInput" />
+
+            <switch wx:elif="{{field.type === 'boolean'}}"
+              checked="{{formAnswers[field.key] === true}}"
+              data-key="{{field.key}}" bindchange="onFormSwitch" />
+
+            <radio-group wx:elif="{{field.type === 'single_select'}}" bindchange="onFormRadio" data-key="{{field.key}}">
+              <label wx:for="{{field.options}}" wx:key="value" wx:for-item="opt" class="form-option">
+                <radio value="{{opt.value}}" checked="{{formAnswers[field.key] === opt.value}}" />{{opt.label}}
+              </label>
+            </radio-group>
+
+            <checkbox-group wx:elif="{{field.type === 'multi_select'}}" bindchange="onFormMulti" data-key="{{field.key}}">
+              <label wx:for="{{field.options}}" wx:key="value" wx:for-item="opt" class="form-option">
+                <checkbox value="{{opt.value}}" checked="{{formAnswers[field.key] ? formAnswers[field.key][opt.value] === true : false}}" />{{opt.label}}
+              </label>
+            </checkbox-group>
+
+            <text wx:else class="form-hint">不支持的字段类型：{{field.type}}</text>
+            <text wx:if="{{field.help_text}}" class="form-help">{{field.help_text}}</text>
+          </view>
+        </block>
+      </scroll-view>
+
+      <view wx:if="{{formError}}" class="form-error">{{formError}}</view>
+      <button class="confirm-btn" loading="{{formSubmitting}}" bindtap="submitSignupForm">提交并报名</button>
+    </view>
+  </view>
+
 </view>

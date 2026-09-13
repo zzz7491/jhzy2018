@@ -410,7 +410,7 @@ Page({
     });
   },
 
-  // 处理报名（v2：POST /activities/:id/signups）
+  // 处理报名入口（v2：POST /activities/:id/signups）—— M3：真实状态以后端为准，绝不本地伪造。
   processJoin() {
     if (this.data.hasJoined) {
       wx.showToast({ title: this.getSignupStatusText(this.data.signupStatus), icon: 'none' });
@@ -424,30 +424,75 @@ Page({
       wx.showToast({ title: '活动名额已满', icon: 'none' });
       return;
     }
+    // M3 P20：活动绑定了报名动态表单且尚未提交 → 先弹出表单，提交后再报名
+    if (this.data.signupForm && !this.data.formSubmissionPublicId) {
+      this.setData({ showFormModal: true, formError: '', formAnswers: {} });
+      return;
+    }
+    this.doSignup(this.data.formSubmissionPublicId || undefined);
+  },
 
+  /** 真正发起报名；报名结果（review_status）一律以后端返回为准。 */
+  doSignup(formSubmissionPublicId?: string) {
     const activityId = this.data.activityId;
     wx.showLoading({ title: '报名中...', mask: true });
 
     activityApi
-      .signup(activityId)
-      .then(() => {
+      .signup(activityId, formSubmissionPublicId)
+      .then((res: any) => {
         wx.hideLoading();
-        this.setData({ hasJoined: true, signupStatus: 2 });
+        const inner = res && res.signup ? res.signup : null;
+        let status = 0;
+        if (inner && inner.status === 1) {
+          // review_status: 1=APPROVED, 2=REJECTED, 0=PENDING
+          if (inner.review_status === 1) status = 2;
+          else if (inner.review_status === 2) status = 4;
+          else status = 1;
+        }
+        this.setData({
+          hasJoined: status > 0,
+          signupStatus: status,
+          qualificationBlocked: false,
+          qualificationReasons: [],
+        });
         this.updateButtonByStatus();
 
         subscribe.subscribeAfterSignup().catch(() => {});
-        wx.showToast({ title: '报名成功', icon: 'success', duration: 1500 });
-
-        // 报名成功后进入「参与准备 → 签到」闭环
-        this.proceedToCheckin();
+        if (status === 2) {
+          wx.showToast({ title: '报名成功，已通过审核', icon: 'success', duration: 1500 });
+          this.proceedToCheckin();
+        } else if (status === 4) {
+          wx.showToast({ title: '报名未通过审核', icon: 'none', duration: 2000 });
+        } else {
+          wx.showToast({ title: '报名提交成功，等待审核', icon: 'none', duration: 1500 });
+        }
       })
       .catch((err: any) => {
         wx.hideLoading();
         const code = err && err.code ? String(err.code).toUpperCase() : '';
+        if (code === 'QUALIFICATION_REQUIRED') {
+          // B5：资格门由后端统一 enforcement；前端仅展示引导，绝不绕过
+          const reasons = (err.details && err.details.reasons ? String(err.details.reasons) : '')
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          this.setData({ qualificationBlocked: true, qualificationReasons: reasons });
+          wx.showModal({
+            title: '尚不具备报名资格',
+            content: this.qualificationGuidance(reasons),
+            showCancel: false,
+            confirmText: '我知道了',
+          });
+          return;
+        }
         if (code === 'SIGNUP_ALREADY_EXISTS' || code === 'CONFLICT') {
-          this.setData({ hasJoined: true, signupStatus: 2 });
-          this.updateButtonByStatus();
-          this.proceedToCheckin();
+          // 不伪造状态：回源后端真实报名状态
+          this.checkSignupStatus();
+          return;
+        }
+        if (code === 'SIGNUP_FORM_REQUIRED') {
+          wx.showToast({ title: '请先填写报名表单', icon: 'none' });
+          if (this.data.signupForm) this.setData({ showFormModal: true });
           return;
         }
         if (code === 'ACTIVITY_SIGNUP_CLOSED') {
@@ -455,6 +500,123 @@ Page({
           return;
         }
         wx.showToast({ title: (err && err.message) || '报名失败', icon: 'none' });
+      });
+  },
+
+  /** 资格引导文案（reasons token → 人话）。 */
+  qualificationGuidance(reasons: string[]): string {
+    const map: Record<string, string> = {
+      IDENTITY_REQUIRED: '完成实名认证',
+      PHONE_REQUIRED: '绑定手机号',
+      TRAINING_EXAM_REQUIRED: '通过初始培训与考试',
+    };
+    if (!reasons || reasons.length === 0) {
+      return '请先完成志愿者资格认证（实名、绑手机、初始培训考试）。';
+    }
+    return '请先完成：' + reasons.map((r) => map[r] || r).join('、') + '。';
+  },
+
+  // ========== M3：P20 报名动态表单消费（前端 consumer） ==========
+  /** 拉取本活动的报名动态表单（若无绑定 → 404 → 普通报名）。 */
+  fetchSignupForm() {
+    const activityId = this.data.activityId;
+    if (!activityId || !this.data.isLoggedIn) return;
+    activityApi
+      .getSignupForm(activityId)
+      .then((view: any) => {
+        if (view && Array.isArray(view.fields) && view.fields.length > 0) {
+          const fields = view.fields.slice().sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          this.setData({ signupForm: { ...view, fields } as any, formAnswers: {} });
+        } else {
+          this.setData({ signupForm: null });
+        }
+      })
+      .catch(() => {
+        // 404 / 无绑定表单 → 普通报名，不阻塞
+        this.setData({ signupForm: null });
+      });
+  },
+
+  openFormModal() {
+    this.setData({ showFormModal: true, formError: '', formAnswers: {} });
+  },
+
+  closeFormModal() {
+    this.setData({ showFormModal: false });
+  },
+
+  onFormInput(e: any) {
+    const key = e.currentTarget.dataset.key;
+    this.setData({ [`formAnswers.${key}`]: e.detail.value });
+  },
+
+  onFormSwitch(e: any) {
+    const key = e.currentTarget.dataset.key;
+    this.setData({ [`formAnswers.${key}`]: e.detail.value === true });
+  },
+
+  onFormRadio(e: any) {
+    const key = e.currentTarget.dataset.key;
+    this.setData({ [`formAnswers.${key}`]: e.detail.value });
+  },
+
+  onFormMulti(e: any) {
+    // checkbox-group bindchange 直接给已选数组；存为 { [value]: true } 便于 WXML 成员访问渲染勾选态
+    const key = e.currentTarget.dataset.key;
+    const arr: string[] = e.detail.value || [];
+    const obj: Record<string, boolean> = {};
+    for (const v of arr) obj[v] = true;
+    this.setData({ [`formAnswers.${key}`]: obj });
+  },
+
+  /** 提交报名表单 → 拿到 submission public_id → 再发起报名。 */
+  submitSignupForm() {
+    const form = this.data.signupForm;
+    if (!form) return;
+    // 必填校验（与后端 strictRequired 对齐）
+    for (const f of form.fields) {
+      if (f.required) {
+        const v = this.data.formAnswers[f.key];
+        let empty = v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+        if (!empty && f.type === 'multi_select') {
+          const isObj = v && typeof v === 'object' && !Array.isArray(v);
+          empty = isObj ? Object.keys(v).length === 0 : Array.isArray(v) ? v.length === 0 : true;
+        }
+        if (empty) {
+          this.setData({ formError: `请填写「${f.label}」` });
+          return;
+        }
+      }
+    }
+    // 构造后端 answers：multi_select 由对象转为数组
+    const answers: Record<string, unknown> = {};
+    for (const f of form.fields) {
+      const v = this.data.formAnswers[f.key];
+      if (v === undefined) continue;
+      if (f.type === 'multi_select' && v && typeof v === 'object' && !Array.isArray(v)) {
+        answers[f.key] = Object.keys(v).filter((k: string) => v[k]);
+      } else {
+        answers[f.key] = v;
+      }
+    }
+    this.setData({ formError: '', formSubmitting: true });
+    const newPublicId = generateUlid();
+    activityApi
+      .submitFormSubmission({
+        consumerType: 'activity.signup',
+        consumerPublicId: this.data.activityId,
+        versionPublicId: form.version_public_id,
+        newPublicId,
+        answers,
+      })
+      .then((res: any) => {
+        const subId = res && res.submission ? res.submission.public_id : newPublicId;
+        this.setData({ formSubmitting: false, showFormModal: false, formSubmissionPublicId: subId });
+        this.doSignup(subId);
+      })
+      .catch((err: any) => {
+        this.setData({ formSubmitting: false });
+        wx.showToast({ title: (err && err.message) || '表单提交失败', icon: 'none' });
       });
   },
 

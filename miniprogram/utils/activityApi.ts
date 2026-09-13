@@ -8,6 +8,8 @@
 // - activities / participations / attendance / points / service-records 为【团队作用域】（自动注入 X-Team-Id）。
 //   X-Team-Id 取自 wx.getStorageSync('activeTeamPublicId')，由 teams 页「选择团队」写入。
 
+import { generateUlid } from './ulid';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export interface ApiError {
@@ -170,9 +172,34 @@ export const activityApi = {
     return request<{ activity: ActivityRow }>('GET', `/activities/${id}`);
   },
 
-  /** POST /activities/:activityId/signups —— 报名（本人）。 */
-  signup(activityId: string): Promise<{ signup: any }> {
-    return request<{ signup: any }>('POST', `/activities/${activityId}/signups`, {}, { teamScoped: true });
+  /** POST /activities/:activityId/signups —— 报名（本人）。可附带 P20 表单提交引用。 */
+  signup(activityId: string, formSubmissionPublicId?: string): Promise<{ signup: any }> {
+    const body: Record<string, unknown> = {};
+    if (formSubmissionPublicId) body.form_submission_public_id = formSubmissionPublicId;
+    return request<{ signup: any }>('POST', `/activities/${activityId}/signups`, body, { teamScoped: true });
+  },
+
+  /** GET /forms/consumers/activity.signup/:activityId/form —— 报名动态表单（P20；无绑定 → 404）。 */
+  getSignupForm(activityId: string): Promise<{ definition_public_id: string; version_public_id: string; fields: any[] }> {
+    return request('GET', `/forms/consumers/activity.signup/${activityId}/form`);
+  },
+
+  /** POST /forms/submissions —— 提交报名动态表单（P20）。 */
+  submitFormSubmission(input: {
+    consumerType: string;
+    consumerPublicId: string;
+    versionPublicId: string;
+    newPublicId: string;
+    answers: Record<string, unknown>;
+  }): Promise<{ submission: any }> {
+    return request('POST', '/forms/submissions', {
+      consumer_type: input.consumerType,
+      consumer_public_id: input.consumerPublicId,
+      version_public_id: input.versionPublicId,
+      new_public_id: input.newPublicId,
+      answers: input.answers,
+      status: 'submitted',
+    });
   },
 
   /** GET /activities/:activityId/signups/me —— 本人报名详情。 */
