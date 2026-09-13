@@ -5,7 +5,7 @@
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
     "generatedAt": "2026-09-06",
     "permissionsRowCount": 101,
-    "rolePermissionsRowCount": 288,
+    "rolePermissionsRowCount": 286,
     "totalPermissions": 101,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
@@ -1771,8 +1771,6 @@
       "training.learning.learn",
       "exam.exam.take",
       "points.level.view",
-      "content.article.self.create",
-      "content.article.self.update",
       "content.comment.create",
       "content.like.create",
       "content.report.create",
