@@ -13,6 +13,7 @@ import { BaseRepository } from './base';
 import { userScopeRequired } from '../utils/errors';
 
 export type DeliveryStatus =
+  | 'RESERVED'
   | 'DELIVERED'
   | 'NOT_ELIGIBLE'
   | 'INVALID_PAYLOAD'
