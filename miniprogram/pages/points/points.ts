@@ -134,7 +134,11 @@ Page({
       success(res) {
         if (res.data.code === 0 || res.data.code === 200) {
           const userData = res.data.data || {};
-          const updatedUserInfo = { ...userInfo, ...userData };
+          // P0-3 S2B：写回 storage 前显式剔除 openid —— cached userInfo 与 user_info.php
+          // 响应两个输入源都排除；其它字段合并优先级保持原样（userData 覆盖 cached）。
+          const { openid: cachedOpenid, ...safeUserInfo } = userInfo || {};
+          const { openid: responseOpenid, ...safeUserData } = userData || {};
+          const updatedUserInfo = { ...safeUserInfo, ...safeUserData };
           wx.setStorageSync('userInfo', updatedUserInfo);
 
           that.setData({

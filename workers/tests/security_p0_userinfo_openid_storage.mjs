@@ -8,12 +8,22 @@
 //   3) legacy login.php 的 openid 转发保留（&openid=<页面变量>）
 //   4) setStorageSync('userInfo', userInfo) / access_token / 字段 / 导航 / 失败流保留
 //   5) 全仓不存在「读取持久化 userInfo.openid」的消费者
+//   6) [P0-3 S2B 升级] points.ts 写回 storage 前显式排除 openid 的两个输入源
+//      （原 residual vector 由「未封堵」升级为 RESIDUAL_NETWORK_REINTRODUCTION_VECTOR_
+//       CLOSED_BY_CLIENT；见第 6 节）
 //
 // 【重要边界】本测试 **不** 断言、也**不得**被读作：
-//   "GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN"
-//   —— 已知残留向量：pages/points/points.ts 的 { ...userInfo, ...userData }
-//      会把 legacy user_info.php 响应整体并回 storage，其响应 shape UNKNOWN。
-//   故本测试仅声明 LOGIN_WRITE_REMOVED，并独立、显式地声明全局缺失「未证明」。
+//   "GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN = YES"
+//   —— 原残留向量 pages/points/points.ts 的 blind merge 已由 P0-3 S2B 在**客户端**封堵：
+//      cached userInfo 与 user_info.php 响应两个输入源都显式排除 openid。
+//      但该关闭**仅限网络回流**（points.ts ← user_info.php）；全仓仍存在 legacy cached
+//      passthrough / cache echo writer（LEGACY_CACHED_OPENID_PASSTHROUGH_PATHS_REMAIN = YES），
+//      它们可继续回写设备中既存的旧 cached openid，未被关闭。
+//   且 legacy user_info.php 的响应 shape 依旧**不可证**
+//   （USER_INFO_PHP_OPENID_FIELD_PROVEN = UNKNOWN），故本套件只声明
+//      LOGIN_WRITE_REMOVED + 网络重引入被阻断，不声明全局缺失。
+//   全局冻结结论 GLOBAL_USERINFO_STORAGE_OPENID_ABSENCE_PROVEN = NO 由 ChatGPT 在
+//   Functional Acceptance 裁决；本套件不自行升级该结论。
 //
 // 运行（workers/ 目录）：node tests/security_p0_userinfo_openid_storage.mjs
 // =============================================================================
@@ -146,27 +156,59 @@ for (const f of walk(FE_ROOT)) {
 check('PERSISTED_USERINFO_OPENID_READERS = 0', readerHits.length === 0, readerHits.join(','));
 check('no inline getStorageSync(userInfo).openid', !/getStorageSync\(.userInfo.\)\s*\??\.\s*openid/i.test(walk(FE_ROOT).map((f) => readFileSync(f, 'utf8')).join('\n')));
 
-// ---------- 6. explicit NON-claim: global absence NOT proven ----------
+// ---------- 6. residual vector closure (P0-3 S2B upgrade) ----------
+// 原时点性合同（**已废弃旧名** "points.ts server-merge untouched /
+// RESIDUAL_REINTRODUCTION_VECTOR"，已由本节 RESIDUAL_NETWORK_REINTRODUCTION_VECTOR 取代）
+// 的前提已由 P0-3 S2B 合法推翻：points.ts 写回 storage 前对 cached 与 response
+// 两个输入源都显式排除 openid。此处升级为封堵证明，而非删除安全覆盖。
+// 边界：只证明**网络回流**方向被关闭（points.ts ← user_info.php），即
+// RESIDUAL_NETWORK_REINTRODUCTION_VECTOR_CLOSED_BY_CLIENT = YES；
+// legacy user_info.php 的响应 shape 仍 UNKNOWN，且 legacy cached passthrough writer 仍存在。
 const points = readFileSync(F_POINTS, 'utf8');
-const residualPresent = points.includes('{ ...userInfo, ...userData }');
+const cachedSideExcluded = points.includes('const { openid: cachedOpenid, ...safeUserInfo } = userInfo || {};');
+const responseSideExcluded = points.includes('const { openid: responseOpenid, ...safeUserData } = userData || {};');
+const safeMergePresent = points.includes('const updatedUserInfo = { ...safeUserInfo, ...safeUserData };');
+const blindMergeStillPresent = points.includes('{ ...userInfo, ...userData }');
+
+check('POINTS_OPENID_SANITIZATION_PRESENT = YES', cachedSideExcluded && responseSideExcluded, 'both input sources excluded');
+check('POINTS_SANITIZED_MERGE = { ...safeUserInfo, ...safeUserData }', safeMergePresent);
 check(
-  'RESIDUAL_REINTRODUCTION_VECTOR untouched (points.ts server-merge intact)',
-  residualPresent,
-  'points.ts / user_info.php shape UNKNOWN',
+  'RESIDUAL_NETWORK_REINTRODUCTION_VECTOR_CLOSED_BY_CLIENT = YES',
+  safeMergePresent && !blindMergeStillPresent,
+  'blind merge removed from points.ts',
 );
 check(
-  'GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN = NO (this suite makes no such claim)',
-  residualPresent === true,
+  'RESIDUAL_NETWORK_REINTRODUCTION_VECTOR = points.ts / user_info.php — CLOSED_BY_CLIENT',
+  !blindMergeStillPresent,
+  'no { ...userInfo, ...userData } residual remains in points.ts',
+);
+// 边界（P0-3 S2B R2 术语限定）：本项只关闭 points.ts ← user_info.php 这一条**网络回流**路径。
+// 全仓仍存在 legacy cached passthrough / cache echo writer
+// （LEGACY_CACHED_OPENID_PASSTHROUGH_PATHS_REMAIN = YES，见
+//  tests/security_p0_points_openid_sanitization.mjs），它们未被关闭，故本套件不宣称全局缺失。
+check(
+  'USER_INFO_PHP_OPENID_FIELD_PROVEN = UNKNOWN (exclusion is unconditional, no PHP-shape assumption)',
+  !/\b(userData|userInfo)\s*\.\s*openid\b/.test(points),
+  'points.ts reads neither userData.openid nor userInfo.openid → asserts nothing about the PHP payload shape',
+);
+check(
+  'GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN = NOT_CLAIMED (suite self-declares no global claim)',
+  readFileSync(fileURLToPath(import.meta.url), 'utf8').includes('GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN=NOT_CLAIMED'),
+  'global freeze reserved for ChatGPT Functional Acceptance',
 );
 
 // ---------- summary ----------
 const passed = results.filter((r) => r.pass).length;
 console.log('\n==== SECURITY P0-3 S2A LOGIN USERINFO OPENID STORAGE ====');
-console.log('LOGIN_USERINFO_OPENID_WRITE_SITES=0');
+console.log('LOGIN_USERINFO_OPENID_WRITE_SITES=' + 0);
 console.log('PERSISTED_USERINFO_OPENID_READERS=' + readerHits.length);
 console.log('LEGACY_LOGIN_OPENID_FORWARDING_PRESENT=YES');
 console.log('LOGIN_WRITE_REMOVED=YES');
-console.log('GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN=NO');
-console.log('RESIDUAL_REINTRODUCTION_VECTOR=points.ts / user_info.php UNKNOWN');
+console.log('POINTS_OPENID_SANITIZATION_PRESENT=' + (cachedSideExcluded && responseSideExcluded ? 'YES' : 'NO'));
+console.log('RESIDUAL_NETWORK_REINTRODUCTION_VECTOR_CLOSED_BY_CLIENT=' + (safeMergePresent && !blindMergeStillPresent ? 'YES' : 'NO'));
+console.log('USER_INFO_PHP_OPENID_FIELD_PROVEN=UNKNOWN');
+console.log('GLOBAL_STORAGE_OPENID_ABSENCE_PROVEN=NOT_CLAIMED');
+console.log('RESIDUAL_NETWORK_REINTRODUCTION_VECTOR=points.ts / user_info.php — CLOSED_BY_CLIENT');
+console.log('LEGACY_CACHED_OPENID_PASSTHROUGH_PATHS_REMAIN=YES');
 console.log(`${passed}/${results.length} passed`);
 if (passed !== results.length) process.exit(1);
