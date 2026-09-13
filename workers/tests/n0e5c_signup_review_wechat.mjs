@@ -101,13 +101,16 @@ function seedIdentity(userId) {
   const dis = new mod.DeliveryIdentityService({ env: adapterEnv, auth: ctx(userId).auth, tenant: ctx(userId).tenant });
   return dis.upsertFromWechatLogin({ userId, openid: 'openid_' + userId, now: NOW });
 }
-function seedConsent(userId, templateKey) {
+let seedConsentSeq = 0;
+function seedConsent(userId, templateKey, authorizationRequestId) {
   const c = new mod.SubscriptionConsentRepository({ db, ctx: ctx(userId) });
   return c.upsertConsent({
     userId,
     templateKey,
     templateId: mod.WECHAT_TEMPLATE_SCHEMAS[templateKey].wxTemplateId,
     state: 'ACCEPT',
+    authorizationRequestId:
+      authorizationRequestId ?? 'n0e5c-' + userId + '-' + templateKey + '-' + seedConsentSeq++,
     now: NOW,
   });
 }
@@ -399,8 +402,12 @@ await scenario('J 真实 throw 隔离', async () => {
   check('J2 review_status=1（业务成功）', view && view.signup.review_status === 1, JSON.stringify(view && view.signup));
   const note = sqlite.prepare("SELECT * FROM notifications WHERE event_type='ACTIVITY_SIGNUP_APPROVED' AND business_entity_id=?").get(sH);
   check('J3 IN_APP 通知仍生成', !!note);
-  const dels = sqlite.prepare('SELECT * FROM notification_deliveries WHERE user_id=?').all(volH);
-  check('J4 未生成 delivery 记录（provider 抛错前未写入）', dels.length === 0);
+  // N0-F3：reserve() 在 provider.send 之前已写入一条 RESERVED 标记行；若 provider 真实抛错，
+  // 该行保留（dangling RESERVED，由上层 best-effort 隔离），故此处只断言「无终态/已定稿记录」，
+  // 允许存在 RESERVED 预留标记。
+  const all = sqlite.prepare('SELECT * FROM notification_deliveries WHERE user_id=?').all(volH);
+  const terminal = all.filter((d) => d.status !== 'RESERVED');
+  check('J4 未生成终态 delivery 记录（provider 抛错前未落终态；允许 RESERVED 预留标记）', terminal.length === 0, 'rows=' + JSON.stringify(all.map((d) => d.status)));
   check('J5 provider.send 边界真实被调用并抛出（attempted=1）', attempted === 1, 'attempted=' + attempted);
 });
 

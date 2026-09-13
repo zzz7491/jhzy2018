@@ -48,6 +48,7 @@ export const ErrorCode = {
   // HTTP 400；「模板不存在」与「模板未启用」折叠为同一码，防模板枚举。
   SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED: 'SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED',
   SUBSCRIPTION_INVALID_STATE: 'SUBSCRIPTION_INVALID_STATE', // 非法授权状态（非 ACCEPT/REJECT/BAN）
+  SUBSCRIPTION_INVALID_AUTH_REQ_ID: 'SUBSCRIPTION_INVALID_AUTH_REQ_ID', // authorization_request_id 非法（空 / 超长 / 非法字符）
 } as const;
 
 /** S2-6g：409 冲突的稳定业务 reason token（非敏感，可安全返回客户端）。 */
@@ -293,5 +294,14 @@ export function subscriptionInvalidState(): AppError {
     ErrorCode.SUBSCRIPTION_INVALID_STATE,
     400,
     'Invalid subscription consent state',
+  );
+}
+
+/** N0-F3：authorization_request_id 非法（空 / 超长 / 含非法字符）（HTTP 400）。 */
+export function subscriptionInvalidAuthReqId(): AppError {
+  return new AppError(
+    ErrorCode.SUBSCRIPTION_INVALID_AUTH_REQ_ID,
+    400,
+    'Invalid authorization_request_id',
   );
 }

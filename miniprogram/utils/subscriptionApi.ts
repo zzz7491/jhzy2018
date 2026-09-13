@@ -68,11 +68,13 @@ export const subscriptionApi = {
     templateKey: string;
     templateId: string;
     state: ConsentState;
+    authorizationRequestId?: string;
   }): Promise<{ status: string; item: ConsentStatusItem }> {
     return request<{ status: string; item: ConsentStatusItem }>('POST', '/subscriptions/consent', {
       template_key: p.templateKey,
       template_id: p.templateId,
       state: p.state,
+      ...(p.authorizationRequestId != null ? { authorization_request_id: p.authorizationRequestId } : {}),
     });
   },
 };

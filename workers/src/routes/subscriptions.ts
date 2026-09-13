@@ -38,7 +38,7 @@ subscriptions.post('/consent', async (c) => {
   const auth = c.get('auth');
   if (!auth.authenticated || auth.userId == null) throw authRequired();
 
-  let body: { template_key?: unknown; template_id?: unknown; state?: unknown };
+  let body: { template_key?: unknown; template_id?: unknown; state?: unknown; authorization_request_id?: unknown };
   try {
     body = await c.req.json();
   } catch {
@@ -53,6 +53,7 @@ subscriptions.post('/consent', async (c) => {
     templateKey: typeof body?.template_key === 'string' ? body.template_key : '',
     templateId: typeof body?.template_id === 'string' ? body.template_id : '',
     state: body?.state,
+    authorizationRequestId: body?.authorization_request_id,
   });
   return ok(c, { status: 'OK', item });
 });

@@ -63,6 +63,13 @@ function mapWxResultToState(raw) {
   return null
 }
 
+// N0-F3：每次 wx.requestSubscribeMessage invocation 生成稳定 authorization_request_id（retry 复用）。
+// 用于后端 REQUEST IDEMPOTENCY = UNIQUE(user_id, template_key, authorization_request_id) 首写胜出。
+function genAuthorizationRequestId() {
+  const rand = Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+  return 'wx-' + rand
+}
+
 /**
  * 报名成功后请求「活动报名审核结果」订阅（动态模板 ID + 持久化 consent）。
  * 1. 拉取服务端目录，找到 template_key = signupReview 的当前 template_id；
@@ -93,10 +100,13 @@ async function subscribeSignupReview() {
       // 未获得有效授权结果（如 filter），不上报，但不影响报名
       return
     }
+    // N0-F3：本 invocation 稳定 id（retry 复用），与服务端 REQUEST IDEMPOTENCY 对齐。
+    const authorizationRequestId = genAuthorizationRequestId()
     await subscriptionApi.recordConsent({
       templateKey: SIGNUP_REVIEW_TEMPLATE_KEY,
       templateId: tpl.template_id,
-      state
+      state,
+      authorizationRequestId
     })
   } catch (e) {
     // 订阅/上报失败不得影响已经成功的报名

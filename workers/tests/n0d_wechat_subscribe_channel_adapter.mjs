@@ -16,6 +16,7 @@ import { build } from 'esbuild';
 import { pathToFileURL } from 'node:url';
 import { readFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { D1Database } from './lib/d1-shim.mjs';
 
 const WORKERS = 'E:/D盘备份/miniprogram/workers';
 const MIG_DIR = path.join(WORKERS, 'migrations');
@@ -50,44 +51,11 @@ await build({
 const mod = await import(pathToFileURL(OUT).href);
 
 // -----------------------------------------------------------------------------
-// 2. node:sqlite → D1 兼容 shim
+// 2. node:sqlite → D1 兼容 shim（复用 tests/lib/d1-shim.mjs 的原子 batch；
+//    N0-F3 后 upsertConsent 依赖 batch 的「事件首写 + 投影 UPSERT」事务语义）
 // -----------------------------------------------------------------------------
-function makeD1Shim(sqlite) {
-  class D1PreparedStatement {
-    constructor(stmt, params) {
-      this.stmt = stmt;
-      this.params = params;
-    }
-    async all() {
-      const rows = this.stmt.all(...this.params);
-      return { results: rows, success: true };
-    }
-    async first() {
-      const row = this.stmt.get(...this.params);
-      return row ?? null;
-    }
-    async run() {
-      const r = this.stmt.run(...this.params);
-      return { success: true, changes: r.changes, lastInsertRowid: r.lastInsertRowid };
-    }
-  }
-  return {
-    _raw: sqlite,
-    prepare(sql) {
-      const stmt = sqlite.prepare(sql);
-      return { bind: (...params) => new D1PreparedStatement(stmt, params) };
-    },
-    async batch(stmts) {
-      for (const s of stmts) sqlite.prepare(s.sql).run(...(s.params ?? []));
-    },
-    exec(sql) {
-      sqlite.exec(sql);
-    },
-  };
-}
-
 const sqlite = new DatabaseSync(':memory:');
-const db = makeD1Shim(sqlite);
+const db = new D1Database(sqlite);
 
 // -----------------------------------------------------------------------------
 // 3. 应用迁移 0001..0036（纯增量，幂等）
@@ -139,14 +107,18 @@ for (const u of identityUsers) {
 // user3 身份设为 REVOKED（测试身份失效）
 sqlite.prepare("UPDATE notification_delivery_identities SET status = 'REVOKED' WHERE user_id = 3").run();
 
-// 授权（consent）
-function consent(userId, templateKey, state) {
+// 授权（consent）—— N0-F3：每次调用生成唯一 authorization_request_id（每次 invocation = 新事件 → 触发 ADVANCE）。
+// 同一 (user, template, request) 重复调用可显式传入相同 id 以验证「首写胜出 / STALE EVENT 零变更」。
+let consentSeq = 0;
+function consent(userId, templateKey, state, authorizationRequestId) {
   const c = new mod.SubscriptionConsentRepository({ db: env.DB, ctx: ctx(userId) });
   return c.upsertConsent({
     userId,
     templateKey,
     templateId: mod.WECHAT_TEMPLATE_SCHEMAS[templateKey]?.wxTemplateId ?? 'unknown_wx_' + templateKey,
     state,
+    authorizationRequestId:
+      authorizationRequestId ?? 'n0d-' + userId + '-' + templateKey + '-' + consentSeq++,
     now: 1000,
   });
 }
@@ -357,6 +329,8 @@ console.log('\n— S16 provider RECIPIENT_INVALID → PROVIDER_ERROR（不消费
 
 console.log('\n— S17 provider NETWORK → NETWORK_ERROR —');
 {
+  // N0-F3-R1：terminal failure 会 burn 事件；此处使用独立 fresh grant（新 authorization_request_id → 新事件）验证错误映射。
+  await consent(8, 'signupReview', 'ACCEPT');
   const { adapter, provider } = makeAdapter({ mode: 'network' });
   const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S17.1 status=NETWORK_ERROR', r.status === 'NETWORK_ERROR', JSON.stringify(r));
@@ -367,6 +341,8 @@ console.log('\n— S17 provider NETWORK → NETWORK_ERROR —');
 
 console.log('\n— S18 provider SUBSCRIPTION_NOT_AVAILABLE → PROVIDER_REJECTED + 消费 —');
 {
+  // N0-F3-R1：terminal failure 会 burn 事件；此处使用独立 fresh grant（新 authorization_request_id → 新事件）验证错误映射 + 消费语义。
+  await consent(8, 'signupReview', 'ACCEPT');
   const { adapter, provider } = makeAdapter({ mode: 'reject', errcode: 43101 });
   const r = await adapter.send({ userId: 8, templateKey: 'signupReview', data: samplePayload(mod.WECHAT_TEMPLATE_SCHEMAS.signupReview) });
   check('S18.1 status=PROVIDER_REJECTED', r.status === 'PROVIDER_REJECTED', JSON.stringify(r));

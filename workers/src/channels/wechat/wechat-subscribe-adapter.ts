@@ -127,17 +127,13 @@ export class WeChatSubscribeAdapter {
     const openid = await identity.resolveTouser(p.userId);
     if (openid == null) return { delivered: false, status: 'NOT_ELIGIBLE' };
 
-    // 3. eligibility —— 授权（ACCEPT 且未消费的一次性权利）。
-    const consentRow = await consent.findAcceptedUnconsumed(p.userId, p.templateKey);
-    if (consentRow == null) return { delivered: false, status: 'NOT_ELIGIBLE' };
-
-    // 4. eligibility —— 服务端权威模板映射。
+    // 3. eligibility —— 服务端权威模板映射（H6：inactive / retired 模板即使有历史 ACCEPT 也不通过）。
     const tpl = await consent.findActiveWechatTemplate(p.templateKey);
-    if (tpl == null || tpl.wx_template_id == null || tpl.wx_template_id !== consentRow.template_id) {
+    if (tpl == null || tpl.wx_template_id == null) {
       return { delivered: false, status: 'NOT_ELIGIBLE' };
     }
 
-    // 5. payload 校验（命中该模板 provider field keys）。
+    // 4. payload 校验（命中该模板 provider field keys）。
     const schema = WECHAT_TEMPLATE_SCHEMAS[p.templateKey];
     if (schema == null) return { delivered: false, status: 'NOT_ELIGIBLE' };
     const payload = validateWeChatPayload(schema, p.data);
@@ -156,6 +152,22 @@ export class WeChatSubscribeAdapter {
       return { delivered: false, status: 'INVALID_PAYLOAD', deliveryId };
     }
 
+    // 5. 投递预留（N0-F3 at-most-once claim）：单次 guarded INSERT…SELECT 把一次性订阅授权权
+    //    锁成一条 RESERVED 行；资格由 JOIN（consent ACCEPT + 未消费 + e.state=ACCEPT + e.id=c.current）
+    //    保证。仅 RESERVED 成功者才调用 provider（claim 成功才发）。
+    const deliveryId = await delivery.reserve({
+      userId: p.userId,
+      templateKey: p.templateKey,
+      idempotencyKey: p.idempotencyKey ?? null,
+      notificationId: p.notificationId ?? null,
+      recipientId: p.recipientId ?? null,
+      attemptedAt: now,
+    });
+    if (deliveryId == null) {
+      // 资格不满足（无 live ACCEPT）或已被预留（UNIQUE 命中）→ 不再调用 provider。
+      return { delivered: false, status: 'NOT_ELIGIBLE' };
+    }
+
     // 6. 组装 provider 请求（touser 仅 backend 内存短暂存在）。
     const request: WeChatSubscribeSendRequest = {
       touser: openid,
@@ -166,22 +178,15 @@ export class WeChatSubscribeAdapter {
       lang: 'zh_CN',
     };
 
-    // 7. 调用 provider（Fake 或 Http）。
+    // 7. 调用 provider（Fake 或 Http）—— 仅已成功预留者调用（at-most-once）。
     const outcome = await this.provider.send(request);
 
-    // 8. 处理结果 + 持久化投递事实。
+    // 8. 处理结果 + 定稿预留行（仅 finalize 已预留的 RESERVED 行）。
     if (outcome.status === 'SUCCESS') {
-      const deliveryId = await delivery.insert({
-        userId: p.userId,
-        channel: 'WECHAT_SUBSCRIBE',
-        templateKey: p.templateKey,
-        providerTemplateId: tpl.wx_template_id,
+      await delivery.finalize({
+        deliveryId,
         status: 'DELIVERED',
         providerMessageId: outcome.providerMessageId,
-        idempotencyKey: p.idempotencyKey ?? null,
-        notificationId: p.notificationId ?? null,
-        recipientId: p.recipientId ?? null,
-        attemptedAt: now,
         deliveredAt: now,
       });
       // 一次性订阅消费：成功即消费该 ACCEPT 权利（一次 ACCEPT → 最多一次成功 send）。
@@ -190,18 +195,11 @@ export class WeChatSubscribeAdapter {
     }
 
     const fm = FAILURE_MAP[outcome.status] ?? FAILURE_MAP.PROVIDER_ERROR;
-    const deliveryId = await delivery.insert({
-      userId: p.userId,
-      channel: 'WECHAT_SUBSCRIBE',
-      templateKey: p.templateKey,
-      providerTemplateId: tpl.wx_template_id,
+    await delivery.finalize({
+      deliveryId,
       status: fm.status,
       providerErrorCode: outcome.errorCode,
       providerErrorMessage: fm.message,
-      idempotencyKey: p.idempotencyKey ?? null,
-      notificationId: p.notificationId ?? null,
-      recipientId: p.recipientId ?? null,
-      attemptedAt: now,
     });
 
     // 一次性订阅消费：若授权本身已失效（用户已取消 / 一次性订阅过期），消费以免反复误投。

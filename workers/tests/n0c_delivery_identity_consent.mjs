@@ -153,37 +153,37 @@ async function main() {
   ok('S5 no ciphertext in response', !status.raw.includes('v1.'));
   ok('S6 no hash in response', !status.raw.includes(expectedHash));
 
-  const tpl = (data.templates || []).find((t) => t.template_key === 'signup');
+  const tpl = (data.templates || []).find((t) => t.template_key === 'signupReview');
   ok('S7 signup template mapped to provider id', !!tpl && !!tpl.template_id);
   const TID = tpl?.template_id;
 
   // ===== E/F/H/I: consent =====
   const cAccept = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'signup', template_id: TID, state: 'ACCEPT' },
+    body: { template_key: 'signupReview', template_id: TID, state: 'ACCEPT', authorization_request_id: 'n0c-accept-1' },
   });
   ok('E1 ACCEPT 200', cAccept.status === 200 && cAccept.json?.data?.item?.consent_state === 'ACCEPT', cAccept.raw);
 
   const cReject = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'signup', template_id: TID, state: 'REJECT' },
+    body: { template_key: 'signupReview', template_id: TID, state: 'REJECT', authorization_request_id: 'n0c-reject-1' },
   });
   ok('E2 REJECT 200', cReject.status === 200 && cReject.json?.data?.item?.consent_state === 'REJECT', cReject.raw);
 
   const cBan = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'signup', template_id: TID, state: 'BAN' },
+    body: { template_key: 'signupReview', template_id: TID, state: 'BAN', authorization_request_id: 'n0c-ban-1' },
   });
   ok('E3 BAN 200', cBan.status === 200 && cBan.json?.data?.item?.consent_state === 'BAN', cBan.raw);
 
   const consentRows = db
     .prepare('SELECT COUNT(*) AS n FROM wechat_subscription_consents WHERE user_id = ? AND template_key = ?')
-    .get(row.user_id, 'signup').n;
+    .get(row.user_id, 'signupReview').n;
   ok('I1 repeated consent idempotent (1 row)', consentRows === 1, 'count=' + consentRows);
 
   const cInvalid = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'signup', template_id: TID, state: 'MAYBE' },
+    body: { template_key: 'signupReview', template_id: TID, state: 'MAYBE' },
   });
   ok(
     'F1 invalid state rejected 400 SUBSCRIPTION_INVALID_STATE',
@@ -193,7 +193,7 @@ async function main() {
 
   const cUnknown = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'not_a_real_template', template_id: 'whatever', state: 'ACCEPT' },
+    body: { template_key: 'not_a_real_template', template_id: 'whatever', state: 'ACCEPT', authorization_request_id: 'n0c-h1-1' },
   });
   ok(
     'H1 unconfigured template rejected 400 SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED',
@@ -203,13 +203,39 @@ async function main() {
 
   const cMismatch = await req('POST', '/api/v2/subscriptions/consent', {
     token,
-    body: { template_key: 'signup', template_id: 'WRONG_TEMPLATE_ID', state: 'ACCEPT' },
+    body: { template_key: 'signupReview', template_id: 'WRONG_TEMPLATE_ID', state: 'ACCEPT', authorization_request_id: 'n0c-h2-1' },
   });
   ok(
     'H2 mismatched template_id rejected 400 SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED',
     cMismatch.status === 400 && cMismatch.json?.error?.code === 'SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED',
     cMismatch.raw,
   );
+
+  // ===== N0-F3-R1：authorization_request_id 必填 =====
+  const cNoAuthReq = await req('POST', '/api/v2/subscriptions/consent', {
+    token,
+    body: { template_key: 'signupReview', template_id: TID, state: 'ACCEPT' },
+  });
+  ok(
+    'H3 missing authorization_request_id rejected 400 SUBSCRIPTION_INVALID_AUTH_REQ_ID',
+    cNoAuthReq.status === 400 && cNoAuthReq.json?.error?.code === 'SUBSCRIPTION_INVALID_AUTH_REQ_ID',
+    cNoAuthReq.raw,
+  );
+
+  // 同一次 wx.requestSubscribeMessage invocation 的 retry 复用同一 id → 仅 1 个 authorization event
+  await req('POST', '/api/v2/subscriptions/consent', {
+    token,
+    body: { template_key: 'signupReview', template_id: TID, state: 'ACCEPT', authorization_request_id: 'n0c-dup-1' },
+  });
+  const cDup = await req('POST', '/api/v2/subscriptions/consent', {
+    token,
+    body: { template_key: 'signupReview', template_id: TID, state: 'ACCEPT', authorization_request_id: 'n0c-dup-1' },
+  });
+  ok('H4 same authorization_request_id retry → 200 (idempotent event)', cDup.status === 200, cDup.raw);
+  const evCount = db
+    .prepare('SELECT COUNT(*) AS n FROM wechat_subscription_authorization_events WHERE user_id = ? AND template_key = ? AND authorization_request_id = ?')
+    .get(row.user_id, 'signupReview', 'n0c-dup-1').n;
+  ok('H5 same authorization_request_id retry → 仅 1 个 authorization event', evCount === 1, 'count=' + evCount);
 
   // ===== D/G: legacy readiness false + 跨用户隔离 + 未认证 =====
   const legacy = await req('GET', '/api/v2/subscriptions/status', {

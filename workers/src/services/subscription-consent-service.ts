@@ -23,7 +23,13 @@ import {
   type ConsentState,
 } from '../repository/subscription-consent';
 import { DeliveryIdentityService } from './delivery-identity-service';
-import { subscriptionInvalidState, subscriptionTemplateNotConfigured } from '../utils/errors';
+import { subscriptionInvalidState, subscriptionTemplateNotConfigured, subscriptionInvalidAuthReqId } from '../utils/errors';
+
+/** N0-F3：authorization_request_id 安全字符集与长度约束（防注入 / 超长 / 控制字符）。 */
+const AUTH_REQ_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+function isValidAuthReqId(v: unknown): v is string {
+  return typeof v === 'string' && AUTH_REQ_ID_RE.test(v);
+}
 
 /** 供 API 返回的安全 DTO（不含 openid / 密文 / hash / 内部 id）。 */
 export interface ConsentStatusItem {
@@ -99,13 +105,24 @@ export class SubscriptionConsentService {
    *   1) state ∈ {ACCEPT, REJECT, BAN}（否则 400 SUBSCRIPTION_INVALID_STATE）。
    *   2) template_key 命中启用的 wechat_subscribe 模板，且 wx_template_id === 上报 template_id
    *      （否则 400 SUBSCRIPTION_TEMPLATE_NOT_CONFIGURED）。
+ *   3) authorization_request_id（必填，生产 contract）：缺失 / 空 / 非法 / 超长 → 400
+ *      SUBSCRIPTION_INVALID_AUTH_REQ_ID；服务端不得因缺失而生成新的 authorization identity
+ *      （同一次 wx.requestSubscribeMessage 的 retry 必须复用同一客户端 ID，否则会错误产生多个事件）。
    * 【重点】requestSubscribeMessage 调用成功 ≠ ACCEPT：state 必须以微信返回的真实结果为准。
    */
   async recordConsent(
     userId: number,
-    p: { templateKey: string; templateId: string; state: unknown },
+    p: { templateKey: string; templateId: string; state: unknown; authorizationRequestId?: unknown },
   ): Promise<ConsentStatusItem> {
     if (!isConsentState(p.state)) throw subscriptionInvalidState();
+
+    // N0-F3-R1：authorization_request_id 必填（生产 contract）。缺失 / 空 / 非法 / 超长 → 400；
+    // 服务端不得因缺失而生成新的 authorization identity（同一次 wx.requestSubscribeMessage 的
+    // retry 必须复用同一客户端 ID，否则会错误产生多个 authorization events）。
+    if (p.authorizationRequestId == null || !isValidAuthReqId(p.authorizationRequestId)) {
+      throw subscriptionInvalidAuthReqId();
+    }
+    const authorizationRequestId: string = p.authorizationRequestId;
 
     const templateKey = typeof p.templateKey === 'string' ? p.templateKey : '';
     const templateId = typeof p.templateId === 'string' ? p.templateId : '';
@@ -121,6 +138,7 @@ export class SubscriptionConsentService {
       templateKey,
       templateId,
       state: p.state,
+      authorizationRequestId,
       now,
     });
     return {
