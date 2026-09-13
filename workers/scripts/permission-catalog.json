@@ -4,9 +4,9 @@
     "title": "嘉禾志愿 2.0 Permission Catalog & Role-Permission Matrix（冻结设计候选）",
     "status": "SEEDED (S2-6e→P11→P20) — 92 permissions / 266 role_permissions 已写入 LOCAL D1（0003_seed_permissions，仅 --local）；未写 Production / --remote",
     "generatedAt": "2026-09-06",
-    "permissionsRowCount": 102,
-    "rolePermissionsRowCount": 287,
-    "totalPermissions": 102,
+    "permissionsRowCount": 104,
+    "rolePermissionsRowCount": 295,
+    "totalPermissions": 104,
     "riskLevelStorage": "permissions.risk_level INTEGER NOT NULL DEFAULT 1 CHECK (risk_level IN (1,2,3))",
     "riskMapping": {
       "LOW": 1,
@@ -539,6 +539,30 @@
       "riskLevel": 3,
       "mvp": true,
       "evidence": "activities.status / publish_audit_by"
+    },
+    {
+      "code": "activity.activity.review",
+      "domain": "activity",
+      "resource": "activity",
+      "action": "review",
+      "description": "活动发布审核（通过/驳回）",
+      "scopeType": "TEAM",
+      "risk": "HIGH",
+      "riskLevel": 3,
+      "mvp": true,
+      "evidence": "activities.audit_status"
+    },
+    {
+      "code": "activity.activity.submit",
+      "domain": "activity",
+      "resource": "activity",
+      "action": "submit",
+      "description": "提交活动发布审核",
+      "scopeType": "TEAM",
+      "risk": "MEDIUM",
+      "riskLevel": 2,
+      "mvp": true,
+      "evidence": "activities.audit_status"
     },
     {
       "code": "activity.activity.cancel",
@@ -1604,7 +1628,9 @@
       "mall.product.read",
       "mall.order.read",
       "mall.order.create",
-      "mall.order.verify"
+      "mall.order.verify",
+      "activity.activity.submit",
+      "activity.activity.review"
     ],
     "platform_operator": [
       "activity.category.manage",
@@ -1633,7 +1659,8 @@
       "rbac.catalog.view",
       "team.team.create",
       "service.record.view",
-      "system.idpool.manage"
+      "system.idpool.manage",
+      "activity.activity.review"
     ],
     "team_owner": [
       "form.definition.manage",
@@ -1691,7 +1718,9 @@
       "rbac.role.revoke.team",
       "rbac.catalog.view",
       "participation.assignment.manage",
-      "mall.order.verify"
+      "mall.order.verify",
+      "activity.activity.submit",
+      "activity.activity.review"
     ],
     "team_admin": [
       "form.definition.manage",
@@ -1744,7 +1773,9 @@
       "ai.assist.use",
       "rbac.catalog.view",
       "participation.assignment.manage",
-      "mall.order.verify"
+      "mall.order.verify",
+      "activity.activity.submit",
+      "activity.activity.review"
     ],
     "team_auditor": [
       "form.definition.read",
@@ -1767,7 +1798,8 @@
       "audit.security.handle",
       "rbac.catalog.view",
       "ai.assist.use",
-      "notification.notification.view"
+      "notification.notification.view",
+      "activity.activity.review"
     ],
     "volunteer": [
       "form.definition.read",
