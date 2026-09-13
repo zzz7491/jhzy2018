@@ -133,7 +133,6 @@ Page({
   },
 
   onLoad(options) {
-    console.log('注册页面加载', options);
     this.initDisplayMode();
     
     // 接收openid参数
@@ -142,7 +141,6 @@ Page({
         openid: options.openid,
         hasOpenid: true
       });
-      console.log('从登录页传递openid:', options.openid);
     }
     
     // 接收手机号参数
@@ -200,8 +198,6 @@ Page({
     wx.login({
       success: (res) => {
         if (res.code) {
-          console.log('获取微信code成功:', res.code);
-          
           // 调用微信登录接口获取openid
           wx.request({
             url: app.globalData.apiBaseUrl + 'wxlogin.php',
@@ -211,12 +207,9 @@ Page({
             },
             data: { code: res.code },
             success: (wxRes) => {
-              console.log('微信登录接口响应:', wxRes.data);
-              
               if (wxRes.data.code === 0) {
                 // 已注册用户，但仍允许注册流程继续
                 const openid = wxRes.data.data.openid;
-                console.log('用户已注册，openid:', openid);
                 
                 this.setData({
                   openid: openid,
@@ -232,7 +225,6 @@ Page({
               } else if (wxRes.data.code === 1) {
                 // 未注册用户，获取到openid
                 const openid = wxRes.data.data.openid;
-                console.log('获取openid成功:', openid);
                 
                 this.setData({
                   openid: openid,
@@ -502,8 +494,6 @@ Page({
       registerData.emergency_phone = formData.emergency_phone;
     }
     
-    console.log('提交注册数据:', registerData);
-    
     // 显示加载提示
     wx.showLoading({
       title: '注册中...',
@@ -519,7 +509,6 @@ Page({
       },
       data: registerData,
       success(res) {
-        console.log('注册API响应:', res.data);
         wx.hideLoading();
         
         if (res.data.code === 0) {
