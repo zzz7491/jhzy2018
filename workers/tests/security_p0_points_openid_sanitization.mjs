@@ -17,9 +17,11 @@
 // 【不得被读作】"GLOBAL_USERINFO_STORAGE_OPENID_ABSENCE_PROVEN = YES"
 //   —— legacy user_info.php 的响应 shape 不可证
 //      （USER_INFO_PHP_OPENID_FIELD_PROVEN = UNKNOWN）；
-//   —— 且仍存在 6 处 legacy cached passthrough / cache echo writer：它们不生成新
-//      openid、不从网络重新引入 openid，但理论上可继续回写设备中既存的旧 cached openid
-//      （4 处 getStorageSync 直通 + mine.ts:351 / edit.ts:259 两处 cache echo）。
+//   —— 且仍存在 5 处 legacy cached passthrough / cache echo writer（app.ts 启动恢复路径
+//      已在 P0-3 S2C 中 sanitize，不再计入；剩余：goods-detail.ts:111、mall.ts:163、
+//      mine.ts:66、mine.ts:351、profile/edit.ts:259）。它们不生成新 openid、不从网络
+//      重新引入 openid，但理论上可继续回写设备中既存的旧 cached openid。在正常当前版本
+//      启动后，这些 writer 从 storage 读取到的缓存已被 startup sanitizer 清理，不再含 openid。
 //   故本套件只关闭「生成」与「网络重引入」两类，不宣称全局缺失。
 //   全局冻结结论由 ChatGPT 在 Functional Acceptance 裁决。
 //
@@ -376,7 +378,7 @@ check(
 );
 check(
   'LEGACY_CACHED_OPENID_PASSTHROUGH_PATHS_REMAIN = YES',
-  legacyPassthroughWriters.length === 6,
+  legacyPassthroughWriters.length === 5,
   legacyPassthroughWriters.map((w) => `${w.file}:${w.line}`).join(','),
 );
 check(

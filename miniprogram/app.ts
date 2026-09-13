@@ -114,7 +114,12 @@ App({
     
     // 从缓存中恢复登录状态
     const token = wx.getStorageSync('access_token') || wx.getStorageSync('token');
-    let userInfo = wx.getStorageSync('userInfo');
+    // P0-3 S2C: app 启动恢复登录态时，从 userInfo 中显式剔除旧客户端遗留 raw openid（仅此字段）。
+    // 采用 rest 解构排除：rawUserInfo 为原始缓存，userInfo 自此始终为已剥离 openid 的对象；
+    // 后续 globalData / setStorageSync / console 等路径均使用 sanitized userInfo，
+    // 其余字段（id / id_card / phone / token 等）原样保留，不引入 delete / broad denylist / clone。
+    const rawUserInfo = wx.getStorageSync('userInfo');
+    const { openid: startupCachedOpenid, ...userInfo } = rawUserInfo || {};
     let isLoggedIn = wx.getStorageSync('isLoggedIn');
     
     console.log('缓存中的登录状态:', { 
