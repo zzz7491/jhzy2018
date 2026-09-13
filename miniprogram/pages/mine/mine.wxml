@@ -155,11 +155,12 @@
         <text class="qualification-status {{volunteerQualification.qualified ? 'ok' : 'no'}}">{{volunteerQualification.qualified ? '已具备资格' : '尚未完成'}}</text>
       </view>
       <view class="qualification-items">
-        <view class="q-item">
+        <view class="q-item" bindtap="goToIdentityVerify">
           <text class="q-label">身份认证</text>
           <view class="q-state">
             <text class="q-dot {{volunteerQualification.identity_verified ? 'on' : 'off'}}"></text>
             <text class="q-text {{volunteerQualification.identity_verified ? 'on' : 'off'}}">{{volunteerQualification.identity_verified ? '已完成' : '待完成'}}</text>
+            <text class="arrow">›</text>
           </view>
         </view>
         <view class="q-item">

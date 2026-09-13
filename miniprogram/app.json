@@ -4,6 +4,7 @@
     "pages/index/index",
     "pages/mine/mine",
     "pages/phone-bind/phone-bind",
+    "pages/identity-verify/identity-verify",
     "pages/register/register",
     "pages/quick-action/quick-action",
     "pages/training/training",

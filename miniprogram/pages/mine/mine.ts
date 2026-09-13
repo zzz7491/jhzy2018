@@ -173,6 +173,15 @@ Page({
     wx.navigateTo({ url: '/pages/phone-bind/phone-bind' });
   },
 
+  // P0-A：前往实名认证页（身份核验入口；资格投影中 identity_verified 的落地动作）
+  goToIdentityVerify() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/identity-verify/identity-verify' });
+  },
+
   // P0-C：加载志愿者资格状态（仅消费后端投影，不自算）。
   loadVolunteerQualification() {
     try {

@@ -1,0 +1,141 @@
+/* pages/identity-verify/identity-verify.scss */
+.identity-verify-container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  padding: 32rpx 24rpx;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 36rpx 32rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
+}
+
+.title {
+  font-size: 38rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.desc {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.status-line {
+  margin-top: 40rpx;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 28rpx;
+}
+
+.state-box {
+  margin-top: 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40rpx 0;
+  border-radius: 16rpx;
+}
+
+.state-box.ok {
+  background: #ecfdf5;
+}
+
+.state-box.review {
+  background: #fffbeb;
+}
+
+.state-icon {
+  font-size: 72rpx;
+  line-height: 1;
+}
+
+.state-box.ok .state-icon {
+  color: #10b981;
+}
+
+.state-box.review .state-icon {
+  color: #f59e0b;
+}
+
+.state-title {
+  margin-top: 16rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.state-mask {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.state-hint {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+.form-box {
+  margin-top: 32rpx;
+}
+
+.banner {
+  padding: 20rpx 24rpx;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  margin-bottom: 24rpx;
+}
+
+.banner.warn {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.field {
+  margin-bottom: 28rpx;
+}
+
+.label {
+  display: block;
+  font-size: 28rpx;
+  color: #374151;
+  margin-bottom: 12rpx;
+}
+
+.input {
+  width: 100%;
+  height: 88rpx;
+  background: #f3f4f6;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+  color: #1a1a1a;
+}
+
+.error-line {
+  color: #dc2626;
+  font-size: 26rpx;
+  margin: 8rpx 0 16rpx;
+}
+
+.submit-btn {
+  margin-top: 16rpx;
+  background: #ff6b35;
+  color: #ffffff;
+  font-size: 30rpx;
+  border-radius: 44rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+}
+
+.submit-btn[disabled] {
+  opacity: 0.6;
+}

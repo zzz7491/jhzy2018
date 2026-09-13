@@ -1,0 +1,66 @@
+<!--pages/identity-verify/identity-verify.wxml-->
+<view class="identity-verify-container">
+  <view class="card">
+    <view class="title">实名认证</view>
+    <view class="desc">请填写本人真实姓名与身份证号，用于志愿者身份核验。信息仅用于当次提交，认证通过后仅展示脱敏身份证号。</view>
+
+    <!-- 状态加载 -->
+    <view wx:if="{{loadingStatus}}" class="status-line">状态加载中…</view>
+
+    <block wx:else>
+      <!-- 已认证 -->
+      <view wx:if="{{alreadyVerified}}" class="state-box ok">
+        <text class="state-icon">✓</text>
+        <text class="state-title">已完成实名认证</text>
+        <text wx:if="{{maskedIdCard}}" class="state-mask">身份证号：{{maskedIdCard}}</text>
+      </view>
+
+      <!-- 人工复核中 -->
+      <view wx:elif="{{manualReview}}" class="state-box review">
+        <text class="state-icon">⏳</text>
+        <text class="state-title">已进入人工复核</text>
+        <text wx:if="{{maskedIdCard}}" class="state-mask">身份证号：{{maskedIdCard}}</text>
+        <text class="state-hint">复核结果将以通知形式告知，请耐心等待。</text>
+      </view>
+
+      <!-- 未认证 / 其它态：展示表单 -->
+      <view wx:else class="form-box">
+        <view wx:if="{{mismatch}}" class="banner warn">姓名与身份证号不一致，请核对后重新提交。</view>
+        <view wx:elif="{{invalidInput}}" class="banner warn">信息格式有误，请检查姓名与身份证号后重试。</view>
+        <view wx:elif="{{providerError}}" class="banner warn">认证服务暂不可用，请稍后重试。</view>
+
+        <view class="field">
+          <text class="label">真实姓名</text>
+          <input
+            class="input"
+            placeholder="请输入本人真实姓名"
+            value="{{realName}}"
+            bindinput="onRealNameInput"
+            disabled="{{submitting}}"
+          />
+        </view>
+
+        <view class="field">
+          <text class="label">身份证号</text>
+          <input
+            class="input"
+            type="idcard"
+            placeholder="请输入本人身份证号"
+            value="{{idCard}}"
+            bindinput="onIdCardInput"
+            disabled="{{submitting}}"
+          />
+        </view>
+
+        <view wx:if="{{errorMsg}}" class="error-line">{{errorMsg}}</view>
+
+        <button
+          class="submit-btn"
+          bindtap="onSubmit"
+          loading="{{submitting}}"
+          disabled="{{submitting}}"
+        >{{submitting ? '提交中…' : '提交认证'}}</button>
+      </view>
+    </block>
+  </view>
+</view>
