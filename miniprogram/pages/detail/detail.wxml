@@ -118,7 +118,16 @@
         </view>
       </view>
     </view>
-    
+
+    <!-- M4：服务记录（完成后真实展示，数据来自后端 service-records） -->
+    <view wx:if="{{attendanceCompleted && serviceRecord}}" style="margin:16rpx 24rpx;padding:20rpx 24rpx;background:#e8f5e9;border-left:6rpx solid #07c160;border-radius:8rpx;">
+      <view style="font-size:30rpx;font-weight:600;color:#07c160;margin-bottom:12rpx;">✅ 本场服务已完成</view>
+      <view style="display:flex;font-size:26rpx;margin-bottom:6rpx;"><text style="color:#666;width:150rpx;">活动名称：</text><text style="flex:1;">{{activity.title}}</text></view>
+      <view style="display:flex;font-size:26rpx;margin-bottom:6rpx;"><text style="color:#666;width:150rpx;">服务日期：</text><text style="flex:1;">{{serviceRecord.business_service_date || '—'}}</text></view>
+      <view style="display:flex;font-size:26rpx;margin-bottom:6rpx;"><text style="color:#666;width:150rpx;">服务状态：</text><text style="flex:1;">已完成</text></view>
+      <view style="display:flex;font-size:26rpx;"><text style="color:#666;width:150rpx;">服务时长：</text><text style="flex:1;">{{serviceRecord.minutes || 0}} 分钟</text></view>
+    </view>
+
     <!-- 岗位信息（如果活动有岗位） -->
     <view wx:if="{{hasPositions && positions.length > 0}}" class="positions-section">
       <view class="section-title">活动岗位</view>

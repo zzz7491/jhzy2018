@@ -29,6 +29,9 @@ Page({
     insuranceQRCode: 'https://api.jhzyfw.com/static/insurance-qr.jpg',
     // 签到相关
     isCheckinActive: false,
+    // M4：真实服务记录完成态（来自后端 /service-records/mine，非本地伪造）
+    attendanceCompleted: false,
+    serviceRecord: null as any,
     // 重复活动相关
     recurrenceInfo: null
   },
@@ -83,36 +86,38 @@ Page({
     }
   },
 
-  // 是否有进行中的签到：由报名审核状态推导（v2 无独立 SELF 签到状态 GET）。
+  // M4：真实考勤完成态来自后端 /service-records/mine；详情页据此刷新按钮，绝不本地伪造。
+  // 前端无法独立判定「签到中」瞬时态（无 SELF 签到状态 GET），该态交由 sign 页在签到 API 成功后呈现。
   checkActiveCheckin() {
-    const { signupStatus } = this.data;
-    this.setData({ isCheckinActive: signupStatus === 2 });
-    this.updateButtonByStatus();
+    this.loadAttendanceStatus();
   },
 
-  // 根据状态更新按钮
+  // M4：根据真实后端状态更新底部按钮（绝不本地伪造签到/签退态）
   updateButtonByStatus() {
-    const { signupStatus, isCheckinActive } = this.data;
-    
+    const { signupStatus, attendanceCompleted } = this.data;
+
     let buttonText = "立即报名";
     let buttonBgColor = "#07c160";
-    
-    if (signupStatus === 1) {
+
+    if (attendanceCompleted) {
+      // 后端已生成服务记录（签到+签退完成）→ 真实「已参与」态，不可再操作
+      buttonText = "已参与";
+      buttonBgColor = "#9e9e9e";
+    } else if (signupStatus === 1) {
       buttonText = "待审核";
       buttonBgColor = "#ff9800";
     } else if (signupStatus === 2) {
-      if (isCheckinActive) {
-        buttonText = "立即签退";
-        buttonBgColor = "#ff4444";
-      } else {
-        buttonText = "立即签到";
-        buttonBgColor = "#07c160";
-      }
+      // APPROVED 但未完成服务：引导签到（真实签到/签退态由 sign 页依据后端响应呈现）
+      buttonText = "立即签到";
+      buttonBgColor = "#07c160";
+    } else if (signupStatus === 4) {
+      buttonText = "报名未通过";
+      buttonBgColor = "#9e9e9e";
     } else if (signupStatus === 3) {
       buttonText = "已参与";
       buttonBgColor = "#9e9e9e";
     }
-    
+
     this.setData({ buttonText, buttonBgColor });
   },
 
@@ -167,6 +172,7 @@ Page({
 
         if (this.data.isLoggedIn) {
           this.checkSignupStatus();
+          this.loadAttendanceStatus();
         }
       })
       .catch((err: any) => {
@@ -336,6 +342,28 @@ Page({
       });
   },
 
+  // M4：真实考勤完成态刷新（后端 /service-records/mine，SELF）。
+  // 仅当存在本活动的服务记录时，才判定为「已参与」；绝不本地伪造签到/签退态。
+  loadAttendanceStatus() {
+    const activity = this.data.activity;
+    if (!this.data.isLoggedIn || !activity || !activity.public_id) return;
+    activityApi
+      .getServiceRecordsMine(50)
+      .then((res: any) => {
+        const records = (res && res.records) || [];
+        const rec = records.find((r: any) => r.activity_public_id === activity.public_id);
+        if (rec) {
+          this.setData({ attendanceCompleted: true, serviceRecord: rec });
+        } else {
+          this.setData({ attendanceCompleted: false, serviceRecord: null });
+        }
+        this.updateButtonByStatus();
+      })
+      .catch(() => {
+        // 网络/权限失败：保持现状，绝不回退 legacy PHP 或伪造状态
+      });
+  },
+
   // 获取报名状态文本
   getSignupStatusText(status) {
     switch (status) {
@@ -348,8 +376,12 @@ Page({
 
   // 主按钮点击处理
   handleMainButtonClick() {
-    const { signupStatus } = this.data;
+    const { signupStatus, attendanceCompleted } = this.data;
 
+    if (attendanceCompleted) {
+      wx.showToast({ title: '您已完成此活动的志愿服务', icon: 'none' });
+      return;
+    }
     if (signupStatus === 2) {
       // 已通过审核：进入「参与准备 → 签到」闭环
       this.proceedToCheckin();
@@ -357,6 +389,8 @@ Page({
       wx.showToast({ title: '您的报名正在审核中', icon: 'none' });
     } else if (signupStatus === 3) {
       wx.showToast({ title: '您已参与此活动', icon: 'none' });
+    } else if (signupStatus === 4) {
+      wx.showToast({ title: '报名未通过，无法参与', icon: 'none' });
     } else {
       this.handleJoinClick();
     }

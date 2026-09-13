@@ -122,6 +122,11 @@ Page({
       .then(() => {
         this.setData({ isChecking: false, checkinStatus: 2 });
         wx.showToast({ title: '签退成功，积分已计入', icon: 'success' });
+        // 返回活动详情页，触发其 onShow 真实刷新「已参与」态（不本地伪造）
+        setTimeout(() => {
+          const pages = getCurrentPages();
+          if (pages && pages.length > 1) wx.navigateBack();
+        }, 1200);
       })
       .catch((err: any) => {
         this.setData({ isChecking: false });
