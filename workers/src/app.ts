@@ -40,6 +40,7 @@ import content from './routes/content'; // P33-P3B-2C：社区志愿者/团队�
 import ai from './routes/ai'; // P36-C3-2：嘉禾 AI V1（/api/v2/ai/*；4 个端点，ACTIVE_TEAM_REQUIRED）
 import adminContent from './routes/admin-content'; // P33-P3B-2C：社区管理端路由（/api/v2/admin/content/*）
 import analytics from './routes/analytics'; // P37-C1：数据运营运营概览（/api/v2/analytics/*；team + platform 双 scope）
+import deliveryDiagnostics from './routes/admin-delivery-diagnostics'; // N0-G1：平台级只读投递诊断（/api/v2/admin/delivery-diagnostics）
 import volunteer from './routes/volunteer'; // P0-A：志愿者身份核验（/api/v2/volunteer/identity/verify|status）
 import phone from './routes/phone'; // P0-B：微信可信手机号绑定（/api/v2/users/me/phone/wechat/bind|status）
 import qualification from './routes/qualification'; // P0-C：志愿者资格状态投影（/api/v2/users/me/qualification）
@@ -90,6 +91,7 @@ export function createApp() {
   v2.route('/ai', ai); // P36-C3-2：/api/v2/ai/*（conversation 4 端点；AI_CAN_MUTATE_BUSINESS_STATE = NO）
   v2.route('/admin/content', adminContent); // P33-P3B-2C：/api/v2/admin/content/*（社区审核/下架/删除）
   v2.route('/analytics', analytics); // P37-C1：/api/v2/analytics/*（team + platform 运营概览，精确 2 端点）
+  v2.route('/admin/delivery-diagnostics', deliveryDiagnostics); // N0-G1：/api/v2/admin/delivery-diagnostics（平台级只读投递诊断）
   v2.route('/volunteer', volunteer); // P0-A：/api/v2/volunteer/identity/verify|status
   v2.route('/users/me/phone', phone); // P0-B：/api/v2/users/me/phone/wechat/bind|status
   v2.route('/users/me/qualification', qualification); // P0-C：/api/v2/users/me/qualification 资格状态投影
