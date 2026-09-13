@@ -14,7 +14,6 @@ Page({
     refreshing: false,
     membershipDuration: '',
     userIdentity: '',
-    dashboardModules: [], // 动态功能卡片数据
     unreadCount: 0, // 未读消息数量
     
     // 统计数据
@@ -113,7 +112,6 @@ Page({
     if (this.data.isLoggedIn) {
       await this.getCurrentLocation();
       await this.loadUserData();
-      await this.loadDashboardModules();
       this.loadUnreadCount();
       this.loadVolunteerQualification();
       this.loadWechatPhoneStatus();
@@ -210,60 +208,6 @@ Page({
         });
     } catch (e) {
       /* 忽略 */
-    }
-  },
-
-  // 加载动态功能卡片
-  async loadDashboardModules() {
-    try {
-      const token = wx.getStorageSync('access_token') || wx.getStorageSync('token');
-      if (!token) {
-        console.log('没有token，不加载动态卡片');
-        return;
-      }
-      
-      const res = await new Promise((resolve, reject) => {
-        wx.request({
-          url: 'https://api.jhzyfw.com/api/user_dashboard.php?token=' + token,
-          method: 'GET',
-          success: (res) => resolve(res.data),
-          fail: reject
-        });
-      });
-      
-      console.log('动态卡片数据:', res);
-      
-      if (res && res.code === 0 && res.data && res.data.modules) {
-        const modules = res.data.modules.sort((a, b) => (a.sort || 0) - (b.sort || 0));
-        this.setData({ dashboardModules: modules });
-      }
-    } catch (error) {
-      console.error('加载动态卡片失败:', error);
-    }
-  },
-
-  // 动态卡片点击跳转
-  goToDynamicPage(e) {
-    const url = e.currentTarget.dataset.url;
-    if (!url) return;
-    
-    if (!this.data.isLoggedIn) {
-      this.showLoginModal();
-      return;
-    }
-    
-    const tabBarPages = [
-      '/pages/quick-action/quick-action',
-      '/pages/index/index',
-      '/pages/activities/activities',
-      '/pages/mall/mall',
-      '/pages/mine/mine'
-    ];
-    
-    if (tabBarPages.includes(url)) {
-      wx.switchTab({ url });
-    } else {
-      wx.navigateTo({ url });
     }
   },
 
@@ -431,7 +375,6 @@ Page({
     if (this.data.isLoggedIn) {
       await this.getCurrentLocation();
       await this.loadUserData();
-      await this.loadDashboardModules();
       this.loadUnreadCount();
       this.loadVolunteerQualification();
       this.loadWechatPhoneStatus();
@@ -632,6 +575,24 @@ Page({
     wx.navigateTo({ url: '/pages/feedback/feedback' });
   },
 
+  // P0-1 R3：学习培训固定入口（V2 培训中心；用于完成资格流程，不加资格门/团队门）
+  goToTraining() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/training/training' });
+  },
+
+  // P0-1 R3：我的团队固定入口（团队上下文切换；不加团队门）
+  goToTeams() {
+    if (!this.data.isLoggedIn) {
+      this.showLoginModal();
+      return;
+    }
+    wx.navigateTo({ url: '/pages/teams/teams' });
+  },
+
   // 查看签到历史
   goToAttendanceHistory() {
     if (!this.data.isLoggedIn) {
@@ -663,8 +624,7 @@ Page({
             isLoggedIn: false,
             userInfo: null,
             stats: { currentPoints: 0, totalActivities: 0, totalHours: 0 },
-            activeAttendance: null,
-            dashboardModules: []
+            activeAttendance: null
           });
           
           wx.showToast({ title: '退出成功', icon: 'success' });

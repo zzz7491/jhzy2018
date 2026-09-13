@@ -178,6 +178,27 @@
         </view>
       </view>
     </view>
+
+    <!-- P0-1 R3：固定入口 — 我的团队 / 学习培训（在删除 legacy dashboard 前建立替代路径） -->
+    <view class="message-entry" bindtap="goToTeams">
+      <view class="message-entry-left">
+        <text class="message-icon">👥</text>
+        <text class="message-title">我的团队</text>
+      </view>
+      <view class="message-entry-right">
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
+    <view class="message-entry" bindtap="goToTraining">
+      <view class="message-entry-left">
+        <text class="message-icon">📚</text>
+        <text class="message-title">学习培训</text>
+      </view>
+      <view class="message-entry-right">
+        <text class="arrow">›</text>
+      </view>
+    </view>
   </view>
 
   <!-- 未登录状态 -->
@@ -187,24 +208,6 @@
       <text class="login-title">欢迎来到嘉禾志愿</text>
       <text class="login-subtitle">登录后查看您的志愿服务记录</text>
       <button class="login-button" bindtap="goToLogin">立即登录</button>
-    </view>
-  </view>
-
-  <!-- 动态功能卡片区域（完全替换原来的快捷入口） -->
-  <view wx:if="{{isLoggedIn && dashboardModules && dashboardModules.length > 0}}" class="quick-actions">
-    <view class="section-title">
-      <text class="title-text">快捷功能</text>
-      <view class="title-decoration"></view>
-    </view>
-    
-    <view class="actions-grid">
-      <view class="action-item" wx:for="{{dashboardModules}}" wx:key="id" data-url="{{item.url}}" bindtap="goToDynamicPage">
-        <view class="action-icon-box">
-          <text class="action-icon">{{item.icon}}</text>
-          <view wx:if="{{item.badge}}" class="badge">{{item.badge}}</view>
-        </view>
-        <text class="action-text">{{item.title}}</text>
-      </view>
     </view>
   </view>
 
