@@ -228,11 +228,17 @@ export class FileService {
   /**
    * TEAM-scoped 文件读取。
    * - public_id + teamId + deleted_at IS NULL；跨团队 → 404（不泄露存在性）。
-   * - visibility: team → 同团队可读；private → 仅 uploader 本人 / platform_super_admin；
+   * - visibility: team → 同团队可读；private → 仅 uploader 本人，或经统一授权
+   *   file.private.read（当前仅授予平台超级管理员，具体绑定见权限目录）授予 allowPrivate 能力的 actor；
    *   public → V1 不创建，遇到也按 404 处理（不因 public 绕过 TEAM 边界）。
+   * - file.private.read 由路由层以统一授权 machinery 解析为 boolean（allowPrivate），
+   *   本方法不访问 D1 permission provider、不按角色名鉴权、不覆盖 team scope。
    * - R2 对象缺失 → 404（不回显 object_key / bucket）。
    */
-  async getFileStream(filePublicId: string): Promise<FileStreamResult> {
+  async getFileStream(
+    filePublicId: string,
+    opts?: { allowPrivate?: boolean },
+  ): Promise<FileStreamResult> {
     if (!isUlid(filePublicId)) throw notFound('File');
     const { userId, teamId } = this.requireActor();
 
@@ -241,8 +247,8 @@ export class FileService {
 
     if (row.visibility === FILE_VISIBILITY.PRIVATE) {
       const isSelf = row.uploader_id != null && row.uploader_id === userId;
-      const isSuper = this.auth.roles.some((b) => b.role === 'platform_super_admin');
-      if (!isSelf && !isSuper) throw notFound('File');
+      const allowPrivate = opts?.allowPrivate === true;
+      if (!isSelf && !allowPrivate) throw notFound('File');
     } else if (row.visibility !== FILE_VISIBILITY.TEAM) {
       // public / 未知取值：V1 不服务。
       throw notFound('File');

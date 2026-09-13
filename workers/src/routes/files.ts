@@ -19,6 +19,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
 import { FileService } from '../services/file-service';
+import { authorizePermissionDecision } from '../services/permission-provider';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { invalidParam } from '../utils/errors';
@@ -60,6 +61,11 @@ files.post('/', requirePermission('file.file.upload'), async (c) => {
 
 files.get('/:filePublicId', requirePermission('file.file.view'), async (c) => {
   const filePublicId = c.req.param('filePublicId');
+  // P1-B1：以统一授权 machinery 解析 file.private.read（第二层 narrow capability，
+  // 非普通文件读取权限）。仅当裁决为 allow 时（当前仅 platform_super_admin）授予同团队内
+  // 非上传者读取私有文件的能力；不按角色名判断、不改变 team scope、不访问文件 service 内的 provider。
+  const allowPrivate =
+    (await authorizePermissionDecision(c.env, c.get('auth'), 'file.private.read')) === 'allow';
   const svc = new FileService({
     db: c.env.DB,
     bucket: c.env.FILES,
@@ -67,7 +73,7 @@ files.get('/:filePublicId', requirePermission('file.file.view'), async (c) => {
     tenant: c.get('tenant'),
     env: { ENVIRONMENT: c.env.ENVIRONMENT, JHZY_FAULT_INJECT: c.env.JHZY_FAULT_INJECT },
   });
-  const { body, mimeType } = await svc.getFileStream(filePublicId);
+  const { body, mimeType } = await svc.getFileStream(filePublicId, { allowPrivate });
 
   return new Response(body, {
     status: 200,
