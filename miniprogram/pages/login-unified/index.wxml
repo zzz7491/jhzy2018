@@ -1,31 +1,35 @@
-<view class="login-container">
-  <view class="logo-section">
-    <image src="/images/logo.png" class="logo" mode="aspectFit"></image>
-    <text class="app-name">嘉禾志愿</text>
-    <text class="app-subtitle">志愿服务管理系统</text>
+<view class="auth-page">
+  <!-- 1. 品牌区 -->
+  <view class="brand-area">
+    <image src="/images/logo.png" class="brand-logo" mode="aspectFit"></image>
+    <text class="brand-name">嘉禾志愿</text>
+    <text class="brand-sub">让每一次志愿服务，都留下温暖足迹</text>
   </view>
 
-  <view class="login-card">
+  <!-- 2. 登录卡片 -->
+  <view class="auth-card">
+    <!-- 身份选择：统一 segmented control，等宽等高；管理员仅以色彩/字重降权 -->
     <view class="role-tabs">
       <view class="role-tab {{currentRole === 'volunteer' ? 'active' : ''}}" bindtap="switchRole" data-role="volunteer">
         <text>志愿者登录</text>
       </view>
-      <view class="role-tab {{currentRole === 'admin' ? 'active' : ''}}" bindtap="switchRole" data-role="admin">
+      <view class="role-tab role-tab-admin {{currentRole === 'admin' ? 'active' : ''}}" bindtap="switchRole" data-role="admin">
         <text>管理员登录</text>
       </view>
     </view>
 
     <form bindsubmit="onSubmit">
       <view class="form-group">
-        <text class="form-label">{{currentRole === 'volunteer' ? '手机号/用户名' : '管理员账号'}}</text>
-        <input class="form-input" name="account" placeholder="请输入{{currentRole === 'volunteer' ? '手机号或用户名' : '管理员账号'}}" value="{{account}}" bindinput="onAccountInput" />
+        <text class="form-label">{{currentRole === 'volunteer' ? '手机号 / 用户名' : '管理员账号'}}</text>
+        <input class="form-input" name="account" placeholder="请输入{{currentRole === 'volunteer' ? '手机号或用户名' : '管理员账号'}}" placeholder-class="input-placeholder" value="{{account}}" bindinput="onAccountInput" />
       </view>
 
       <view class="form-group">
         <text class="form-label">密码</text>
-        <input class="form-input" name="password" password placeholder="请输入密码" value="{{password}}" bindinput="onPasswordInput" />
+        <input class="form-input" name="password" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" />
       </view>
 
+      <!-- 开发环境快速登录（仅 isDev 可见，弱化展示，业务逻辑保留） -->
       <view class="quick-login" wx:if="{{isDev}}">
         <text class="quick-title">开发环境快速登录</text>
         <view class="quick-buttons">
@@ -34,31 +38,37 @@
         </view>
       </view>
 
-      <button class="submit-btn" formType="submit" loading="{{loading}}">
-        {{loading ? '登录中...' : '登录'}}
+      <!-- 主 CTA -->
+      <button class="submit-btn" formType="submit" loading="{{loading}}" disabled="{{loading}}">
+        {{loading ? '登录中...' : '登 录'}}
       </button>
 
+      <!-- 辅助操作 -->
       <view class="register-link" wx:if="{{currentRole === 'volunteer'}}">
         <text>还没有账号？</text>
         <text class="register-text" bindtap="gotoRegister">立即注册</text>
       </view>
 
+      <!-- 协议（适老化：大点击区、≥26rpx、整行可读） -->
       <view class="privacy-agreement">
-        <checkbox-group bindchange="onPrivacyChange">
+        <checkbox-group bindchange="onPrivacyChange" class="privacy-group">
           <label class="privacy-label">
-            <checkbox value="agree" checked="{{isAgree}}" color="#667eea" />
-            <text class="privacy-text">我已阅读并同意</text>
-            <text class="privacy-link" catchtap="gotoServiceProtocol">《用户服务协议》</text>
-            <text class="privacy-text">和</text>
-            <text class="privacy-link" catchtap="gotoPrivacyPolicy">《隐私政策》</text>
+            <checkbox value="agree" checked="{{isAgree}}" color="#E15A2B" class="privacy-checkbox" />
+            <view class="privacy-text-wrap">
+              <text class="privacy-text">我已阅读并同意</text>
+              <text class="privacy-link" catchtap="gotoServiceProtocol">《用户服务协议》</text>
+              <text class="privacy-text">和</text>
+              <text class="privacy-link" catchtap="gotoPrivacyPolicy">《隐私政策》</text>
+            </view>
           </label>
         </checkbox-group>
       </view>
     </form>
   </view>
 
+  <!-- 3. 页脚提示 -->
   <view class="footer-tips">
-    <text>提示：管理员账号请联系系统管理员获取</text>
     <text>志愿者账号可通过手机号注册</text>
+    <text>管理员账号请联系系统管理员获取</text>
   </view>
 </view>

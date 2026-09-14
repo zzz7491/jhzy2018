@@ -363,6 +363,9 @@ Page({
     }
   },
 
+  // 阻止冒泡占位（wxml 中 catchtap="stopPropagation" 需要；无业务逻辑）
+  stopPropagation() {},
+
   // 显示用户协议弹窗
   showProtocolModal() {
     this.setData({

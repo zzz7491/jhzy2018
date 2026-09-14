@@ -1,56 +1,114 @@
-/* 注册页面样式 */
+/* 注册页面样式 — P1-B1 视觉打磨 R2：分组卡片体系 + 轻量头部（P1-A 暖色体系） */
+
 .register-container {
-  min-height: 100vh;
-  background-color: #f8f9fa;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #F7F4EF;
 }
 
-/* 顶部导航 */
+/* ============ 轻量头部（无渐变横幅，标题绝对居中，避让状态栏/胶囊） ============ */
 .register-header {
-  height: 120rpx;
-  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 88rpx;
   padding: 0 32rpx;
-  color: #fff;
+  padding-top: env(safe-area-inset-top);
+  box-sizing: content-box;
+  background: transparent;
 }
 
 .back-btn {
   display: flex;
   align-items: center;
   font-size: 30rpx;
+  color: #E15A2B;
+  min-width: 110rpx;
+  min-height: 64rpx;
+  z-index: 2;
 }
 
 .back-icon {
   font-size: 50rpx;
-  margin-right: 10rpx;
+  margin-right: 8rpx;
   line-height: 1;
 }
 
+.header-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: env(safe-area-inset-top);
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .register-title {
-  font-size: 36rpx;
+  font-size: 34rpx;
   font-weight: bold;
+  color: #2B2622;
 }
 
 .header-right {
-  width: 80rpx;
+  width: 110rpx;
 }
 
-/* 表单区域 */
+.header-sub {
+  text-align: center;
+  font-size: 26rpx;
+  color: #9A918A;
+  padding: 4rpx 0 20rpx;
+}
+
+/* ============ 表单区域 ============ */
 .form-scroll {
-  height: calc(100vh - 120rpx);
+  flex: 1;
+  min-height: 0;
 }
 
 .form-container {
-  padding: 40rpx 32rpx 100rpx;
+  padding: 8rpx 32rpx 100rpx;
 }
 
-/* 微信验证状态 */
+/* ============ 分组卡片 ============ */
+.form-section {
+  background: #FFFFFF;
+  border: 2rpx solid #ECE7E0;
+  border-radius: 20rpx;
+  padding: 28rpx 28rpx 6rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 4rpx 14rpx rgba(43, 38, 34, 0.03);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #2B2622;
+  margin-bottom: 24rpx;
+}
+
+.section-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #E15A2B;
+  margin-right: 12rpx;
+}
+
+/* ============ 微信验证状态（功能性低饱和） ============ */
 .wx-status {
-  background-color: #e8f4ff;
+  background-color: #FCFAF6;
+  border: 2rpx solid #ECE7E0;
   border-radius: 16rpx;
   padding: 30rpx;
-  margin-bottom: 40rpx;
+  margin-bottom: 24rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -60,7 +118,7 @@
   display: flex;
   align-items: center;
   font-size: 28rpx;
-  color: #1890ff;
+  color: #6B635B;
 }
 
 .loading-dots text {
@@ -83,28 +141,30 @@
 }
 
 .retry-btn {
-  background-color: #1890ff;
-  color: white;
-  font-size: 26rpx;
-  padding: 10rpx 20rpx;
-  border-radius: 20rpx;
+  background-color: #FFFFFF;
+  border: 2rpx solid #E15A2B;
+  color: #E15A2B;
+  font-size: 28rpx;
+  padding: 14rpx 28rpx;
+  border-radius: 24rpx;
   line-height: 1;
 }
 
+/* 微信验证成功：低饱和功能性绿色，不抢主色 */
 .wx-success {
-  background-color: #f6ffed;
-  border: 2rpx solid #b7eb8f;
+  background-color: #F2F9F4;
+  border: 2rpx solid #9ADCB8;
   border-radius: 16rpx;
-  padding: 30rpx;
-  margin-bottom: 40rpx;
+  padding: 26rpx 30rpx;
+  margin-bottom: 24rpx;
   display: flex;
   align-items: center;
   font-size: 28rpx;
-  color: #52c41a;
+  color: #3D8B5F;
 }
 
 .success-icon {
-  background-color: #52c41a;
+  background-color: #3D8B5F;
   color: white;
   width: 40rpx;
   height: 40rpx;
@@ -116,27 +176,28 @@
   font-size: 24rpx;
 }
 
-/* 表单组 */
+/* ============ 表单组 ============ */
 .form-group {
-  margin-bottom: 40rpx;
+  margin-bottom: 26rpx;
 }
 
 .form-label {
   display: block;
-  font-size: 30rpx;
-  color: #333;
-  margin-bottom: 16rpx;
+  font-size: 28rpx;
+  color: #2B2622;
+  margin-bottom: 12rpx;
   font-weight: 500;
 }
 
 .form-input {
   width: 100%;
   height: 88rpx;
-  background-color: white;
-  border: 2rpx solid #e8e8e8;
+  background-color: #FCFAF6;
+  border: 2rpx solid #ECE7E0;
   border-radius: 12rpx;
   padding: 0 24rpx;
   font-size: 28rpx;
+  color: #2B2622;
   box-sizing: border-box;
 }
 
@@ -145,7 +206,13 @@
 }
 
 .form-input:focus {
-  border-color: #FF6B35;
+  border-color: #E15A2B;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 6rpx rgba(225, 90, 43, 0.10);
+}
+
+.input-placeholder {
+  color: #9A918A;
 }
 
 .password-input {
@@ -159,35 +226,37 @@
   transform: translateY(-50%);
   font-size: 36rpx;
   z-index: 2;
+  padding: 8rpx;
 }
 
 .error-tip {
   display: block;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #ff4d4f;
   margin-top: 10rpx;
 }
 
-/* 协议部分样式 */
+/* ============ 协议（整行可点击，≥26rpx） ============ */
 .protocol-section {
-  margin: 40rpx 0;
-  padding: 30rpx 0;
-  border-top: 2rpx solid #eee;
-  border-bottom: 2rpx solid #eee;
+  margin: 8rpx 0 28rpx;
+  padding: 16rpx 0;
 }
 
 .protocol-checkbox {
   display: flex;
   align-items: center;
-  font-size: 28rpx;
-  color: #666;
+  flex-wrap: wrap;
+  font-size: 26rpx;
+  color: #6B635B;
+  padding: 12rpx 0;
+  line-height: 1.7;
 }
 
 .checkbox-icon {
-  width: 40rpx;
-  height: 40rpx;
-  border: 2rpx solid #ddd;
-  border-radius: 8rpx;
+  width: 44rpx;
+  height: 44rpx;
+  border: 2rpx solid #D8D2CA;
+  border-radius: 10rpx;
   margin-right: 20rpx;
   display: flex;
   align-items: center;
@@ -198,47 +267,50 @@
 }
 
 .checkbox-icon.checked {
-  background-color: #FF6B35;
-  border-color: #FF6B35;
+  background-color: #E15A2B;
+  border-color: #E15A2B;
 }
 
 .protocol-link {
-  color: #FF6B35;
+  color: #E15A2B;
+  font-weight: bold;
   margin-left: 5rpx;
 }
 
-/* 提交按钮 */
+/* ============ 提交按钮 ============ */
 .submit-btn {
-  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  background: linear-gradient(135deg, #E15A2B, #F0894E);
   color: white;
   height: 96rpx;
   border-radius: 48rpx;
   font-size: 34rpx;
   font-weight: bold;
-  margin-top: 20rpx;
+  margin-top: 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 10rpx 24rpx rgba(225, 90, 43, 0.26);
 }
 
 .submit-btn.disabled {
   opacity: 0.6;
 }
 
-/* 登录链接 */
+/* ============ 登录链接 ============ */
 .login-link {
   text-align: center;
-  margin-top: 40rpx;
+  margin-top: 32rpx;
   font-size: 28rpx;
-  color: #666;
+  color: #6B635B;
 }
 
 .login-text {
-  color: #FF6B35;
+  color: #E15A2B;
+  font-weight: bold;
   margin-left: 10rpx;
 }
 
-/* 协议弹窗样式 - 修改为完全可滚动 */
+/* ============ 协议弹窗（完全可滚动） ============ */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -264,7 +336,7 @@
 
 .modal-header {
   padding: 30rpx;
-  border-bottom: 2rpx solid #eee;
+  border-bottom: 2rpx solid #ECE7E0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -274,12 +346,12 @@
 .modal-title {
   font-size: 34rpx;
   font-weight: bold;
-  color: #333;
+  color: #2B2622;
 }
 
 .modal-close {
   font-size: 50rpx;
-  color: #999;
+  color: #9A918A;
   line-height: 1;
   width: 60rpx;
   height: 60rpx;
@@ -298,7 +370,7 @@
 .protocol-full-content {
   font-size: 28rpx;
   line-height: 1.6;
-  color: #333;
+  color: #2B2622;
   white-space: pre-line;
   padding: 40rpx;
   display: block;
@@ -306,7 +378,7 @@
 
 .modal-footer {
   display: flex;
-  border-top: 2rpx solid #eee;
+  border-top: 2rpx solid #ECE7E0;
   flex-shrink: 0;
 }
 
@@ -320,17 +392,16 @@
 }
 
 .btn-cancel {
-  background-color: #f5f5f5;
-  color: #666;
+  background-color: #F5F2ED;
+  color: #6B635B;
 }
 
 .btn-agree {
-  background: linear-gradient(135deg, #FF6B35, #FF8B35);
+  background: linear-gradient(135deg, #E15A2B, #F0894E);
   color: white;
 }
 
-/* 适配老年版 */
-.simple-mode .form-group:nth-last-child(3),
-.simple-mode .form-group:nth-last-child(2) {
+/* ============ 适老简化模式：隐藏紧急联系人组（与 wxml wx:if 双保险） ============ */
+.simple-mode .emergency-group {
   display: none;
 }
