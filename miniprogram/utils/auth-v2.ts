@@ -7,7 +7,9 @@
 //   V2 会话独立存于 v2_access_token / v2_token_expire。
 // - 仅当无有效 V2 会话时才 wx.login() 换取 code → POST /api/v2/auth/wechat/login。
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+import { resolveV2Base } from './apiEnv';
+
+const V2_BASE = resolveV2Base();
 
 export interface V2LoginResult {
   token: string;

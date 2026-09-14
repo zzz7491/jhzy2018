@@ -7,9 +7,10 @@
 // 若未选择团队（activeTeamPublicId 为空），所有请求会收到 TEAM_SCOPE_REQUIRED(403)，
 // 页面层据此提示「请先选择团队」并跳转团队选择页（不 fallback 到 PHP）。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export interface ApiError {
   status: number;

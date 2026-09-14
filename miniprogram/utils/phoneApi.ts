@@ -6,9 +6,10 @@
 //   绝不向任何端点发送客户端自填手机号。
 // - 响应与存储均不含完整手机号明文；本客户端只消费脱敏字段（phone_mask）。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export interface PhoneStatus {
   bound: boolean;

@@ -6,9 +6,10 @@
 // - 响应只消费脱敏字段（masked_id_card）；绝不接收/缓存身份证明文。
 // - 仅镜像 phoneApi 的调用风格（ensureV2Session + wx.request + Bearer）。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export type IdentityStatus =
   | 'UNVERIFIED'

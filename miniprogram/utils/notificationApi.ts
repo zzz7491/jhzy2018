@@ -8,9 +8,10 @@
 // - 仅消费后端安全 DTO（NotificationListItem / NotificationDetail）；不解析
 //   payload_json / idempotency_key / 内部 id / deleted_at。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export type NotificationCategory =
   | 'system'

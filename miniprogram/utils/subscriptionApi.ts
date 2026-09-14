@@ -9,9 +9,10 @@
 //   并由 recordConsent 上报后端落库（幂等）。
 // - 不使用任何 legacy PHP（get_subscribe_status.php / save_subscribe_status.php）。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export type ConsentState = 'ACCEPT' | 'REJECT' | 'BAN';
 

@@ -5,9 +5,10 @@
 // - 后端 v2 为唯一权威；本客户端只读取并展示，绝不自行推导 qualified / reasons。
 // - 不消费任何 PII；仅布尔事实 + 稳定 reason token。
 
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export interface VolunteerQualification {
   qualified: boolean;

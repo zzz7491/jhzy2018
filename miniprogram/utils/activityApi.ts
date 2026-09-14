@@ -9,9 +9,10 @@
 //   X-Team-Id 取自 wx.getStorageSync('activeTeamPublicId')，由 teams 页「选择团队」写入。
 
 import { generateUlid } from './ulid';
+import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
 
-const V2_BASE = 'https://api.jhzyfw.com/api/v2';
+const V2_BASE = resolveV2Base();
 
 export interface ApiError {
   status: number;
