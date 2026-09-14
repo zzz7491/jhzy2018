@@ -13,6 +13,10 @@ Page({
     // 显示模式
     isSeniorMode: false,
     
+    // 多团队身份展示槽（仅读已存在 storage.activeTeamName，不新增接口）
+    teamName: '',
+    teamInitial: '',
+    
     // 动态滚动横幅（新增）
     feedList: [] as any[],
     feedTimer: null as any,
@@ -86,6 +90,8 @@ Page({
     console.log('首页显示');
     // 每次显示都同步storage中的登录状态
     this.syncLoginStatus();
+    // P1-A: 同步多团队身份（仅读已存在 storage，不新增接口）
+    this.loadTeamIdentity();
     this.refreshData();
   },
 
@@ -1129,6 +1135,40 @@ Page({
     wx.navigateTo({
       url: '/pages/ai/index'
     });
+  },
+
+  // P1-A: 多团队身份（仅读 storage.activeTeamName，不新增接口、不硬编码团队名）
+  loadTeamIdentity() {
+    const name = wx.getStorageSync('activeTeamName') || '';
+    this.setData({
+      teamName: name,
+      teamInitial: name ? name.charAt(0) : '嘉'
+    });
+  },
+
+  // P1-A: 核心行动 + 中心导航（全部指向真实已存在页面，由目标页自身执行登录/团队门禁）
+  goToSign() {
+    wx.navigateTo({ url: '/pages/sign/sign' });
+  },
+
+  goToTrainings() {
+    wx.navigateTo({ url: '/pages/trainings/trainings' });
+  },
+
+  goToTeams() {
+    wx.navigateTo({ url: '/pages/teams/teams' });
+  },
+
+  goToGrowth() {
+    wx.navigateTo({ url: '/pages/certificates/certificates' });
+  },
+
+  goToCollaboration() {
+    wx.navigateTo({ url: '/pages/quick-action/quick-action' });
+  },
+
+  goToCommunity() {
+    wx.navigateTo({ url: '/pages/community/index/index' });
   },
 
   goToLogin() {

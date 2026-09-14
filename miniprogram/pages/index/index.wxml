@@ -1,363 +1,206 @@
-<!-- pages/index/index.wxml - 重构版（集成随手公益 + 排行榜） -->
-<view class="container safe-top {{isSeniorMode ? 'senior-mode' : ''}}">
+<!-- pages/index/index.wxml - JHZY 2.0 首页（P1-A.5 智能志愿型 · 最终视觉精修） -->
+<view class="home safe-top {{isSeniorMode ? 'senior-mode' : ''}}">
 
-<!-- 顶部轮播图 -->
-<view class="swiper-container" wx:if="{{mainBanners.length > 0}}">
-  <swiper class="home-swiper" autoplay="true" interval="3500" circular="true" indicator-dots="true" indicator-color="rgba(255,255,255,0.5)" indicator-active-color="#FF6B35">
-    <block wx:for="{{mainBanners}}" wx:key="index">
-      <swiper-item>
-        <view class="swiper-item" bindtap="onMainSwiperTap" data-index="{{index}}">
-          <image src="{{item.image}}" mode="aspectFill" class="swiper-image" />
-          <view class="swiper-overlay" wx:if="{{item.title}}">
-            <text class="swiper-title">{{item.title}}</text>
-            <text class="swiper-desc" wx:if="{{item.description}}">{{item.description}}</text>
+  <!-- 1. SMART HERO（本地已认可 Hero 素材；文字承担品牌上下文，不与人物/机器人重叠） -->
+  <view class="hero">
+    <image class="hero-bg" src="/images/home-v2/hero-ai.webp" mode="aspectFill" lazy-load="{{true}}" />
+    <view class="hero-mask"></view>
+    <view class="hero-inner">
+      <view class="hero-text">
+        <view class="hero-brand">
+          <text class="hero-platform">嘉禾志愿 · 志愿服务数字平台</text>
+          <view class="hero-team" wx:if="{{teamName}}">
+            <text class="hero-team-name">{{teamName}}</text>
           </view>
         </view>
-      </swiper-item>
-    </block>
-  </swiper>
-</view>
-
-<!-- 动态滚动横幅（新增） -->
-<view class="marquee-container" wx:if="{{feedList.length > 0}}">
-  <swiper vertical="{{true}}" autoplay="{{true}}" interval="3000" duration="500" circular="{{true}}" class="marquee-swiper">
-    <swiper-item wx:for="{{feedList}}" wx:key="id" wx:for-item="feed">
-      <view class="marquee-item">
-        <text class="marquee-icon">{{feed.type === 'exchange' ? '🎁' : feed.type === 'quick' ? '🤝' : '📍'}}</text>
-        <text class="marquee-text">{{feed.display_message}}</text>
-      </view>
-    </swiper-item>
-  </swiper>
-</view>
-
-<!-- 顶部栏：日期+模式切换 -->
-<view class="top-header">
-  <view class="header-left">
-    <text class="today-date">{{today}}</text>
-  </view>
-  <view class="header-right">
-    <view class="mode-toggle-btn" bindtap="toggleDisplayMode">
-      <view class="mode-btn-inner {{isSeniorMode ? 'senior-active' : ''}}">
-        <text class="mode-icon">{{isSeniorMode ? '👴' : '👦'}}</text>
-      </view>
-      <text class="mode-label">{{isSeniorMode ? '大字版' : '普通版'}}</text>
-    </view>
-  </view>
-</view>
-
-<!-- 欢迎区域 -->
-<view class="welcome-area">
-  <text class="greeting">{{greeting}}，{{userInfo ? userInfo.real_name || '志愿者' : '志愿者'}}</text>
-  <text class="welcome-text">{{userInfo ? '感谢您为志愿服务的付出' : '立即登录，开启志愿服务之旅'}}</text>
-</view>
-
-<!-- 积分卡片 -->
-<view class="points-card" bindtap="goToPointsMall">
-  <view class="points-header">
-    <text class="points-title">志愿服务积分</text>
-    <view class="points-badge" wx:if="{{userInfo}}">
-      <text class="badge-text">可兑换</text>
-    </view>
-  </view>
-  
-  <view class="points-content">
-    <view class="current-points">
-      <text class="points-label">当前积分</text>
-      <text class="points-value">{{stats.totalPoints || 0}}</text>
-    </view>
-    
-    <view class="points-details">
-      <view class="detail-item">
-        <text class="detail-label">累计服务</text>
-        <text class="detail-value">{{stats.totalActivities || 0}}次</text>
-      </view>
-      <view class="detail-divider"></view>
-      <view class="detail-item">
-        <text class="detail-label">服务时长</text>
-        <text class="detail-value">{{stats.totalHours || 0}}小时</text>
-      </view>
-      <view class="detail-divider"></view>
-      <view class="detail-item">
-        <text class="detail-label">累计积分</text>
-        <text class="detail-value">{{stats.totalPoints || 0}}分</text>
-      </view>
-    </view>
-  </view>
-  
-  <view class="points-footer">
-    <text class="footer-text">点击查看积分激励物品</text>
-    <text class="footer-arrow">›</text>
-  </view>
-</view>
-
-<!-- 志愿者排行榜 -->
-<view class="rankings-section" wx:if="{{rankings.length > 0}}">
-  <view class="section-title">
-    <text class="title-text">志愿者排行榜</text>
-    <view class="title-line"></view>
-    <text class="view-all" bindtap="viewAllRankings">查看全部</text>
-  </view>
-  
-  <!-- 加载状态 -->
-  <view wx:if="{{rankingsLoading}}" class="loading-container">
-    <text class="loading-text">加载排行榜中...</text>
-  </view>
-  
-  <!-- 排行榜内容 -->
-  <view wx:if="{{!rankingsLoading && rankings.length > 0}}" class="rankings-container">
-    
-    <!-- 前三名特殊展示 -->
-    <view class="top-three" wx:if="{{topRankings.length > 0}}">
-      <block wx:for="{{topRankings}}" wx:key="id">
-        <view class="top-item rank-{{index + 1}}" data-index="{{index}}" bindtap="viewVolunteerRank">
-          <view class="crown" wx:if="{{index === 0}}">👑</view>
-          <view class="top-avatar-wrap">
-            <image class="top-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
-            <view class="rank-badge rank-{{index + 1}}">{{index + 1}}</view>
-          </view>
-          <text class="top-name">{{item.name || item.real_name || '志愿者'}}</text>
-          <text class="top-points">{{item.points || item.total_points || 0}}分</text>
-          <text class="top-hours" wx:if="{{item.hours}}">{{item.hours}}小时</text>
+        <view class="hero-greet" wx:if="{{isLoggedIn}}">
+          <text>你好，{{userInfo.real_name || userInfo.name || '志愿者'}}</text>
         </view>
-      </block>
+        <view class="hero-title">让 AI 陪你一起做公益</view>
+        <view class="hero-sub">更合适的活动 · 更清晰的成长 · 更温暖的坚持</view>
+      </view>
     </view>
-    
-    <!-- 其他名次列表（折叠/展开） -->
-    <view class="rankings-list" wx:if="{{showAllRankings && otherRankings.length > 0}}">
-      <block wx:for="{{otherRankings}}" wx:for-index="outerIndex" wx:key="id">
-        <view class="ranking-item" data-index="{{outerIndex + 3}}" bindtap="viewVolunteerRank">
-          <view class="rank-medal">
-            <text class="rank-number">{{outerIndex + 4}}</text>
-          </view>
-          
-          <image class="rank-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
-          
-          <view class="rank-info">
-            <text class="rank-name">{{item.name || item.real_name || '志愿者'}}</text>
-          </view>
-          
-          <view class="rank-points">
-            <text class="points-value">{{item.points || item.total_points || 0}}分</text>
-            <text class="points-unit">积分</text>
-          </view>
-        </view>
-      </block>
-    </view>
-    
-    <!-- 查看更多/收起按钮 -->
-    <view class="rankings-toggle" wx:if="{{rankings.length > 3}}" bindtap="toggleRankingsExpand">
-      <text class="toggle-text">{{showAllRankings ? '收起' : '查看更多'}}</text>
-      <text class="toggle-icon">{{showAllRankings ? '▲' : '▼'}}</text>
+    <!-- 大字版：保留真实适老开关功能，降为弱视觉角标 -->
+    <view class="hero-mode" bindtap="toggleDisplayMode">
+      <text class="hero-mode-text">{{isSeniorMode ? '标准版' : '大字版'}}</text>
     </view>
   </view>
-</view>
 
-<!-- 随手公益展示 -->
-<view class="casual-welfare-section" wx:if="{{userInfo}}">
-  <view class="section-title">
-    <text class="title-text">随手公益</text>
-    <view class="title-line"></view>
-    <text class="view-all" bindtap="goToQuickAction">发布记录</text>
+  <!-- 2. AI 智能问答入口（输入条样式：左图形 / 中问题 / 右箭头，不新增 API / 不改后端） -->
+  <view class="ai-entry" bindtap="goToAi">
+    <view class="ai-mark">
+      <text class="ai-mark-glyph">AI</text>
+    </view>
+    <view class="ai-body">
+      <text class="ai-q">试试问我：这周末有什么适合我的志愿活动？</text>
+      <text class="ai-hint">志愿服务智能助手</text>
+    </view>
+    <text class="ai-arrow">›</text>
   </view>
-  
-  <!-- 随手公益积分统计 -->
-  <view class="welfare-stats" bindtap="goToQuickAction">
-    <view class="welfare-stat-item">
-      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #4CAF50, #8BC34A);">
-        <text class="welfare-icon-text">🌟</text>
-      </view>
-      <view class="welfare-stat-info">
-        <text class="welfare-stat-label">已参与活动</text>
-        <text class="welfare-stat-value">{{casualWelfareStats.totalCompleted || 0}}次</text>
-      </view>
+
+  <!-- 3. 为你推荐（真实 hotActivities；图片优先大图卡，无图时高质量占位，不声称已实现的推荐算法） -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">为你推荐</text>
+      <text class="section-more" bindtap="goToAllActivities">查看全部</text>
     </view>
-    
-    <view class="welfare-stat-item">
-      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #2196F3, #03A9F4);">
-        <text class="welfare-icon-text">⏰</text>
-      </view>
-      <view class="welfare-stat-info">
-        <text class="welfare-stat-label">审核中</text>
-        <text class="welfare-stat-value">{{casualWelfareStats.totalPending || 0}}个</text>
-      </view>
-    </view>
-    
-    <view class="welfare-stat-item">
-      <view class="welfare-stat-icon" style="background: linear-gradient(135deg, #FF9800, #FFB74D);">
-        <text class="welfare-icon-text">🎁</text>
-      </view>
-      <view class="welfare-stat-info">
-        <text class="welfare-stat-label">累计积分</text>
-        <text class="welfare-stat-value">{{casualWelfareStats.totalPoints || 0}}分</text>
-      </view>
-    </view>
-  </view>
-  
-  <!-- 已审核的随手公益展示 -->
-  <view wx:if="{{!casualWelfareLoading && approvedCasualWelfare.length > 0}}">
-    <view class="casual-welfare-title">
-      <text class="casual-title-text">已审核通过</text>
-      <view class="casual-title-line"></view>
-    </view>
-    
-    <view class="casual-welfare-list">
-      <block wx:for="{{approvedCasualWelfare}}" wx:key="id">
-        <view class="casual-welfare-item" bindtap="viewCasualWelfareDetail" data-id="{{item.id}}">
-          <view class="casual-welfare-icon">
-            <text class="casual-item-icon">{{item.icon || '🌟'}}</text>
-          </view>
-          <view class="casual-welfare-content">
-            <text class="casual-welfare-title">{{item.title}}</text>
-            <text class="casual-welfare-desc">{{item.description}}</text>
-            <view class="casual-welfare-footer">
-              <text class="casual-welfare-time">{{formatDate(item.created_at)}}</text>
-              <text class="casual-welfare-points">+{{item.points_reward}}积分</text>
+    <swiper wx:if="{{hotActivities.length > 0}}" class="rec-swiper" autoplay="{{true}}" circular="{{true}}" interval="4000" indicator-dots="{{true}}" indicator-active-color="#E15A2B">
+      <swiper-item wx:for="{{hotActivities}}" wx:key="id">
+        <view class="rec-card" bindtap="goToActivityDetail" data-id="{{item.id}}">
+          <view class="rec-media">
+            <image wx:if="{{item.coverImage}}" src="{{item.coverImage}}" mode="aspectFill" class="rec-img" />
+            <view wx:else class="rec-ph">
+              <view class="rec-ph-shape"></view>
             </view>
           </view>
-        </view>
-      </block>
-    </view>
-  </view>
-  
-  <!-- 无数据提示 -->
-  <view wx:if="{{!casualWelfareLoading && approvedCasualWelfare.length === 0}}">
-    <view class="casual-welfare-empty">
-      <text class="casual-empty-icon">📝</text>
-      <text class="casual-empty-text">暂无审核通过的随手公益记录</text>
-      <text class="casual-empty-subtext">发布您的第一个随手公益吧</text>
-      <button class="casual-empty-btn" bindtap="goToQuickAction">去发布</button>
-    </view>
-  </view>
-</view>
-
-<!-- 公益社区入口（P33-P4B，内联样式，不改动 index.scss） -->
-<view style="margin:24rpx;background:#fff;border-radius:20rpx;padding:28rpx;display:flex;align-items:center;box-shadow:0 4rpx 16rpx rgba(0,0,0,0.05);" bindtap="goToCommunityFeed">
-  <view style="width:80rpx;height:80rpx;border-radius:20rpx;background:linear-gradient(135deg,#FF6B35,#FF8A5B);display:flex;align-items:center;justify-content:center;margin-right:24rpx;">
-    <text style="font-size:40rpx;">💬</text>
-  </view>
-  <view style="flex:1;">
-    <text style="font-size:32rpx;font-weight:700;color:#1a1a1a;display:block;">公益社区</text>
-    <text style="font-size:24rpx;color:#999;margin-top:6rpx;display:block;">分享志愿故事，交流服务心得</text>
-  </view>
-  <text style="font-size:40rpx;color:#ccc;">›</text>
-</view>
-
-<!-- 嘉禾 AI 入口（P36-C4，内联样式，不改动 index.scss） -->
-<view style="margin:24rpx;background:#fff;border-radius:20rpx;padding:28rpx;display:flex;align-items:center;box-shadow:0 4rpx 16rpx rgba(0,0,0,0.05);" bindtap="goToAi">
-  <view style="width:80rpx;height:80rpx;border-radius:20rpx;background:linear-gradient(135deg,#FF6B35,#FF8A5B);display:flex;align-items:center;justify-content:center;margin-right:24rpx;">
-    <text style="font-size:40rpx;">🤖</text>
-  </view>
-  <view style="flex:1;">
-    <text style="font-size:32rpx;font-weight:700;color:#1a1a1a;display:block;">嘉禾 AI</text>
-    <text style="font-size:24rpx;color:#999;margin-top:6rpx;display:block;">智能了解活动、服务记录、积分与成长信息</text>
-  </view>
-  <text style="font-size:40rpx;color:#ccc;">›</text>
-</view>
-
-<!-- 热点活动轮播 -->
-<view class="hot-activities" wx:if="{{hotActivities.length > 0}}">
-  <view class="section-title">
-    <text class="title-text">热点志愿活动</text>
-    <view class="title-line"></view>
-    <text class="view-all" bindtap="goToAllActivities">查看全部</text>
-  </view>
-  
-  <swiper class="hot-swiper" autoplay="true" interval="4000" circular="true" indicator-dots="true" indicator-color="rgba(0,0,0,0.3)" indicator-active-color="#FF6B35" display-multiple-items="1.2">
-    <block wx:for="{{hotActivities}}" wx:key="id">
-      <swiper-item>
-        <view class="hot-activity-card" bindtap="goToActivityDetail" data-id="{{item.id}}">
-          <image wx:if="{{item.coverImage}}" src="{{item.coverImage}}" mode="aspectFill" class="hot-card-image" />
-          <view class="hot-card-content">
-            <text class="hot-card-title">{{item.title}}</text>
-            <view class="hot-card-info">
-              <view class="hot-info-line">
-                <text class="hot-info-icon">⏰</text>
-                <text class="hot-info-text">{{item.time}}</text>
-              </view>
-              <view class="hot-info-line">
-                <text class="hot-info-icon">📍</text>
-                <text class="hot-info-text">{{item.location}}</text>
-              </view>
+          <view class="rec-body">
+            <text class="rec-title">{{item.title}}</text>
+            <view class="rec-meta">
+              <text class="rec-meta-text">{{item.time}}</text>
+              <text class="rec-meta-text" wx:if="{{item.location}}">{{item.location}}</text>
             </view>
-            <view class="hot-card-footer">
-              <text class="hot-card-points">+{{item.points}}积分</text>
-              <view class="hot-card-status {{item.status}}">
-                {{item.statusText}}
-              </view>
+            <view class="rec-foot">
+              <text class="rec-points">+{{item.points}}积分</text>
+              <text class="rec-status status-{{item.status}}">{{item.statusText}}</text>
             </view>
           </view>
         </view>
       </swiper-item>
-    </block>
-  </swiper>
-</view>
+    </swiper>
+    <view wx:else class="empty empty-card">
+      <view class="empty-ph"></view>
+      <text class="empty-text">暂无推荐活动</text>
+    </view>
+  </view>
 
-<!-- 热门兑换物品 -->
-<view class="hot-exchange-items">
-  <view class="section-title">
-    <text class="title-text">热门兑换物品</text>
-    <view class="title-line"></view>
-    <text class="view-all" bindtap="goToPointsMall">查看全部</text>
-  </view>
-  
-  <!-- 加载状态 -->
-  <view wx:if="{{exchangeLoading}}" class="loading-container">
-    <text class="loading-text">加载中...</text>
-  </view>
-  
-  <!-- 有数据时显示 -->
-  <scroll-view wx:if="{{!exchangeLoading && exchangeItems.length > 0}}" class="exchange-scroll" scroll-x="true">
-    <view class="exchange-list">
-      <block wx:for="{{exchangeItems}}" wx:key="id">
-        <view class="exchange-item" bindtap="goToExchangeDetail" data-id="{{item.id}}">
-          <!-- 物品图片 -->
-          <image wx:if="{{item.image}}" src="{{item.image}}" mode="aspectFill" class="exchange-image" />
-          <image wx:else src="/images/default-product.png" mode="aspectFill" class="exchange-image" />
-          <text class="exchange-name">{{item.name}}</text>
-          <view class="exchange-info">
-            <text class="exchange-price">{{item.points}}积分</text>
-            <text class="exchange-points">价值 ¥{{item.value}}元</text>
+  <!-- 4. 三大智能能力（统一视觉能力卡：3 等宽，图为主视觉，无设置菜单感，零 emoji） -->
+  <view class="caps">
+    <text class="caps-title">智能志愿服务</text>
+    <view class="cap-grid">
+      <view class="cap" bindtap="goToAllActivities">
+        <view class="cap-card">
+          <view class="cap-visual">
+            <image src="/images/home-v2/smart-find.png" mode="aspectFill" class="cap-img" />
           </view>
-          <view class="exchange-footer">
-            <button class="exchange-btn" size="mini" bindtap="exchangeItem" data-id="{{item.id}}">立即兑换</button>
+          <view class="cap-body">
+            <text class="cap-name">智能找活动</text>
+            <text class="cap-desc">发现适合活动</text>
           </view>
+        </view>
+      </view>
+      <view class="cap" bindtap="goToAi">
+        <view class="cap-card">
+          <view class="cap-visual">
+            <image src="/images/home-v2/smart-assistant.png" mode="aspectFill" class="cap-img" />
+          </view>
+          <view class="cap-body">
+            <text class="cap-name">志愿助手</text>
+            <text class="cap-desc">随时问答</text>
+          </view>
+        </view>
+      </view>
+      <view class="cap" bindtap="goToGrowth">
+        <view class="cap-card">
+          <view class="cap-visual">
+            <image src="/images/home-v2/growth-plan.png" mode="aspectFill" class="cap-img" />
+          </view>
+          <view class="cap-body">
+            <text class="cap-name">成长计划</text>
+            <text class="cap-desc">成长建议</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 5. 我的公益足迹（登录展示真实数据；游客轻量引导，不伪造数字、不放大 CTA） -->
+  <view class="footprint">
+    <text class="footprint-title">我的公益足迹</text>
+    <block wx:if="{{isLoggedIn}}">
+      <view class="footprint-metrics">
+        <view class="fm">
+          <text class="fm-value">{{stats.totalHours}}</text>
+          <text class="fm-label">服务时长(时)</text>
+        </view>
+        <view class="fm">
+          <text class="fm-value">{{stats.totalActivities}}</text>
+          <text class="fm-label">参与活动</text>
+        </view>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="footprint-guest">
+        <view class="footprint-guest-main">
+          <text class="footprint-guest-title">我的公益足迹</text>
+          <text class="footprint-guest-sub">登录后查看你的公益足迹</text>
+        </view>
+        <view class="footprint-guest-link" bindtap="goToLogin">
+          <text class="footprint-guest-link-text">登录</text>
+          <text class="footprint-guest-link-arrow">›</text>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <!-- 6. 公益故事 / 平台公益内容（有真实数据用真实；无数据展示品牌视觉，不编造故事） -->
+  <view class="section section-story">
+    <view class="section-head">
+      <text class="section-title">公益故事</text>
+      <text class="section-more" bindtap="goToCollaboration">去参与</text>
+    </view>
+    <scroll-view wx:if="{{approvedCasualWelfare.length > 0}}" scroll-x class="story-scroll" enhanced="{{true}}" show-scrollbar="{{false}}">
+      <view class="story-card" wx:for="{{approvedCasualWelfare}}" wx:key="id" wx:for-item="s" wx:for-index="idx" bindtap="viewCasualWelfareDetail" data-id="{{s.id}}">
+        <view class="story-media">
+          <image wx:if="{{idx === 0}}" src="/images/home-v2/story-community.png" mode="aspectFill" class="story-img" />
+          <image wx:elif="{{idx === 1}}" src="/images/home-v2/story-warmth.png" mode="aspectFill" class="story-img" />
+          <view wx:else class="story-ph">
+            <view class="story-ph-shape"></view>
+          </view>
+        </view>
+        <view class="story-body">
+          <text class="story-title">{{s.title}}</text>
+          <text class="story-desc">{{s.description}}</text>
+          <text class="story-points">+{{s.points_reward}} 分</text>
+        </view>
+      </view>
+    </scroll-view>
+    <view wx:else class="story-brand">
+      <image class="story-brand-img" src="/images/home-v2/story-community.png" mode="aspectFill" />
+      <view class="story-brand-mask"></view>
+      <view class="story-brand-text">
+        <text class="story-brand-title">看见每一次温暖发生</text>
+        <text class="story-brand-desc">公益故事 · 平台温暖瞬间</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 7. 最新动态（极轻次级内容，首页最多 3 条，来自 feed，不改后台数据） -->
+  <view class="section section-soft section-feed" wx:if="{{feedList.length > 0}}">
+    <text class="feed-title">最新动态</text>
+    <view class="feed-list">
+      <block wx:for="{{feedList}}" wx:key="id" wx:for-item="feed" wx:for-index="fi">
+        <view class="feed-item" wx:if="{{fi < 3}}">
+          <text class="feed-dot"></text>
+          <text class="feed-text">{{feed.display_message}}</text>
         </view>
       </block>
     </view>
-  </scroll-view>
-  
-  <!-- 无数据时显示 -->
-  <view wx:if="{{!exchangeLoading && exchangeItems.length === 0}}" class="empty-container">
-    <text class="empty-icon">🎁</text>
-    <text class="empty-text">暂无热门兑换物品</text>
-    <text class="empty-subtext">请稍后再来查看</text>
   </view>
-</view>
 
-<!-- 志愿服务宣言 -->
-<view class="volunteer-motto">
-  <view class="motto-content">
-    <text class="motto-icon">❤️</text>
-    <text class="motto-text">奉献、友爱、互助、进步</text>
+  <!-- 平台归属 + 监管备案（精简两层；技术支持/热线移至「关于我们」页面，零编造） -->
+  <view class="footer">
+    <text class="footer-text">© 2026 嘉兴市嘉禾志愿服务中心</text>
+    <view class="footer-row">
+      <text class="footer-icp">备案号：浙ICP备2025213173号-1X</text>
+      <text class="footer-sep">·</text>
+      <navigator url="/pages/about/index" class="footer-about" hover-class="footer-about-hover">关于我们</navigator>
+    </view>
   </view>
-  <text class="motto-subtext">志愿精神，你我同行</text>
+
+  <view class="safe-bottom"></view>
 </view>
 
-<!-- 备案信息 -->
-<view class="footer-info">
-  <view class="footer-content">
-    <text class="footer-text">© 2026 嘉兴市嘉禾志愿服务中心 版权所有</text>
-    <text class="footer-text">备案号：浙ICP备2025213173号-1X</text>
-    <text class="footer-text">技术支持：嘉兴市东诚信息咨询有限公司</text>
-    <text class="footer-text">志愿热线：0573-82099982</text>
-  </view>
-</view>
-
-<!-- 底部安全区域 -->
-<view class="safe-bottom"></view>
-</view>
-
-<!-- 协议弹窗 -->
+<!-- 协议弹窗（保留） -->
 <view class="protocol-modal" wx:if="{{showProtocolModal}}">
   <view class="protocol-modal-content">
     <view class="protocol-modal-header">

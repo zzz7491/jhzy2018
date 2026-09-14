@@ -1,0 +1,37 @@
+<view class="about">
+  <view class="about-hero">
+    <text class="about-brand">嘉禾志愿</text>
+    <text class="about-slogan">志愿服务数字平台</text>
+  </view>
+
+  <view class="about-card">
+    <view class="about-item">
+      <text class="about-label">平台说明</text>
+      <text class="about-value">嘉禾志愿志愿服务数字平台</text>
+    </view>
+    <view class="about-item">
+      <text class="about-label">平台服务主体</text>
+      <text class="about-value">嘉兴市嘉禾志愿服务中心</text>
+    </view>
+    <view class="about-item">
+      <text class="about-label">平台服务</text>
+      <text class="about-value">由「嘉禾志愿」提供平台服务</text>
+    </view>
+    <view class="about-item">
+      <text class="about-label">技术支持</text>
+      <text class="about-value">嘉兴市东诚信息咨询有限公司</text>
+    </view>
+    <view class="about-item">
+      <text class="about-label">志愿热线</text>
+      <text class="about-value about-tel" bindtap="callHotline">0573-82099982</text>
+    </view>
+    <view class="about-item">
+      <text class="about-label">备案信息</text>
+      <text class="about-value">浙ICP备2025213173号-1X</text>
+    </view>
+  </view>
+
+  <view class="about-foot">
+    <text class="about-foot-text">© 2026 嘉兴市嘉禾志愿服务中心</text>
+  </view>
+</view>

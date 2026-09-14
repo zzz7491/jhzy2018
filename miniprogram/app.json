@@ -2,6 +2,7 @@
   "pages": [
     "pages/login-unified/index",
     "pages/index/index",
+    "pages/about/index",
     "pages/mine/mine",
     "pages/phone-bind/phone-bind",
     "pages/identity-verify/identity-verify",
