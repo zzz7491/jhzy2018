@@ -589,6 +589,15 @@ Page({
     wx.navigateTo({ url: '/pages/help/help' });
   },
 
+  // P1-B2：存量死绑定补位（原 wxml monitor 卡「查看」即绑定此名，但 ts/js 从未定义；
+  // activeAttendance 现有逻辑恒为 null，卡片永不渲染；no-op 无业务逻辑，仅消除 handler 缺失告警）
+  goToActivityDetail() {},
+
+  // P1-B2：关于我们（纯导航入口 → P1-A 已注册的 pages/about/index；无业务逻辑）
+  goToAbout() {
+    wx.navigateTo({ url: '/pages/about/index' });
+  },
+
   // 前往意见反馈
   goToFeedback() {
     wx.navigateTo({ url: '/pages/feedback/feedback' });

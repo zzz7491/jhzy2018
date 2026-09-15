@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <!-- ground hill -->
+  <path d="M0 160 Q60 150 130 156 Q200 162 260 154 Q300 150 320 152 V180 H0 Z" fill="#F5D0C5" opacity="0.55"/>
+  <!-- city skyline -->
+  <path d="M10 160 V112 H38 V98 H66 V112 H94 V90 H122 V112 H150 V102 H178 V116 H206 V94 H234 V116 H262 V92 H290 V116 H320 V108 V160 Z" fill="#FCE8D6"/>
+  <!-- road -->
+  <path d="M130 160 L160 118 L180 118 L162 160 Z" fill="#F3C6B8" opacity="0.55"/>
+  <!-- trees -->
+  <circle cx="42" cy="146" r="11" fill="#A8D5BA" opacity="0.7"/>
+  <circle cx="60" cy="151" r="9" fill="#A8D5BA" opacity="0.7"/>
+  <circle cx="272" cy="149" r="10" fill="#A8D5BA" opacity="0.7"/>
+  <circle cx="288" cy="154" r="7" fill="#A8D5BA" opacity="0.7"/>
+  <!-- volunteer body -->
+  <path d="M142 132 Q142 116 158 116 Q174 116 174 132 V162 H142 Z" fill="#E15A2B"/>
+  <!-- volunteer head -->
+  <circle cx="158" cy="108" r="11" fill="#F5C6A5"/>
+  <!-- heart on vest -->
+  <path d="M158 126 L154 130 Q150 134 154 138 L158 142 L162 138 Q166 134 162 130 Z" fill="white" opacity="0.9"/>
+  <!-- floating heart -->
+  <path d="M238 62 Q238 54 245 54 Q252 54 252 62 Q252 74 245 82 Q238 74 238 62" fill="#E87A6E" opacity="0.8"/>
+  <!-- small accent heart -->
+  <path d="M52 72 Q52 66 57 66 Q62 66 62 72 Q62 80 57 86 Q52 80 52 72" fill="#F0894E" opacity="0.55"/>
+</svg>

@@ -1,224 +1,233 @@
-﻿<!--pages/mine/mine.wxml-->
+﻿<!--pages/mine/mine.wxml — P1-B2.6 顶部 Hero 重构（结构冻结 A-H；仅视觉与本地资产升级）-->
 <view class="mine-container {{isSeniorMode ? 'senior-mode' : ''}}">
-  <!-- 顶部背景区域 -->
-  <view class="header-bg">
-    <view class="gradient-overlay"></view>
-  </view>
 
-  <!-- 用户信息卡片 -->
-  <view class="user-card" wx:if="{{isLoggedIn}}">
-    <view class="card-content">
-      <!-- 左侧头像区域 -->
-      <view class="avatar-section" bindtap="uploadAvatar">
-        <view class="avatar-wrapper">
-          <image class="avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}"></image>
-          <view class="avatar-edit">
-            <text class="icon-edit">✎</text>
-          </view>
-        </view>
-        <view class="upload-tip">点击修改头像</view>
+  <!-- ============ A+B. 个人志愿身份 HERO + 公益足迹（组合模块） ============ -->
+  <view class="identity-module" wx:if="{{isLoggedIn}}">
+
+    <!-- A. 我的志愿身份 HERO -->
+    <view class="hero-card">
+      <view class="hero-eyebrow">
+        <view class="hero-eyebrow-dot"></view>
+        <text class="hero-eyebrow-text">嘉禾志愿者</text>
       </view>
+      <view class="profile-main">
+        <view class="avatar-section" bindtap="uploadAvatar">
+          <view class="avatar-wrapper">
+            <image wx:if="{{userInfo.avatar}}" class="avatar" src="{{userInfo.avatar}}" mode="aspectFill"></image>
+            <view wx:else class="avatar-fallback">
+              <view class="fb-head"></view>
+              <view class="fb-body"></view>
+            </view>
+            <view class="avatar-edit">
+              <view class="icon-pencil"></view>
+            </view>
+          </view>
+          <view class="upload-tip">点击修改头像</view>
+        </view>
 
-      <!-- 右侧用户信息 -->
-      <view class="user-info-section">
-        <!-- 姓名和ID -->
-        <view class="user-name-row">
+        <view class="profile-info">
           <text class="user-real-name">{{userInfo.real_name || userInfo.name || '志愿者'}}</text>
-          <view class="user-id-badge">
-            <text class="id-label">ID:</text>
-            <text class="id-value">{{userInfo.volunteer_id || userInfo.id}}</text>
+          <view class="user-meta-row">
+            <view class="user-id-badge">
+              <text class="id-label">ID</text>
+              <text class="id-value">{{userInfo.volunteer_id || userInfo.id}}</text>
+            </view>
+            <view class="user-id-badge" wx:if="{{membershipDuration}}">
+              <text class="id-value">{{membershipDuration}}</text>
+            </view>
           </view>
-        </view>
-        
-        <!-- 基本信息和等级 -->
-        <view class="user-meta">
-          <view class="meta-item">
-            <text class="icon">👑</text>
-            <text class="meta-text">{{userInfo.level || '初级'}}志愿者</text>
-          </view>
-          <view class="meta-item">
-            <text class="icon">📱</text>
-            <text class="meta-text">{{userInfo.phone || '未绑定手机'}}</text>
-          </view>
-        </view>
-        
-        <view class="user-meta">
-          <view class="meta-item">
-            <text class="icon">📅</text>
-            <text class="meta-text">{{userInfo.age || '未填写'}}岁</text>
-          </view>
-          <view class="meta-item">
-            <text class="icon">⭐</text>
-            <text class="meta-text">{{membershipDuration}}</text>
-          </view>
-        </view>
-        
-        <view class="user-meta">
-          <view class="meta-item">
-            <text class="icon">📊</text>
-            <text class="meta-text">排名：{{userInfo.rank || '计算中...'}}</text>
+          <view class="user-phone-row">
+            <view class="mini-ic ic-phone-g"></view>
+            <text class="user-phone">{{userInfo.phone || '未绑定手机'}}</text>
           </view>
         </view>
       </view>
-    </view>
 
-    <!-- 统计数据卡片 -->
-    <view class="stats-grid">
-      <view class="stat-box">
-        <text class="stat-value">{{stats.currentPoints || 0}}</text>
-        <text class="stat-label">当前积分</text>
-      </view>
-      <view class="stat-box">
-        <text class="stat-value">{{stats.totalActivities || 0}}</text>
-        <text class="stat-label">参与活动</text>
-      </view>
-      <view class="stat-box">
-        <text class="stat-value">{{stats.totalHours || 0}}</text>
-        <text class="stat-label">服务时长</text>
-      </view>
-      <view class="stat-box">
-        <text class="stat-value">{{userInfo.consecutive_days || 0}}</text>
-        <text class="stat-label">连续服务</text>
+      <!-- 身份标识（暖橙轻量） -->
+      <view wx:if="{{userIdentity}}" class="identity-badge">
+        <text class="identity-text">{{userIdentity}}</text>
       </view>
     </view>
 
-    <!-- 消息入口卡片 -->
-    <view class="message-entry" bindtap="goToMessage">
-      <view class="message-entry-left">
-        <text class="message-icon">💬</text>
-        <text class="message-title">我的消息</text>
+    <!-- B. 我的公益足迹（真实数据，与 HERO 同一身份模块） -->
+    <view class="stats-card">
+      <view class="stats-context">
+        <text class="stats-context-text">我的公益足迹</text>
+        <image class="stats-heart" src="/images/mine-v2/icon-heart.svg" mode="aspectFit"></image>
       </view>
-      <view class="message-entry-right">
-        <text class="unread-badge" wx:if="{{unreadCount > 0}}">{{unreadCount}}</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 订阅设置入口 -->
-    <view class="message-entry" bindtap="goToSubscribe">
-      <view class="message-entry-left">
-        <text class="message-icon">🔔</text>
-        <text class="message-title">消息订阅设置</text>
-      </view>
-      <view class="message-entry-right">
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 微信可信手机号绑定（P0-B） -->
-    <view class="message-entry" bindtap="goToPhoneBind">
-      <view class="message-entry-left">
-        <text class="message-icon">📱</text>
-        <text class="message-title">微信手机号绑定</text>
-      </view>
-      <view class="message-entry-right">
-        <text wx:if="{{wechatPhoneMask}}" style="margin-right:12rpx;color:#FF6B35;">{{wechatPhoneMask}}</text>
-        <text wx:elif="{{wechatPhoneBound === false}}" style="margin-right:12rpx;color:#999;">未绑定</text>
-        <text wx:else style="margin-right:12rpx;color:#bbb;">—</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 积分入口（导航整合：原独立「积分」tab 并入个人中心） -->
-    <view class="message-entry" bindtap="goToPointsCenter">
-      <view class="message-entry-left">
-        <text class="message-icon">💎</text>
-        <text class="message-title">我的积分</text>
-      </view>
-      <view class="message-entry-right">
-        <text style="margin-right:12rpx;color:#FF6B35;font-weight:600;">{{stats.currentPoints || 0}} 分</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 积分兑换入口（导航整合：原独立「积分」tab 并入个人中心） -->
-    <view class="message-entry" bindtap="goToPointsExchange">
-      <view class="message-entry-left">
-        <text class="message-icon">🎁</text>
-        <text class="message-title">积分兑换</text>
-      </view>
-      <view class="message-entry-right">
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 身份标识 -->
-    <view wx:if="{{userIdentity}}" class="identity-badge">
-      <text class="identity-icon">🛡️</text>
-      <text class="identity-text">{{userIdentity}}</text>
-    </view>
-
-    <!-- P0-C：志愿者资格状态（仅展示后端投影，不自算） -->
-    <view wx:if="{{volunteerQualification}}" class="qualification-card">
-      <view class="qualification-header">
-        <text class="qualification-title">志愿者资格</text>
-        <text class="qualification-status {{volunteerQualification.qualified ? 'ok' : 'no'}}">{{volunteerQualification.qualified ? '已具备资格' : '尚未完成'}}</text>
-      </view>
-      <view class="qualification-items">
-        <view class="q-item" bindtap="goToIdentityVerify">
-          <text class="q-label">身份认证</text>
-          <view class="q-state">
-            <text class="q-dot {{volunteerQualification.identity_verified ? 'on' : 'off'}}"></text>
-            <text class="q-text {{volunteerQualification.identity_verified ? 'on' : 'off'}}">{{volunteerQualification.identity_verified ? '已完成' : '待完成'}}</text>
-            <text class="arrow">›</text>
-          </view>
+      <view class="stats-row">
+        <view class="stat-box">
+          <text class="stat-value">{{stats.totalHours || 0}}</text>
+          <text class="stat-label">服务时长</text>
+          <text class="stat-unit">小时</text>
         </view>
-        <view class="q-item">
-          <text class="q-label">微信手机号</text>
-          <view class="q-state">
-            <text class="q-dot {{volunteerQualification.phone_bound ? 'on' : 'off'}}"></text>
-            <text class="q-text {{volunteerQualification.phone_bound ? 'on' : 'off'}}">{{volunteerQualification.phone_bound ? '已完成' : '待完成'}}</text>
-          </view>
+        <view class="stat-divider"></view>
+        <view class="stat-box">
+          <text class="stat-value">{{stats.totalActivities || 0}}</text>
+          <text class="stat-label">参与活动</text>
+          <text class="stat-unit">次</text>
         </view>
-        <view class="q-item" bindtap="goToInitialTraining">
-          <text class="q-label">初始培训考试</text>
-          <view class="q-state">
-            <text class="q-dot {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}"></text>
-            <text class="q-text {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}">{{volunteerQualification.initial_training_exam_passed ? '已完成' : '待完成'}}</text>
-            <text wx:if="{{!volunteerQualification.initial_training_exam_passed}}" class="q-action">去完成</text>
-            <text class="arrow">›</text>
-          </view>
+        <view class="stat-divider"></view>
+        <view class="stat-box">
+          <text class="stat-value">{{stats.currentPoints || 0}}</text>
+          <text class="stat-label">公益积分</text>
+          <text class="stat-unit">分</text>
         </view>
       </view>
     </view>
 
-    <!-- P0-1 R3：固定入口 — 我的团队 / 学习培训（在删除 legacy dashboard 前建立替代路径） -->
-    <view class="message-entry" bindtap="goToTeams">
-      <view class="message-entry-left">
-        <text class="message-icon">👥</text>
-        <text class="message-title">我的团队</text>
-      </view>
-      <view class="message-entry-right">
-        <text class="arrow">›</text>
-      </view>
-    </view>
+  </view><!-- /identity-module -->
 
-    <view class="message-entry" bindtap="goToTraining">
-      <view class="message-entry-left">
-        <text class="message-icon">📚</text>
-        <text class="message-title">学习培训</text>
+  <!-- ============ C. 志愿者资格状态（仅展示后端投影，不自算） ============ -->
+  <view wx:if="{{volunteerQualification}}" class="qualification-card">
+    <view class="qualification-header">
+      <text class="qualification-title">志愿者资格</text>
+      <text class="qualification-status {{volunteerQualification.qualified ? 'ok' : 'no'}}">{{volunteerQualification.qualified ? '已具备资格' : '尚未完成'}}</text>
+    </view>
+    <view class="qualification-items">
+      <view class="q-item" bindtap="goToIdentityVerify">
+        <text class="q-label">身份认证</text>
+        <view class="q-state">
+          <text class="q-dot {{volunteerQualification.identity_verified ? 'on' : 'off'}}"></text>
+          <text class="q-text {{volunteerQualification.identity_verified ? 'on' : 'off'}}">{{volunteerQualification.identity_verified ? '已完成' : '待完成'}}</text>
+          <text class="arrow">›</text>
+        </view>
       </view>
-      <view class="message-entry-right">
-        <text class="arrow">›</text>
+      <view class="q-item">
+        <text class="q-label">微信手机号</text>
+        <view class="q-state">
+          <text class="q-dot {{volunteerQualification.phone_bound ? 'on' : 'off'}}"></text>
+          <text class="q-text {{volunteerQualification.phone_bound ? 'on' : 'off'}}">{{volunteerQualification.phone_bound ? '已完成' : '待完成'}}</text>
+        </view>
+      </view>
+      <view class="q-item" bindtap="goToInitialTraining">
+        <text class="q-label">初始培训考试</text>
+        <view class="q-state">
+          <text class="q-dot {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}"></text>
+          <text class="q-text {{volunteerQualification.initial_training_exam_passed ? 'on' : 'off'}}">{{volunteerQualification.initial_training_exam_passed ? '已完成' : '待完成'}}</text>
+          <text wx:if="{{!volunteerQualification.initial_training_exam_passed}}" class="q-action">去完成</text>
+          <text class="arrow">›</text>
+        </view>
       </view>
     </view>
   </view>
 
-  <!-- 未登录状态 -->
-  <view wx:if="{{!isLoggedIn}}" class="login-card">
-    <view class="login-content">
-      <image class="login-avatar" src="../../images/default-avatar.png"></image>
-      <text class="login-title">欢迎来到嘉禾志愿</text>
-      <text class="login-subtitle">登录后查看您的志愿服务记录</text>
-      <button class="login-button" bindtap="goToLogin">立即登录</button>
+  <!-- ============ D. 志愿成长（2×2 受控功能色卡） ============ -->
+  <block wx:if="{{isLoggedIn}}">
+    <view class="section-title">
+      <view class="section-dot"></view>
+      <text class="section-text">志愿成长</text>
+      <text class="section-subtitle">每一次付出，都在让世界更温暖</text>
     </view>
-  </view>
+    <view class="growth-grid">
+      <view class="growth-card learning" bindtap="goToTraining">
+        <image class="growth-icon" src="/images/mine-v2/growth-learning.svg" mode="aspectFit"></image>
+        <text class="g-title">学习培训</text>
+        <text class="g-desc">完成课程与志愿学习</text>
+        <view class="g-arrow"></view>
+      </view>
+      <view class="growth-card team" bindtap="goToTeams">
+        <image class="growth-icon" src="/images/mine-v2/growth-team.svg" mode="aspectFit"></image>
+        <text class="g-title">我的团队</text>
+        <text class="g-desc">查看所属志愿团队</text>
+        <view class="g-arrow"></view>
+      </view>
+      <view class="growth-card points" bindtap="goToPointsCenter">
+        <image class="growth-icon" src="/images/mine-v2/growth-points.svg" mode="aspectFit"></image>
+        <text class="g-title">我的积分</text>
+        <text class="g-desc">当前 {{stats.currentPoints || 0}} 分</text>
+        <view class="g-arrow"></view>
+      </view>
+      <view class="growth-card redeem" bindtap="goToPointsExchange">
+        <image class="growth-icon" src="/images/mine-v2/growth-redeem.svg" mode="aspectFit"></image>
+        <text class="g-title">积分兑换</text>
+        <text class="g-desc">使用公益积分兑换</text>
+        <view class="g-arrow"></view>
+      </view>
+    </view>
 
-  <!-- 位置监控状态（保留，因为可能有用） -->
+    <!-- ============ E. 账户服务（3 行，功能色圆 icon） ============ -->
+    <view class="section-title">
+      <view class="section-dot"></view>
+      <text class="section-text">账户服务</text>
+      <text class="section-subtitle">管理个人信息，享受更便捷的服务</text>
+    </view>
+    <view class="entry-group">
+      <view class="entry-row" bindtap="goToMessage">
+        <view class="entry-icon message">
+          <image class="entry-icon-img" src="/images/mine-v2/icon-message.svg" mode="aspectFit"></image>
+        </view>
+        <view class="entry-body">
+          <text class="entry-title">我的消息</text>
+          <text class="entry-subtitle">查看系统消息与活动通知</text>
+        </view>
+        <view class="entry-right">
+          <text class="unread-badge" wx:if="{{unreadCount > 0}}">{{unreadCount}}</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+      <view class="entry-row" bindtap="goToSubscribe">
+        <view class="entry-icon subscription">
+          <image class="entry-icon-img" src="/images/mine-v2/icon-bell.svg" mode="aspectFit"></image>
+        </view>
+        <view class="entry-body">
+          <text class="entry-title">消息订阅设置</text>
+          <text class="entry-subtitle">管理微信消息订阅</text>
+        </view>
+        <view class="entry-right"><text class="arrow">›</text></view>
+      </view>
+      <view class="entry-row" bindtap="goToPhoneBind">
+        <view class="entry-icon phone">
+          <image class="entry-icon-img" src="/images/mine-v2/icon-phone.svg" mode="aspectFit"></image>
+        </view>
+        <view class="entry-body">
+          <text class="entry-title">微信手机号绑定</text>
+          <text class="entry-subtitle">绑定后可更便捷登录</text>
+        </view>
+        <view class="entry-right">
+          <text wx:if="{{wechatPhoneMask}}" class="entry-value">{{wechatPhoneMask}}</text>
+          <text wx:elif="{{wechatPhoneBound === false}}" class="entry-value muted">未绑定</text>
+          <text wx:else class="entry-value muted">—</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- ============ F. 平台与帮助（3 列，功能色圆 icon） ============ -->
+    <view class="section-title">
+      <view class="section-dot"></view>
+      <text class="section-text">平台与帮助</text>
+      <text class="section-subtitle">有问题？我们一直在这里</text>
+    </view>
+    <view class="help-row">
+      <view class="help-item" bindtap="goToHelpCenter">
+        <view class="help-icon help">
+          <image class="help-icon-img" src="/images/mine-v2/icon-help.svg" mode="aspectFit"></image>
+        </view>
+        <text class="help-label">帮助中心</text>
+        <text class="help-subtitle">使用指南</text>
+      </view>
+      <view class="help-item" bindtap="goToFeedback">
+        <view class="help-icon feedback">
+          <image class="help-icon-img" src="/images/mine-v2/icon-feedback.svg" mode="aspectFit"></image>
+        </view>
+        <text class="help-label">意见反馈</text>
+        <text class="help-subtitle">告诉我们</text>
+      </view>
+      <view class="help-item" bindtap="goToAbout">
+        <view class="help-icon about">
+          <image class="help-icon-img" src="/images/mine-v2/icon-about.svg" mode="aspectFit"></image>
+        </view>
+        <text class="help-label">关于我们</text>
+        <text class="help-subtitle">了解嘉禾志愿</text>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 活动中监控状态（保留真实考勤状态展示） ============ -->
   <view wx:if="{{activeAttendance}}" class="monitor-card">
     <view class="monitor-header">
       <view class="monitor-title-section">
-        <text class="monitor-icon">📍</text>
         <text class="monitor-title">活动中</text>
         <view class="monitor-status-dot"></view>
       </view>
@@ -228,16 +237,32 @@
     </view>
   </view>
 
-  <!-- 右下角浮动按钮 -->
-  <view wx:if="{{isLoggedIn}}" class="float-buttons">
-    <view class="float-btn help" bindtap="goToHelpCenter">
-      <text class="float-icon">🆘</text>
+  <!-- ============ 底部：退出当前账号 + 页脚 ============ -->
+  <view class="account-footer" wx:if="{{isLoggedIn}}">
+    <view class="logout-btn" bindtap="handleLogout">退出当前账号</view>
+
+    <!-- ============ 装饰插画（功能内容收尾，纯品牌情绪，不插功能之间） ============ -->
+    <view class="illustration-section">
+      <text class="illustration-line1">以志愿之光</text>
+      <text class="illustration-line2">让更多美好发生</text>
+      <image class="illustration-img" src="/images/mine-v2/illustration-volunteer.svg" mode="widthFix"></image>
     </view>
-    <view class="float-btn feedback" bindtap="goToFeedback">
-      <text class="float-icon">💬</text>
+
+    <view class="footer-note">
+      <image class="footer-heart" src="/images/mine-v2/icon-heart.svg" mode="aspectFit"></image>
+      <text>嘉禾志愿 · 让每一次志愿服务，都留下温暖足迹</text>
     </view>
-    <view class="float-btn logout" bindtap="handleLogout">
-      <text class="float-icon">🚪</text>
+  </view>
+
+  <!-- ============ 未登录状态 ============ -->
+  <view wx:if="{{!isLoggedIn}}" class="login-card">
+    <view class="login-avatar-fallback">
+      <view class="fb-head"></view>
+      <view class="fb-body"></view>
     </view>
+    <text class="login-title">欢迎来到嘉禾志愿</text>
+    <text class="login-subtitle">登录后可查看个人志愿记录、培训与证书等</text>
+    <button class="login-button" bindtap="goToLogin">立即登录</button>
+    <text class="login-hint">你也可以先浏览活动内容，无需登录</text>
   </view>
 </view>
