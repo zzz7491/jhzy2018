@@ -93,7 +93,7 @@ export interface PointsTransactionSelfView {
 }
 
 function getToken(): string {
-  return wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
+  return wx.getStorageSync('access_token') || '';
 }
 
 function buildError(status: number, body: any, isNetwork: boolean): MallApiError {

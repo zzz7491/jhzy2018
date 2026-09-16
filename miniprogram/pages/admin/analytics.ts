@@ -139,7 +139,7 @@ Page({
   _reqSeq: 0 as unknown as number,
 
   onLoad() {
-    const token = wx.getStorageSync('access_token') || wx.getStorageSync('token');
+    const token = wx.getStorageSync('access_token');
     if (!token) {
       wx.redirectTo({ url: '/pages/login-unified/index?role=admin' });
       return;

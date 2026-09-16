@@ -113,7 +113,7 @@ App({
     console.log('检查登录状态');
     
     // 从缓存中恢复登录状态
-    const token = wx.getStorageSync('access_token') || wx.getStorageSync('token');
+    const token = wx.getStorageSync('access_token');
     // P0-3 S2C: app 启动恢复登录态时，从 userInfo 中显式剔除旧客户端遗留 raw openid（仅此字段）。
     // 采用 rest 解构排除：rawUserInfo 为原始缓存，userInfo 自此始终为已剥离 openid 的对象；
     // 后续 globalData / setStorageSync / console 等路径均使用 sanitized userInfo，
@@ -133,7 +133,7 @@ App({
     let tokenValid = true;
     if (token) {
       const tokenExpire = wx.getStorageSync('token_expire');
-      if (tokenExpire && tokenExpire < Date.now()) {
+      if (tokenExpire && tokenExpire < Math.floor(Date.now() / 1000)) {
         console.log('token已过期');
         tokenValid = false;
       }
@@ -165,7 +165,6 @@ App({
       wx.removeStorageSync('userInfo');
       wx.removeStorageSync('isLoggedIn');
       wx.removeStorageSync('access_token');
-      wx.removeStorageSync('token');
       wx.removeStorageSync('token_expire');
       
       this.globalData.userInfo = null;
@@ -272,12 +271,11 @@ App({
           const token = res.data.data.user_info.token;
           
           wx.setStorageSync('access_token', token);
-          wx.setStorageSync('token', token);
           wx.setStorageSync('userInfo', userInfo);
           wx.setStorageSync('isLoggedIn', true);
           
           // 设置 token 过期时间（7天后）
-          const expireTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          const expireTime = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
           wx.setStorageSync('token_expire', expireTime);
           
           // 更新globalData
@@ -312,13 +310,12 @@ App({
           };
           
           wx.setStorageSync('access_token', res.data.data.token);
-          wx.setStorageSync('token', res.data.data.token);
           wx.setStorageSync('adminInfo', adminInfo);
           wx.setStorageSync('userInfo', adminInfo);
           wx.setStorageSync('isLoggedIn', true);
           
           // 设置 token 过期时间（30天后）
-          const expireTime = Date.now() + 30 * 24 * 60 * 60 * 1000;
+          const expireTime = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
           wx.setStorageSync('token_expire', expireTime);
           
           // 更新globalData
@@ -362,7 +359,6 @@ App({
     wx.removeStorageSync('userInfo');
     wx.removeStorageSync('isLoggedIn');
     wx.removeStorageSync('access_token');
-    wx.removeStorageSync('token');
     wx.removeStorageSync('token_expire');
     wx.removeStorageSync('pendingApproval');
     wx.removeStorageSync('adminInfo');

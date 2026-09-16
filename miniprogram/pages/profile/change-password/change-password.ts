@@ -248,7 +248,7 @@ Page({
           wx.removeStorageSync('isLoggedIn');
           
           wx.reLaunch({
-            url: '/pages/profile/login/login'
+            url: '/pages/login-unified/index'
           });
         }, 1500);
         

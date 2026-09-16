@@ -18,7 +18,7 @@ function formatDateText(input: string | number | null): string {
 }
 
 function downloadAuthImage(filePublicId: string): Promise<string | null> {
-  const token = wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
+  const token = wx.getStorageSync('access_token') || '';
   const teamId = wx.getStorageSync('activeTeamPublicId') || '';
   const header: Record<string, string> = {};
   if (token) header['Authorization'] = `Bearer ${token}`;

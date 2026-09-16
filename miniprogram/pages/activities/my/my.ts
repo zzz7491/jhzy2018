@@ -215,7 +215,7 @@ Page({
     if (hasTimeSlots) {
       // 如果有时段，跳转到带时间段的详情页
       wx.navigateTo({
-        url: `/pages/activities/activity-detail/activity-detail?id=${activityId}`
+        url: `/pages/detail/detail?id=${activityId}`
       });
     } else {
       // 传统详情页
@@ -369,7 +369,7 @@ Page({
     if (!activityId || !slotId) return;
     
     wx.navigateTo({
-      url: `/pages/activities/time-slot-detail/time-slot-detail?activity_id=${activityId}&slot_id=${slotId}`
+      url: `/pages/detail/detail?id=${activityId}`
     });
   }
 });

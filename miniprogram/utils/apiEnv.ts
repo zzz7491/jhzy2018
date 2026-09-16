@@ -3,158 +3,58 @@
 //
 // 唯一职责：解析 V2 API base URL。
 //
-// 安全契约（fail closed）：
-//   release  -> 立即返回 production V2_BASE；**不读取** JHZY_V2_TEST_BASE；production behavior 不变。
-//   develop  -> 只读取 wx.getStorageSync('JHZY_V2_TEST_BASE')。
-//   trial    -> 同 develop。
-//   缺失 / 空 / 非字符串 / 非法 URL / 指向 production host / 带 username|password -> THROW。
-//   unknown env（envVersion 未知，或 getAccountInfoSync 不可用/抛错）-> THROW。
-//   任何非 release 情形都【绝不】 fallback production。
-//
-// 本文件是唯一允许保存 production V2 literal 的授权文件。
-// 不得在此保存任何真实 TEST Worker URL。
+// 安全契约（编译期固定，fail closed）：
+//   - 唯一授权的 production V2 literal 保存在本文件。
+//   - 所有环境的 V2 base 均为【编译期常量】，绝不读取运行时 Storage。
+//     已移除 JHZY_V2_TEST_BASE 用户可写覆盖（P2-A / L5），防止普通用户在
+//     Storage 中注入任意 base 从而重定向全量请求（含 Bearer token）。
+//   - release / 未知环境 -> 始终返回 PRODUCTION_V2_BASE。
+//   - develop / trial -> 返回 DEV_V2_BASE（开发者在源码中【编译期】配置；
+//     默认等同 production，如需指向自有测试 Worker 请在此处编译期修改）。
 
-/** production V2 base（唯一来源） */
+/** production V2 base（唯一来源，编译期常量） */
 export const PRODUCTION_V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
-/** TEST override 的 wx storage key（值由开发者在 DevTools 手工注入，不入库） */
-export const TEST_V2_BASE_STORAGE_KEY = 'JHZY_V2_TEST_BASE';
-
-/** production hostname（精确相等判断，禁止模糊 includes） */
-const PRODUCTION_HOSTNAME = 'api.jhzyfw.com';
-
-interface ParsedUrl {
-  protocol: string;
-  hostname: string;
-  username: string;
-  password: string;
-}
-
 /**
- * 优先使用运行时 URL parser；若运行环境无 URL 构造器，使用等价的严格 parser。
+ * 编译期开发环境 V2 base。
+ * 注意：这是源码中的编译期常量，非运行时 Storage 注入。
+ * 默认指向 production；如需在 develop / trial 下指向自有测试 Worker，
+ * 请在此处编译期修改后重新构建，不要通过运行时 Storage 覆盖。
  */
-function parseUrl(raw: string): ParsedUrl | null {
-  if (typeof URL !== 'undefined') {
-    try {
-      const u = new URL(raw);
-      return {
-        protocol: u.protocol,
-        hostname: u.hostname,
-        username: u.username,
-        password: u.password,
-      };
-    } catch (e) {
-      return null;
-    }
-  }
-  // 严格 fallback parser（URL 语义子集：scheme / userinfo / host）
-  const m = /^([a-zA-Z][a-zA-Z\d+\-.]*):\/\/(?:([^:@\/?#]*)(?::([^@\/?#]*))?@)?([^\/?#:]*)/.exec(raw);
-  if (!m) return null;
-  const host = m[4] || '';
-  if (!host) return null;
-  return {
-    protocol: (m[1] || '').toLowerCase() + ':',
-    hostname: host.toLowerCase(),
-    username: m[2] || '',
-    password: m[3] || '',
-  };
-}
-
-/**
- * 判断 raw 是否缺少 authority（host）。
- * WHATWG URL 会把 "http:///api/v2" 静默修补为 hostname="api"，
- * 因此不能只依赖 new URL(...) 的 hostname，必须在 raw 上判断 authority 是否为空。
- */
-function isEmptyAuthority(raw: string): boolean {
-  const m = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\/([^\/?#]*)/.exec(raw);
-  if (!m) return true;
-  const authority = m[1];
-  if (authority.length === 0) return true;
-  const afterUserinfo = authority.split('@').pop() || '';
-  const hostPart = afterUserinfo.split(':')[0];
-  return hostPart.length === 0;
-}
+export const DEV_V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 function detectEnvVersion(): string {
   if (typeof wx === 'undefined' || typeof wx.getAccountInfoSync !== 'function') {
-    throw new Error('[apiEnv] 运行环境不可用（wx.getAccountInfoSync missing）；拒绝 fallback production。');
+    // 运行环境不可用时，回落到 production（fail closed）
+    return 'release';
   }
   let envVersion: any;
   try {
     const info: any = wx.getAccountInfoSync();
     envVersion = info && info.miniProgram ? info.miniProgram.envVersion : undefined;
   } catch (e) {
-    throw new Error('[apiEnv] 读取运行环境失败（getAccountInfoSync threw）；拒绝 fallback production。');
+    // 读取失败 -> 回落 production（fail closed）
+    return 'release';
   }
   if (envVersion !== 'develop' && envVersion !== 'trial' && envVersion !== 'release') {
-    throw new Error(
-      '[apiEnv] 未知运行环境 envVersion=' + String(envVersion) + '；拒绝 fallback production。'
-    );
+    // 未知环境 -> 回落 production（fail closed）
+    return 'release';
   }
   return envVersion as string;
 }
 
-function readTestBase(envVersion: string): string {
-  let raw: any;
-  try {
-    raw = wx.getStorageSync(TEST_V2_BASE_STORAGE_KEY);
-  } catch (e) {
-    throw new Error('[apiEnv] 读取 TEST override 失败；拒绝 fallback production。');
-  }
-  if (typeof raw !== 'string') {
-    throw new Error(
-      '[apiEnv] envVersion=' +
-        envVersion +
-        ' 需要 TEST override：storage key "' +
-        TEST_V2_BASE_STORAGE_KEY +
-        '" 缺失或非字符串；拒绝 fallback production。'
-    );
-  }
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    throw new Error('[apiEnv] TEST override 为空；拒绝 fallback production。');
-  }
-  const parsed = parseUrl(trimmed);
-  if (!parsed) {
-    throw new Error('[apiEnv] TEST override 不是合法 URL；拒绝 fallback production。');
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(
-      '[apiEnv] TEST override protocol 只允许 http:/https:，实际=' + parsed.protocol + '；拒绝。'
-    );
-  }
-  if (!parsed.hostname || parsed.hostname.length === 0) {
-    throw new Error('[apiEnv] TEST override hostname 为空；拒绝。');
-  }
-  if (isEmptyAuthority(trimmed)) {
-    throw new Error('[apiEnv] TEST override 缺少 host（authority 为空）；拒绝。');
-  }
-  if (parsed.hostname === PRODUCTION_HOSTNAME) {
-    throw new Error(
-      '[apiEnv] TEST override 不得指向 production host（hostname === ' +
-        PRODUCTION_HOSTNAME +
-        '）；拒绝。'
-    );
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('[apiEnv] TEST override 不得包含 username/password；拒绝。');
-  }
-  // normalize trailing slash
-  return trimmed.replace(/\/+$/, '');
-}
-
 /**
  * 解析 V2 API base URL。
- * release        -> PRODUCTION_V2_BASE（不读取 TEST override）
- * develop/trial  -> storage 中的 TEST override（缺失/非法 -> THROW）
- * unknown        -> THROW
+ * 所有环境均返回编译期常量，绝不读取运行时 Storage。
+ *   release / 未知 -> PRODUCTION_V2_BASE
+ *   develop / trial -> DEV_V2_BASE
  */
 export function resolveV2Base(): string {
   const envVersion = detectEnvVersion();
   if (envVersion === 'release') {
     return PRODUCTION_V2_BASE;
   }
-  return readTestBase(envVersion);
+  return DEV_V2_BASE;
 }
 
 export default resolveV2Base;

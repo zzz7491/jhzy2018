@@ -112,7 +112,6 @@ Page({
             const userInfoData = res.data.data?.user_info || res.data.user_info;
             
             wx.setStorageSync('access_token', token);
-            wx.setStorageSync('token', token); 
             
             const userInfo = {
               id: userInfoData?.id,
@@ -129,7 +128,7 @@ Page({
             
             wx.setStorageSync('userInfo', userInfo);
             wx.setStorageSync('isLoggedIn', true);
-            wx.setStorageSync('token_expire', Date.now() + 30 * 24 * 60 * 60 * 1000);
+            wx.setStorageSync('token_expire', Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60);
             
             app.globalData.isLoggedIn = true;
             app.globalData.userInfo = userInfo;
@@ -157,7 +156,6 @@ Page({
             const adminRole = adminData.role;
             
             wx.setStorageSync('access_token', adminData.token || '');
-            wx.setStorageSync('token', adminData.token || '');
             wx.setStorageSync('adminInfo', {
               id: adminData.id,
               name: adminData.real_name,
@@ -177,7 +175,7 @@ Page({
             
             wx.setStorageSync('userInfo', userInfo);
             wx.setStorageSync('isLoggedIn', true);
-            wx.setStorageSync('token_expire', Date.now() + 30 * 24 * 60 * 60 * 1000);
+            wx.setStorageSync('token_expire', Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60);
             
             app.globalData.isLoggedIn = true;
             app.globalData.userInfo = userInfo;

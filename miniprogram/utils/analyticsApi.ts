@@ -42,7 +42,7 @@ export interface ApiError {
 }
 
 function getToken(): string {
-  return wx.getStorageSync('access_token') || wx.getStorageSync('token') || '';
+  return wx.getStorageSync('access_token') || '';
 }
 
 function getActiveTeamId(): string {

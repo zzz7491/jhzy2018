@@ -423,7 +423,7 @@ Page({
       let tokenValid = true;
       if (token) {
         const tokenExpire = wx.getStorageSync('token_expire');
-        if (tokenExpire && tokenExpire < Date.now()) {
+        if (tokenExpire && tokenExpire < Math.floor(Date.now() / 1000)) {
           console.log('token已过期');
           tokenValid = false;
         }

@@ -131,7 +131,7 @@ Page({
     const userInfo = wx.getStorageSync('userInfo');
     if (!token || !userInfo) {
       wx.showToast({ title: '请先登录', icon: 'error', duration: 1500 });
-      setTimeout(() => wx.navigateTo({ url: '/pages/profile/login/login' }), 1500);
+      setTimeout(() => wx.navigateTo({ url: '/pages/login-unified/index' }), 1500);
       return;
     }
     if (!this.data.goodsData.inStock) {

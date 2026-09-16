@@ -4,14 +4,13 @@ const app = getApp();
 const request = (options) => {
   return new Promise((resolve, reject) => {
     const baseUrl = 'https://api.jhzyfw.com/api/'
-    const token = wx.getStorageSync('access_token') || wx.getStorageSync('token')
+    const token = wx.getStorageSync('access_token')
     
     // 检查 token 是否过期（如果有过期时间记录）
     const tokenExpire = wx.getStorageSync('token_expire')
-    if (tokenExpire && new Date().getTime() > tokenExpire) {
+    if (tokenExpire && Math.floor(Date.now() / 1000) > tokenExpire) {
       // token 已过期，清除登录状态
       wx.removeStorageSync('access_token')
-      wx.removeStorageSync('token')
       wx.removeStorageSync('userInfo')
       wx.removeStorageSync('isLoggedIn')
       wx.removeStorageSync('token_expire')
@@ -82,7 +81,6 @@ const request = (options) => {
 function handleTokenExpired() {
   // 清除所有登录状态
   wx.removeStorageSync('access_token')
-  wx.removeStorageSync('token')
   wx.removeStorageSync('userInfo')
   wx.removeStorageSync('isLoggedIn')
   wx.removeStorageSync('token_expire')

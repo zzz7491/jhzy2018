@@ -521,7 +521,7 @@ Page({
           // 保存临时token和审核状态
           if (responseData.temp_token) {
             wx.setStorageSync('access_token', responseData.temp_token);
-            wx.setStorageSync('token_expire', responseData.token_expire);
+            wx.setStorageSync('token_expire', responseData.token_expire > 1e12 ? Math.floor(responseData.token_expire / 1000) : (responseData.token_expire || 0));
             
             const pendingUserInfo = {
               real_name: formData.real_name,
@@ -570,7 +570,7 @@ Page({
             success(modalRes) {
               if (modalRes.confirm) {
                 wx.navigateTo({
-                  url: '/pages/profile/login/login?phone=' + encodeURIComponent(formData.phone)
+                  url: '/pages/login-unified/index?phone=' + encodeURIComponent(formData.phone)
                 });
               }
             }
@@ -620,7 +620,7 @@ Page({
   // 跳转到登录
   goToLogin() {
     wx.navigateTo({
-      url: '/pages/profile/login/login'
+      url: '/pages/login-unified/index'
     });
   },
 

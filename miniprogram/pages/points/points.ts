@@ -276,7 +276,7 @@ Page({
         cancelText: '取消',
         success: (res) => {
           if (res.confirm) {
-            wx.switchTab({ url: '/pages/activity/activity' });
+            wx.switchTab({ url: '/pages/activities/activities' });
           }
         }
       });
