@@ -1,5 +1,7 @@
 // pages/profile/change-password/change-password.js
-import jhzyRequest from '../../../utils/request';
+// P3-C：修改密码统一经 utils/profileApi；登出清理统一经 utils/session.clearSession()。
+import { changePassword, classifyProfileError } from '../../../utils/profileApi';
+import { clearSession } from '../../../utils/session';
 
 Page({
   data: {
@@ -42,7 +44,7 @@ Page({
   },
 
   // 输入框变化
-  onInputChange(e) {
+  onInputChange(e: { currentTarget: { dataset: Record<string, string> }; detail: { value: string } }) {
     const field = e.currentTarget.dataset.field;
     const value = e.detail.value;
     
@@ -67,7 +69,7 @@ Page({
   },
 
   // 检查密码强度
-  checkPasswordStrength(password) {
+  checkPasswordStrength(password: string) {
     let strength = 0;
     
     if (password.length >= 6) strength++;
@@ -85,7 +87,7 @@ Page({
   },
 
   // 检查密码规则
-  checkPasswordRules(password) {
+  checkPasswordRules(password: string) {
     const isValidLength = password.length >= 6 && password.length <= 20;
     const hasLetter = /[a-zA-Z]/.test(password);
     const hasNumber = /\d/.test(password);
@@ -132,7 +134,7 @@ Page({
   // 验证表单
   validateForm() {
     const { old_password, new_password, confirm_password } = this.data.formData;
-    const errors = {};
+    const errors: Record<string, string> = {};
     let isValid = true;
     
     // 验证当前密码
@@ -185,7 +187,7 @@ Page({
       content: '如果您忘记了密码，请联系管理员重置。\n\n管理员电话：0573-82099982\n工作时间：周一至周五 9:00-18:00',
       confirmText: '知道了',
       cancelText: '取消',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           // 可以跳转到联系客服页面
           // wx.navigateTo({ url: '/pages/help/contact' });
@@ -201,7 +203,7 @@ Page({
       content: '确定要放弃修改密码吗？',
       confirmText: '放弃',
       cancelText: '继续修改',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           wx.navigateBack();
         }
@@ -222,73 +224,53 @@ Page({
     }
     
     this.setData({ submitting: true });
-    
+
     try {
-      // 调用修改密码API
-      const res = await jhzyRequest.post('change_password.php', {
-        old_password: this.data.formData.old_password,
-        new_password: this.data.formData.new_password,
-        confirm_password: this.data.formData.confirm_password
+      // 调用修改密码API（统一经 profileApi）
+      await changePassword(
+        this.data.formData.old_password,
+        this.data.formData.new_password,
+        this.data.formData.confirm_password
+      );
+
+      // 修改成功
+      wx.showToast({
+        title: '密码修改成功',
+        icon: 'success',
+        duration: 2000
       });
-      
-      console.log('修改密码响应:', res);
-      
-      if (res.code === 0 || res.code === 200) {
-        // 修改成功
-        wx.showToast({
-          title: '密码修改成功',
-          icon: 'success',
-          duration: 2000
+
+      // 清除本地会话（强制重新登录）——统一经 Session Manager 唯一登出出口
+      setTimeout(() => {
+        clearSession();
+
+        wx.reLaunch({
+          url: '/pages/login-unified/index'
         });
-        
-        // 清除本地token（强制重新登录）
-        setTimeout(() => {
-          wx.removeStorageSync('access_token');
-          wx.removeStorageSync('userInfo');
-          wx.removeStorageSync('isLoggedIn');
-          
-          wx.reLaunch({
-            url: '/pages/login-unified/index'
-          });
-        }, 1500);
-        
-      } else {
-        // 修改失败
-        let errorMessage = res.msg || '修改密码失败';
-        
-        // 处理特定错误
-        if (errorMessage.includes('当前密码') || errorMessage.includes('old password')) {
-          this.setData({
-            'formErrors.old_password': '当前密码错误'
-          });
-        } else if (errorMessage.includes('新密码') || errorMessage.includes('new password')) {
-          this.setData({
-            'formErrors.new_password': errorMessage
-          });
-        }
-        
-        wx.showToast({
-          title: errorMessage,
-          icon: 'none',
-          duration: 2000
+      }, 1500);
+
+    } catch (error) {
+      const pe = classifyProfileError(error);
+      console.error('修改密码请求失败详情:', error);
+
+      // 处理特定错误（保留既有字段级提示语义）
+      const errorMessage = pe.message;
+      if (errorMessage.includes('当前密码') || errorMessage.includes('old password')) {
+        this.setData({
+          'formErrors.old_password': '当前密码错误'
+        });
+      } else if (errorMessage.includes('新密码') || errorMessage.includes('new password')) {
+        this.setData({
+          'formErrors.new_password': errorMessage
         });
       }
-      
-    } catch (error) {
-      console.error('修改密码请求失败详情:', error);
-      console.error('请求URL:', 'change_password.php');
-      console.error('请求数据:', {
-        old_password: this.data.formData.old_password,
-        new_password: this.data.formData.new_password,
-        confirm_password: this.data.formData.confirm_password
-      });
-      
+
       wx.showToast({
-        title: '网络请求失败，请重试',
+        title: errorMessage,
         icon: 'none',
         duration: 2000
       });
-      
+
     } finally {
       this.setData({ submitting: false });
     }

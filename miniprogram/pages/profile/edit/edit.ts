@@ -1,5 +1,7 @@
 // pages/profile/edit/edit.js
-import jhzyRequest from '../../../utils/request';
+// P3-C：Profile 域调用统一经 utils/profileApi；会话读写统一经 utils/session。
+import { getProfile, updateProfile, normalizeAvatarUrl, classifyProfileError } from '../../../utils/profileApi';
+import { setUserInfo } from '../../../utils/session';
 
 Page({
   data: {
@@ -60,21 +62,12 @@ Page({
     try {
       this.setData({ loading: true });
       
-      const res = await jhzyRequest.get('user_profile.php');
-      
-      if (res.code === 0 && res.data) {
-        const profile = res.data;
-        
-        // 修正头像URL
-        let avatarUrl = profile.avatar || '/images/default-avatar.png';
-        if (avatarUrl && !avatarUrl.startsWith('http') && !avatarUrl.startsWith('/images')) {
-          if (avatarUrl.startsWith('/')) {
-            avatarUrl = 'https://api.jhzyfw.com/api' + avatarUrl;
-          } else {
-            avatarUrl = 'https://api.jhzyfw.com/api/' + avatarUrl;
-          }
-        }
-        
+      const profile = await getProfile();
+
+      {
+        // 修正头像URL（归一逻辑集中在 profileApi.normalizeAvatarUrl）
+        const avatarUrl = normalizeAvatarUrl(profile.avatar || '/images/default-avatar.png');
+
         this.setData({
           userInfo: {
             basicInfo: {
@@ -103,18 +96,13 @@ Page({
         if (profile.modify_history) {
           this.setData({ modifyHistory: profile.modify_history });
         }
-        
-      } else {
-        wx.showToast({
-          title: res.msg || '加载失败',
-          icon: 'none'
-        });
       }
-      
+
     } catch (error) {
+      const pe = classifyProfileError(error);
       console.error('加载用户资料失败:', error);
       wx.showToast({
-        title: '网络错误',
+        title: pe.message,
         icon: 'none'
       });
     } finally {
@@ -123,13 +111,13 @@ Page({
   },
 
   // 身份证脱敏处理
-  maskIdCard(idCard) {
+  maskIdCard(idCard: string) {
     if (!idCard || idCard.length < 15) return idCard;
     return idCard.substring(0, 4) + '***********' + idCard.substring(idCard.length - 4);
   },
 
   // 输入框变化（可修改字段）
-  onInputChange(e) {
+  onInputChange(e: { currentTarget: { dataset: Record<string, string> }; detail: { value: string } }) {
     const { category, field } = e.currentTarget.dataset;
     const value = e.detail.value;
     
@@ -143,7 +131,7 @@ Page({
   },
 
   // 性别选择
-  onGenderSelect(e) {
+  onGenderSelect(e: { currentTarget: { dataset: Record<string, string> } }) {
     const gender = e.currentTarget.dataset.gender;
     this.setData({
       'userInfo.personalInfo.gender': gender
@@ -159,7 +147,7 @@ Page({
       currentDate: currentDate,
       startDate: '1900-01-01',
       endDate: maxDate,
-      success: (res) => {
+      success: (res: { date: Date }) => {
         const date = res.date;
         const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         
@@ -176,7 +164,7 @@ Page({
       title: '修改头像',
       content: '请到“我的”页面点击头像进行修改',
       confirmText: '去修改',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           wx.switchTab({
             url: '/pages/mine/mine'
@@ -188,7 +176,7 @@ Page({
 
   // 表单验证（只验证可修改字段）
   validateForm() {
-    const errors = {};
+    const errors: Record<string, string> = {};
     const { contactInfo } = this.data.userInfo;
     
     // 手机号验证
@@ -243,41 +231,30 @@ Page({
         address: this.data.userInfo.personalInfo.address || ''
       };
       
-      const res = await jhzyRequest.post('update_profile.php', submitData);
-      
+      await updateProfile(submitData);
+
       wx.hideLoading();
-      
-      if (res.code === 0) {
-        wx.showToast({
-          title: '保存成功',
-          icon: 'success',
-          duration: 1500
-        });
-        
-        // 更新本地存储的联系信息
-        const cachedUser = wx.getStorageSync('userInfo') || {};
-        wx.setStorageSync('userInfo', {
-          ...cachedUser,
-          phone: submitData.phone
-        });
-        
-        // 延迟返回
-        setTimeout(() => {
-          wx.navigateBack();
-        }, 1500);
-        
-      } else {
-        wx.showToast({
-          title: res.msg || '保存失败',
-          icon: 'none'
-        });
-      }
-      
+
+      wx.showToast({
+        title: '保存成功',
+        icon: 'success',
+        duration: 1500
+      });
+
+      // 更新本地存储的联系信息（统一经 Session Manager）
+      setUserInfo({ phone: submitData.phone });
+
+      // 延迟返回
+      setTimeout(() => {
+        wx.navigateBack();
+      }, 1500);
+
     } catch (error) {
+      const pe = classifyProfileError(error);
       console.error('保存资料失败:', error);
       wx.hideLoading();
       wx.showToast({
-        title: '网络错误',
+        title: pe.message,
         icon: 'none'
       });
     } finally {
@@ -292,7 +269,7 @@ Page({
       content: '确定要放弃所有修改吗？',
       confirmText: '重置',
       cancelText: '取消',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           this.loadUserProfile();
           this.setData({ formErrors: {} });
@@ -326,7 +303,7 @@ Page({
       content: `如需修改姓名、身份证号等核心信息，请联系管理员：\n\n${phone}\n\n工作时间：周一至周五 9:00-18:00`,
       confirmText: '复制号码',
       cancelText: '知道了',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           wx.setClipboardData({
             data: phone,

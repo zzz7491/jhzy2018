@@ -5,6 +5,9 @@ import phoneApi from '../../utils/phoneApi';
 import notificationApi from '../../utils/notificationApi';
 import qualificationApi, { VolunteerQualification } from '../../utils/qualificationApi';
 import { TAB_INDEX, syncTabSelected, setMessageUnread } from '../../utils/tabbar';
+// P3-C：Profile 域调用（头像上传）统一经 utils/profileApi；userInfo 读写统一经 utils/session。
+import { uploadAvatar, classifyProfileError } from '../../utils/profileApi';
+import { getUserInfo, setUserInfo } from '../../utils/session';
 
 Page({
   data: {
@@ -62,11 +65,9 @@ Page({
         avatar = 'https://api.jhzyfw.com/api/' + avatar;
       }
       this.setData({ 'userInfo.avatar': avatar });
-      // 同时更新缓存
-      const cachedInfo = wx.getStorageSync('userInfo');
-      if (cachedInfo) {
-        cachedInfo.avatar = avatar;
-        wx.setStorageSync('userInfo', cachedInfo);
+      // 同时更新缓存（统一经 Session Manager，禁止页面散写 wx.setStorageSync）
+      if (getUserInfo()) {
+        setUserInfo({ avatar });
       }
     }
     this.refreshData();
@@ -268,13 +269,13 @@ Page({
         previewAvatar: ''
       });
       
-      const res = await new Promise((resolve, reject) => {
+      const res = await new Promise<{ tempFilePaths?: string[] }>((resolve, reject) => {
         wx.chooseImage({
           count: 1,
           sizeType: ['compressed'],
           sourceType: ['album', 'camera'],
           success: resolve,
-          fail: (err) => {
+          fail: (err: { errMsg?: string }) => {
             if (err.errMsg && err.errMsg.includes('cancel')) {
               reject(new Error('已取消选择'));
             } else {
@@ -291,7 +292,7 @@ Page({
       const tempFilePath = res.tempFilePaths[0];
       this.setData({ previewAvatar: tempFilePath });
       
-      const confirmRes = await new Promise((resolve, reject) => {
+      const confirmRes = await new Promise<{ confirm?: boolean; cancel?: boolean }>((resolve, reject) => {
         wx.showModal({
           title: '上传头像',
           content: '确认使用这张图片作为头像吗？',
@@ -306,75 +307,32 @@ Page({
       }
       
       wx.showLoading({ title: '上传中...', mask: true });
-      
+
       const userInfo = this.data.userInfo;
-      const token = wx.getStorageSync('access_token');
-      
-      if (!token) {
-        throw new Error('登录信息失效，请重新登录');
-      }
-      
-      const uploadRes = await new Promise((resolve, reject) => {
-        wx.uploadFile({
-          url: 'https://api.jhzyfw.com/api/upload_avatar.php',
-          filePath: tempFilePath,
-          name: 'avatar',
-          formData: {
-            user_id: userInfo.id,
-            token: token
-          },
-          header: { 'Authorization': `Bearer ${token}` },
-          success: (res) => {
-            if (res.statusCode === 200) {
-              try {
-                resolve(JSON.parse(res.data));
-              } catch (e) {
-                reject(new Error('服务器响应格式错误'));
-              }
-            } else {
-              reject(new Error(`上传失败，服务器响应: ${res.statusCode}`));
-            }
-          },
-          fail: (err) => {
-            reject(new Error(`上传失败: ${err.errMsg || '网络错误'}`));
-          }
-        });
-      });
-      
+      // P3-C：上传统一经 profileApi（内含 token 校验 / 统一 Header / URL 归一 / 错误分类）
+      const newAvatar = await uploadAvatar(tempFilePath, userInfo.id);
+
       wx.hideLoading();
-      
-      if (uploadRes && uploadRes.code === 0 && uploadRes.data) {
-        const avatarData = uploadRes.data;
-        // 修正头像URL
-        let newAvatar = avatarData.full_url || avatarData.avatar_url || '';
-        if (newAvatar && !newAvatar.startsWith('http')) {
-          if (newAvatar.startsWith('/')) {
-            newAvatar = 'https://api.jhzyfw.com/api' + newAvatar;
-          } else {
-            newAvatar = 'https://api.jhzyfw.com/api/' + newAvatar;
-          }
-        }
-        const updatedUserInfo = {
-          ...userInfo,
-          avatar: newAvatar
-        };
-        
-        this.setData({ userInfo: updatedUserInfo, previewAvatar: '', avatarError: '' });
-        wx.setStorageSync('userInfo', updatedUserInfo);
-        
-        wx.showToast({ title: '头像上传成功', icon: 'success', duration: 2000 });
-      } else {
-        throw new Error(uploadRes?.msg || '上传失败');
-      }
-      
+
+      const updatedUserInfo = {
+        ...userInfo,
+        avatar: newAvatar
+      };
+
+      this.setData({ userInfo: updatedUserInfo, previewAvatar: '', avatarError: '' });
+      setUserInfo({ avatar: newAvatar });
+
+      wx.showToast({ title: '头像上传成功', icon: 'success', duration: 2000 });
+
     } catch (error) {
+      const pe = classifyProfileError(error);
       console.error('上传头像错误:', error);
       wx.hideLoading();
-      
-      let errorMsg = error.message || '上传失败';
+
+      const errorMsg = pe.message;
       this.setData({ avatarError: errorMsg, previewAvatar: '' });
       wx.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
-      
+
     } finally {
       this.setData({ isUploadingAvatar: false });
     }
@@ -524,11 +482,11 @@ Page({
     // 使用从 app.json 中查找到的真实统一登录页路径
     wx.reLaunch({ 
       url: '/pages/login-unified/index', 
-      fail: (err) => {
+      fail: (err: unknown) => {
         console.warn('跳转统一登录页失败，尝试另一个真实路径...', err);
-        wx.reLaunch({ 
+        wx.reLaunch({
           url: '/pages/login/index', // app.json 中的第二个备用登录页
-          fail: (err2) => {
+          fail: (err2: unknown) => {
             console.error('彻底跳转失败！', err2);
           }
         });
@@ -628,7 +586,7 @@ Page({
     wx.showModal({
       title: '确认退出',
       content: '确定要退出登录吗？',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           checkinService.stopLocationTimer();
           
@@ -665,7 +623,7 @@ Page({
       title: '需要登录',
       content: '此功能需要先登录志愿者账号',
       confirmText: '去登录',
-      success: (res) => {
+      success: (res: { confirm?: boolean; cancel?: boolean }) => {
         if (res.confirm) {
           this.goToLogin();
         }

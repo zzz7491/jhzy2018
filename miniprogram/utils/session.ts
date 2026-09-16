@@ -130,6 +130,18 @@ export function getUserInfo(): any {
   return wx.getStorageSync(SESSION_KEYS.userInfo) || null;
 }
 
+/**
+ * 合并写入 userInfo（Profile 域唯一写入口；P3-C）。
+ * 仅覆盖 patch 中的字段并保留其余字段，禁止页面各自 wx.setStorageSync('userInfo', ...)。
+ * @returns 合并后的完整 userInfo（写入后的权威值）。
+ */
+export function setUserInfo(patch: Record<string, unknown>): any {
+  const current = getUserInfo() || {};
+  const next = { ...current, ...patch };
+  wx.setStorageSync(SESSION_KEYS.userInfo, next);
+  return next;
+}
+
 // ============================== 生命周期（唯一 Logout 出口） ==============================
 
 /**
@@ -177,5 +189,6 @@ export default {
   clearActiveTeamId,
   isLoggedIn,
   getUserInfo,
+  setUserInfo,
   clearSession,
 };
