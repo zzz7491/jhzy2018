@@ -7,6 +7,9 @@
 //   由 P33-P4 页面层负责（压缩图可避免 HEIC/HEIF 与超大原图）。
 // - 不创建 Community 页面、不改 app.json、不改 tabBar、不动 quick-action。
 
+import { buildHeaders, toApiError } from './transport';
+import { getLegacyToken } from './session';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export interface FileSafeView {
@@ -26,35 +29,6 @@ export interface ApiError {
   isNetwork: boolean;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || '';
-}
-
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
-function buildError(status: number, raw: any, isNetwork: boolean): ApiError {
-  let body: any = null;
-  if (typeof raw === 'string') {
-    try {
-      body = JSON.parse(raw);
-    } catch (e) {
-      body = null;
-    }
-  } else {
-    body = raw;
-  }
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '上传失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 /**
  * 上传 Community 图片（单文件）。
  * @param tempFilePath wx.chooseMedia / wx.chooseImage 返回的本地临时路径
@@ -62,11 +36,8 @@ function buildError(status: number, raw: any, isNetwork: boolean): ApiError {
  */
 export function uploadCommunityImage(tempFilePath: string, base?: string): Promise<FileSafeView> {
   const url = (base || V2_BASE) + '/files';
-  const header: Record<string, string> = {};
-  const token = getToken();
-  if (token) header['Authorization'] = `Bearer ${token}`;
-  const teamId = getActiveTeamId();
-  if (teamId) header['X-Team-Id'] = teamId;
+  // P2-B：统一 Header Builder（uploadFile 不带 Content-Type，避免破坏 multipart boundary）。
+  const header = buildHeaders({ token: getLegacyToken(), teamScoped: true, contentType: '' });
 
   return new Promise<FileSafeView>((resolve, reject) => {
     wx.uploadFile({
@@ -86,11 +57,11 @@ export function uploadCommunityImage(tempFilePath: string, base?: string): Promi
         if (statusCode === 201 && body && body.success === true) {
           resolve(body.data as FileSafeView);
         } else {
-          reject(buildError(statusCode, body, false));
+          reject(toApiError(statusCode, body, false, { fallbackMessage: '上传失败' }));
         }
       },
       fail: () => {
-        reject(buildError(0, null, true));
+        reject(toApiError(0, null, true, { fallbackMessage: '上传失败' }));
       },
     });
   });
@@ -112,11 +83,8 @@ export function fileUrl(filePublicId: string, base?: string): string {
  */
 export function downloadAuthImage(filePublicId: string, base?: string): Promise<string | null> {
   const url = (base || V2_BASE) + '/files/' + encodeURIComponent(filePublicId);
-  const header: Record<string, string> = {};
-  const token = getToken();
-  if (token) header['Authorization'] = `Bearer ${token}`;
-  const teamId = getActiveTeamId();
-  if (teamId) header['X-Team-Id'] = teamId;
+  // P2-B：统一 Header Builder（downloadFile 不带 Content-Type）。
+  const header = buildHeaders({ token: getLegacyToken(), teamScoped: true, contentType: '' });
   return new Promise<string | null>((resolve) => {
     wx.downloadFile({
       url,

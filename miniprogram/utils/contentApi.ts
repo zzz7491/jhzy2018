@@ -7,6 +7,9 @@
 // 复用 activityApi 的范式：V2 base / Bearer / X-Team-Id / success envelope / backend error / network error。
 // content 全部为团队作用域（默认注入 X-Team-Id）。
 
+import { send } from './transport';
+import { getLegacyToken } from './session';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export interface ApiError {
@@ -43,57 +46,13 @@ export interface FeedPage {
   pagination: { page: number; page_size: number; total: number; total_pages: number };
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || '';
-}
-
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 // 与 wx.request 的 method 枚举保持一致
 type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'TRACE' | 'CONNECT';
 
 function request<T>(method: RequestMethod, path: string, data?: any): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const token = getToken();
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) header['Authorization'] = `Bearer ${token}`;
-    const teamId = getActiveTeamId();
-    if (teamId) header['X-Team-Id'] = teamId;
-
-    wx.request({
-      url: V2_BASE + path,
-      method: method,
-      data,
-      header,
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          // 成功信封：{ success:true, data, request_id }
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          // 失败信封：{ success:false, error:{code,message,details} }
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        reject(buildError(0, null, true));
-      },
-    });
-  });
+  // P2-B：token 取自 Session Manager；Header 拼装 / 信封解包 / 错误归一统一交 transport。
+  // content 全部为团队作用域（固定注入 X-Team-Id）。
+  return send<T>(method, V2_BASE + path, data, { token: getLegacyToken(), teamScoped: true });
 }
 
 export const contentApi = {

@@ -8,6 +8,9 @@
 // P32-P4 放开：training（课程/章节）、exam（题库/试卷/结果）、certificate（培训证书列表）管理端方法。
 // 仍严禁加入 community / AI / BI / mall / points-admin。
 
+import { send } from './transport';
+import { getLegacyToken } from './session';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export interface ApiError {
@@ -431,25 +434,6 @@ export interface CertAdminRow {
   score: number | null;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || '';
-}
-
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 interface RequestOpts {
   teamScoped?: boolean;
   base?: string;
@@ -460,34 +444,8 @@ type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'T
 function request<T>(method: RequestMethod, path: string, data?: any, opts: RequestOpts = {}): Promise<T> {
   const base = opts.base || V2_BASE;
   const teamScoped = opts.teamScoped !== false; // 默认团队作用域
-  return new Promise<T>((resolve, reject) => {
-    const token = getToken();
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) header['Authorization'] = `Bearer ${token}`;
-    if (teamScoped) {
-      const teamId = getActiveTeamId();
-      if (teamId) header['X-Team-Id'] = teamId;
-    }
-
-    wx.request({
-      url: base + path,
-      method: method,
-      data,
-      header,
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        reject(buildError(0, null, true));
-      },
-    });
-  });
+  // P2-B：token 取自 Session Manager；Header 拼装 / 信封解包 / 错误归一统一交 transport。
+  return send<T>(method, base + path, data, { token: getLegacyToken(), teamScoped });
 }
 
 export const adminApi = {

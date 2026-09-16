@@ -8,9 +8,9 @@
 // - activities / participations / attendance / points / service-records 为【团队作用域】（自动注入 X-Team-Id）。
 //   X-Team-Id 取自 wx.getStorageSync('activeTeamPublicId')，由 teams 页「选择团队」写入。
 
-import { generateUlid } from './ulid';
 import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
+import { send } from './transport';
 
 const V2_BASE = resolveV2Base();
 
@@ -107,21 +107,6 @@ export function hasV2Session(): boolean {
   }
 }
 
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 interface RequestOpts {
   teamScoped?: boolean;
   base?: string;
@@ -136,36 +121,8 @@ async function request<T>(method: RequestMethod, path: string, data?: any, opts:
   // G1 FIX: getToken() 是 async，此前未 await 导致 Authorization 恒为 "Bearer [object Promise]"，
   // 所有经本模块的鉴权请求实际未携带有效 Bearer（后端一律 401）。此处补齐 await。
   const token = await getToken();
-  return new Promise<T>((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) header['Authorization'] = `Bearer ${token}`;
-    if (teamScoped) {
-      const teamId = getActiveTeamId();
-      if (teamId) header['X-Team-Id'] = teamId;
-    }
-
-    wx.request({
-      url: base + path,
-      method: method,
-      data,
-      header,
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          // 成功信封：{ success:true, data, request_id }
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          // 失败信封：{ success:false, error:{code,message,details} }
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        // 网络层失败：结果未知，交由调用方决定后续
-        reject(buildError(0, null, true));
-      },
-    });
-  });
+  // P2-B：Header 拼装 / 成功信封解包 / 失败错误归一，统一交由 transport（唯一 Header Builder + Error Pipeline）。
+  return send<T>(method, base + path, data, { token, teamScoped });
 }
 
 export const activityApi = {

@@ -1,4 +1,14 @@
 ﻿// app.js
+import {
+  getLegacyToken,
+  isLegacyTokenExpired,
+  setLegacyLogin,
+  clearSession,
+  nowUnixSeconds,
+  getUserInfo,
+  isLoggedIn as sessionIsLoggedIn,
+} from './utils/session';
+
 App({
   onLaunch() {
     console.log('小程序启动 - 嘉禾志愿');
@@ -113,14 +123,14 @@ App({
     console.log('检查登录状态');
     
     // 从缓存中恢复登录状态
-    const token = wx.getStorageSync('access_token');
+    const token = getLegacyToken();
     // P0-3 S2C: app 启动恢复登录态时，从 userInfo 中显式剔除旧客户端遗留 raw openid（仅此字段）。
     // 采用 rest 解构排除：rawUserInfo 为原始缓存，userInfo 自此始终为已剥离 openid 的对象；
     // 后续 globalData / setStorageSync / console 等路径均使用 sanitized userInfo，
     // 其余字段（id / id_card / phone / token 等）原样保留，不引入 delete / broad denylist / clone。
-    const rawUserInfo = wx.getStorageSync('userInfo');
+    const rawUserInfo = getUserInfo();
     const { openid: startupCachedOpenid, ...userInfo } = rawUserInfo || {};
-    let isLoggedIn = wx.getStorageSync('isLoggedIn');
+    let isLoggedIn = sessionIsLoggedIn();
     
     console.log('缓存中的登录状态:', { 
       hasToken: !!token, 
@@ -129,14 +139,11 @@ App({
       userId: userInfo?.id
     });
     
-    // 验证 token 是否过期
+    // 验证 token 是否过期（统一经 Session Manager，Unix 秒基准）
     let tokenValid = true;
-    if (token) {
-      const tokenExpire = wx.getStorageSync('token_expire');
-      if (tokenExpire && tokenExpire < Math.floor(Date.now() / 1000)) {
-        console.log('token已过期');
-        tokenValid = false;
-      }
+    if (token && isLegacyTokenExpired()) {
+      console.log('token已过期');
+      tokenValid = false;
     }
     
     // 判断登录是否有效
@@ -161,11 +168,8 @@ App({
       console.log('已恢复登录状态:', userInfo);
     } else {
       console.log('未找到有效的登录状态，清除缓存');
-      // 清除无效的登录缓存
-      wx.removeStorageSync('userInfo');
-      wx.removeStorageSync('isLoggedIn');
-      wx.removeStorageSync('access_token');
-      wx.removeStorageSync('token_expire');
+      // P2-B：登出清理统一经 Session Manager（唯一出口）。
+      clearSession();
       
       this.globalData.userInfo = null;
       this.globalData.isLoggedIn = false;
@@ -270,13 +274,11 @@ App({
           
           const token = res.data.data.user_info.token;
           
-          wx.setStorageSync('access_token', token);
-          wx.setStorageSync('userInfo', userInfo);
-          wx.setStorageSync('isLoggedIn', true);
+          // P2-B：登录态写入统一经 Session Manager（见下方 setLegacyLogin）。
           
-          // 设置 token 过期时间（7天后）
-          const expireTime = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
-          wx.setStorageSync('token_expire', expireTime);
+          // 设置 token 过期时间（7天后，Unix 秒）
+          const expireTime = nowUnixSeconds() + 7 * 24 * 60 * 60;
+          setLegacyLogin(token, userInfo, expireTime);
           
           // 更新globalData
           this.globalData.userInfo = userInfo;
@@ -309,14 +311,12 @@ App({
             email: res.data.data.admin.email
           };
           
-          wx.setStorageSync('access_token', res.data.data.token);
+          // adminInfo 为管理端专属存储；其余登录态经 Session Manager 统一写入。
           wx.setStorageSync('adminInfo', adminInfo);
-          wx.setStorageSync('userInfo', adminInfo);
-          wx.setStorageSync('isLoggedIn', true);
           
-          // 设置 token 过期时间（30天后）
-          const expireTime = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
-          wx.setStorageSync('token_expire', expireTime);
+          // 设置 token 过期时间（30天后，Unix 秒）
+          const expireTime = nowUnixSeconds() + 30 * 24 * 60 * 60;
+          setLegacyLogin(res.data.data.token, adminInfo, expireTime);
           
           // 更新globalData
           this.globalData.userInfo = adminInfo;
@@ -351,17 +351,8 @@ App({
 
   // 用户退出登录
   logout() {
-    this.globalData.userInfo = null;
-    this.globalData.isLoggedIn = false;
-    this.globalData.pendingApproval = false;
-    
-    // 清除存储
-    wx.removeStorageSync('userInfo');
-    wx.removeStorageSync('isLoggedIn');
-    wx.removeStorageSync('access_token');
-    wx.removeStorageSync('token_expire');
-    wx.removeStorageSync('pendingApproval');
-    wx.removeStorageSync('adminInfo');
+    // P2-B：唯一登出出口。globalData 重置 + Storage 清理统一由 Session Manager 完成。
+    clearSession();
   },
 
   // 显示登录注册弹窗的统一方法

@@ -8,6 +8,9 @@
 // - 仅接受 range query（today|7d|30d|month），默认 7d；不发送 team_id / user_id / sql / fields / groupBy / filters / raw / start / end。
 // - 不自动重试（单次失败仅 1 次 request）。
 
+import { send } from './transport';
+import { getLegacyToken } from './session';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 export type AnalyticsRange = 'today' | '7d' | '30d' | 'month';
@@ -41,25 +44,6 @@ export interface ApiError {
   isNetwork: boolean;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || '';
-}
-
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 interface RequestOpts {
   teamScoped?: boolean;
 }
@@ -69,36 +53,8 @@ type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'T
 
 function request<T>(method: RequestMethod, path: string, opts: RequestOpts = {}): Promise<T> {
   const teamScoped = opts.teamScoped === true;
-  return new Promise<T>((resolve, reject) => {
-    const token = getToken();
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) header['Authorization'] = `Bearer ${token}`;
-    if (teamScoped) {
-      const teamId = getActiveTeamId();
-      if (teamId) header['X-Team-Id'] = teamId;
-    }
-
-    wx.request({
-      url: V2_BASE + path,
-      method: method,
-      header,
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          // 成功信封：{ success:true, data, request_id }
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          // 失败信封：{ success:false, error:{code,message,details} }
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        // 网络层失败：结果未知，交由调用方决定后续（不自动重试）
-        reject(buildError(0, null, true));
-      },
-    });
-  });
+  // P2-B：token 取自 Session Manager；Header 拼装 / 信封解包 / 错误归一统一交 transport。
+  return send<T>(method, V2_BASE + path, undefined, { token: getLegacyToken(), teamScoped });
 }
 
 export interface AnalyticsCapabilities {

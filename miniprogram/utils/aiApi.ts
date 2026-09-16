@@ -10,6 +10,9 @@
 // - 不自动重试（POST create / POST message 均不自动重试），避免一次用户操作产生多次 provider call。
 // - 不暴露 provider / model / token / 内部 id / system prompt / raw context。
 
+import { send } from './transport';
+import { getLegacyToken, getActiveTeamId } from './session';
+
 const V2_BASE = 'https://api.jhzyfw.com/api/v2';
 
 /** 前端最大消息长度（与后端 normalizeUserInput 上限保持一致）。 */
@@ -60,14 +63,6 @@ export interface ConversationListResult {
   pagination: ConversationPagination;
 }
 
-function getToken(): string {
-  return wx.getStorageSync('access_token') || '';
-}
-
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
 /** 当前是否已选择 active team（与 teams 页「选择团队」写入的 key 一致）。 */
 export function hasActiveTeam(): boolean {
   return getActiveTeamId().length > 0;
@@ -86,52 +81,16 @@ export function validateMessageInput(raw: string): MessageValidation {
   return { ok: true, value: v };
 }
 
-function buildHeaders(): Record<string, string> {
-  const header: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = getToken();
-  if (token) header['Authorization'] = `Bearer ${token}`;
-  const teamId = getActiveTeamId();
-  if (teamId) header['X-Team-Id'] = teamId;
-  return header;
-}
-
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : isNetwork ? 'NETWORK' : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 type RequestMethod = 'GET' | 'POST';
 
 // 与 wx.request method 枚举一致（string 无法赋值给该枚举）。
 function request<T>(method: RequestMethod, path: string, data?: any): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    wx.request({
-      url: V2_BASE + path,
-      method,
-      data,
-      header: buildHeaders(),
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          // 成功信封：{ success:true, data, request_id }
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          // 失败信封：{ success:false, error:{code,message,details} }
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        // 网络层失败：结果未知，交由调用方决定后续（不自动重试）。
-        reject(buildError(0, null, true));
-      },
-    });
+  // P2-B：token 取自 Session Manager；Header 拼装 / 信封解包 / 错误归一统一交 transport。
+  // AI 为团队作用域（固定注入 X-Team-Id）；网络失败 code 保持既有 'NETWORK' 语义。
+  return send<T>(method, V2_BASE + path, data, {
+    token: getLegacyToken(),
+    teamScoped: true,
+    errorOptions: { networkCode: 'NETWORK' },
   });
 }
 

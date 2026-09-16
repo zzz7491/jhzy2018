@@ -8,30 +8,13 @@
 // - 仅当无有效 V2 会话时才 wx.login() 换取 code → POST /api/v2/auth/wechat/login。
 
 import { resolveV2Base } from './apiEnv';
+import { getV2Token, getV2ExpireSeconds, nowUnixSeconds, saveV2Session } from './session';
 
 const V2_BASE = resolveV2Base();
 
 export interface V2LoginResult {
   token: string;
   expires_at: number;
-}
-
-function getV2Token(): string {
-  return wx.getStorageSync('v2_access_token') || '';
-}
-
-/**
- * V2 session 过期时间读值（Unix 秒）。
- * 单位契约：v2_token_expire 与后端 /auth/wechat/login 返回的 expires_at 同为 Unix【秒】，
- * 故此处不做任何换算。
- */
-function getV2ExpireSeconds(): number {
-  return Number(wx.getStorageSync('v2_token_expire') || 0);
-}
-
-/** 当前 Unix 秒（与 expires_at 同单位）。 */
-function currentUnixSeconds(): number {
-  return Math.floor(Date.now() / 1000);
 }
 
 /** 复用安全窗口（秒）：剩余有效期不足此值时提前重登，避免边界请求失败。 */
@@ -50,13 +33,13 @@ const V2_EXPIRY_SAFETY_WINDOW_SECONDS = 30;
  */
 export async function ensureV2Session(): Promise<string> {
   const token = getV2Token();
-  if (token && getV2ExpireSeconds() > currentUnixSeconds() + V2_EXPIRY_SAFETY_WINDOW_SECONDS) {
+  if (token && getV2ExpireSeconds() > nowUnixSeconds() + V2_EXPIRY_SAFETY_WINDOW_SECONDS) {
     return token;
   }
   const code = await new Promise<string>((resolve, reject) => {
     wx.login({
-      success: (r) => (r.code ? resolve(r.code) : reject(new Error('wx.login 未返回 code'))),
-      fail: (err) => reject(new Error('wx.login 失败: ' + (err && err.errMsg ? err.errMsg : '未知'))),
+      success: (r: any) => (r.code ? resolve(r.code) : reject(new Error('wx.login 未返回 code'))),
+      fail: (err: any) => reject(new Error('wx.login 失败: ' + (err && err.errMsg ? err.errMsg : '未知'))),
     });
   });
   const login = await new Promise<V2LoginResult>((resolve, reject) => {
@@ -84,8 +67,7 @@ export async function ensureV2Session(): Promise<string> {
       fail: () => reject(new Error('网络异常，请重试')),
     });
   });
-  wx.setStorageSync('v2_access_token', login.token);
-  wx.setStorageSync('v2_token_expire', login.expires_at);
+  saveV2Session(login.token, login.expires_at);
   return login.token;
 }
 

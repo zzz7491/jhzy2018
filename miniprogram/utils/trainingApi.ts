@@ -9,6 +9,8 @@
 
 import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
+import { send } from './transport';
+import { getActiveTeamId } from './session';
 
 const V2_BASE = resolveV2Base();
 
@@ -122,59 +124,17 @@ async function getToken(): Promise<string> {
   }
 }
 
-function getActiveTeamId(): string {
-  return wx.getStorageSync('activeTeamPublicId') || '';
-}
-
 export function hasTeamContext(): boolean {
   return getActiveTeamId().length > 0;
 }
 
-function buildError(status: number, body: any, isNetwork: boolean): ApiError {
-  const errBody = body && body.error ? body.error : null;
-  return {
-    status,
-    code: errBody ? errBody.code : '',
-    message: errBody ? errBody.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    details: errBody && errBody.details ? errBody.details : undefined,
-    isNetwork,
-  };
-}
-
 type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'TRACE' | 'CONNECT';
 
-function request<T>(method: RequestMethod, path: string, data?: any, opts: { teamScoped?: boolean } = {}): Promise<T> {
+async function request<T>(method: RequestMethod, path: string, data?: any, opts: { teamScoped?: boolean } = {}): Promise<T> {
   const teamScoped = opts.teamScoped !== false; // 默认团队作用域
-  return new Promise<T>((resolve, reject) => {
-    const token = getToken();
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) header['Authorization'] = `Bearer ${token}`;
-    if (teamScoped) {
-      const teamId = getActiveTeamId();
-      if (teamId) header['X-Team-Id'] = teamId;
-    }
-
-    wx.request({
-      url: V2_BASE + path,
-      method: method,
-      data,
-      header,
-      success: (res: any) => {
-        const statusCode: number = res.statusCode;
-        const body = res.data;
-        if (statusCode >= 200 && statusCode < 300) {
-          // 成功信封：{ success:true, data, request_id }
-          resolve((body && body.data !== undefined ? body.data : body) as T);
-        } else {
-          // 失败信封：{ success:false, error:{code,message,details} }
-          reject(buildError(statusCode, body, false));
-        }
-      },
-      fail: () => {
-        reject(buildError(0, null, true));
-      },
-    });
-  });
+  // P2-B：Header 拼装 / 信封解包 / 错误归一统一交 transport；token 异步解析（await，避免 [object Promise]）。
+  const token = await getToken();
+  return send<T>(method, V2_BASE + path, data, { token, teamScoped });
 }
 
 // ===================== 培训（团队作用域） =====================

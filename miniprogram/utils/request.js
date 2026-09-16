@@ -1,20 +1,20 @@
-// 请求封装
-const app = getApp();
+// 请求封装（legacy PHP transport）
+// P2-B Authentication & Transport Consolidation：
+// - 本文件仅服务 legacy PHP 端点（https://api.jhzyfw.com/api/）；V2 请求一律走 utils/transport。
+// - token 读取 / 过期判定 / 登出清理统一经 Session Manager（utils/session），
+//   不再各自 removeStorage（统一登出出口）。
+const session = require('./session');
 
 const request = (options) => {
   return new Promise((resolve, reject) => {
     const baseUrl = 'https://api.jhzyfw.com/api/'
-    const token = wx.getStorageSync('access_token')
-    
-    // 检查 token 是否过期（如果有过期时间记录）
-    const tokenExpire = wx.getStorageSync('token_expire')
-    if (tokenExpire && Math.floor(Date.now() / 1000) > tokenExpire) {
-      // token 已过期，清除登录状态
-      wx.removeStorageSync('access_token')
-      wx.removeStorageSync('userInfo')
-      wx.removeStorageSync('isLoggedIn')
-      wx.removeStorageSync('token_expire')
-      
+    const token = session.getLegacyToken()
+
+    // 检查 token 是否过期（统一经 Session Manager，Unix 秒基准）
+    if (session.isLegacyTokenExpired()) {
+      // token 已过期，统一登出出口
+      session.clearSession()
+
       wx.showToast({
         title: '登录已过期',
         icon: 'none',
@@ -30,16 +30,16 @@ const request = (options) => {
       reject({ code: 401, msg: '登录已过期' })
       return
     }
-    
+
     const header = {
       'Content-Type': 'application/json',
       ...options.header
     }
-    
+
     if (token) {
       header['Authorization'] = `Bearer ${token}`
     }
-    
+
     wx.request({
       url: baseUrl + options.url,
       method: options.method || 'GET',
@@ -77,25 +77,16 @@ const request = (options) => {
   })
 }
 
-// 处理 token 过期
+// 处理 token 过期（统一登出出口 → Session Manager）
 function handleTokenExpired() {
-  // 清除所有登录状态
-  wx.removeStorageSync('access_token')
-  wx.removeStorageSync('userInfo')
-  wx.removeStorageSync('isLoggedIn')
-  wx.removeStorageSync('token_expire')
-  
-  // 更新全局状态
-  if (app && app.globalData) {
-    app.globalData.userInfo = null
-    app.globalData.isLoggedIn = false
-  }
-  
+  // 清除所有登录状态 + 重置 globalData（唯一登出实现）
+  session.clearSession()
+
   // 获取当前页面栈
   const pages = getCurrentPages()
   const currentPage = pages[pages.length - 1]
   const currentRoute = currentPage ? currentPage.route : ''
-  
+
   // 如果不是在登录页，则跳转到登录页
   if (currentRoute !== 'pages/login-unified/index') {
     wx.showToast({

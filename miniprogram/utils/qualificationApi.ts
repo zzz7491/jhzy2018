@@ -7,6 +7,7 @@
 
 import { resolveV2Base } from './apiEnv';
 import { ensureV2Session } from './auth-v2';
+import { send } from './transport';
 
 const V2_BASE = resolveV2Base();
 
@@ -18,34 +19,10 @@ export interface VolunteerQualification {
   reasons: string[];
 }
 
-function buildError(status: number, body: any, isNetwork: boolean): any {
-  const e = body && body.error ? body.error : null;
-  return {
-    status,
-    code: e ? e.code : '',
-    message: e ? e.message : isNetwork ? '网络异常，请重试' : '请求失败',
-    isNetwork,
-  };
-}
-
 async function request<T>(method: 'GET' | 'POST', path: string, data?: any): Promise<T> {
   const token = await ensureV2Session();
-  return new Promise<T>((resolve, reject) => {
-    wx.request({
-      url: V2_BASE + path,
-      method,
-      data,
-      header: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      success: (res: any) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve((res.data && res.data.data !== undefined ? res.data.data : res.data) as T);
-        } else {
-          reject(buildError(res.statusCode, res.data, false));
-        }
-      },
-      fail: () => reject(buildError(0, null, true)),
-    });
-  });
+  // P2-B：Header 拼装 / 信封解包 / 错误归一统一交 transport（非团队作用域）。
+  return send<T>(method, V2_BASE + path, data, { token, teamScoped: false });
 }
 
 export const qualificationApi = {

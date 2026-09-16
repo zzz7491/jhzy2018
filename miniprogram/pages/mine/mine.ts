@@ -632,8 +632,8 @@ Page({
         if (res.confirm) {
           checkinService.stopLocationTimer();
           
-          // 清除所有缓存，最稳妥
-          wx.clearStorageSync(); 
+          // P2-B：登出统一走 app.logout()（Session Manager 唯一出口）
+          app.logout();
           
           // 彻底重置全局状态
           if (app.globalData) {
