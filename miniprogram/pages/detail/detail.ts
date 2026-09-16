@@ -2,7 +2,7 @@
 
 // 引入订阅消息工具
 const subscribe = require('../../utils/subscribe')
-import activityApi from '../../utils/activityApi';
+import activityApi, { hasV2Session } from '../../utils/activityApi';
 
 Page({
   data: {
@@ -63,26 +63,19 @@ Page({
     }
   },
 
-  // 检查登录状态
+  // R-1 修复：统一登录门控到唯一 V2 Session 来源（hasV2Session，纯本地、不触发登录）。
+  // 移除 legacy access_token / userInfo 双键判断，与 activityApi 的 V2 Bearer 会话保持一致。
+  // 三种状态行为一致：无 v2_access_token → 未登录；有效 token+expire → 已登录；
+  // token 过期（v2_token_expire <= now）→ 视为未登录，点击报名走 /pages/login-unified/index 重新鉴权。
   checkLoginStatus() {
-    const token = wx.getStorageSync('access_token');
-    const userInfo = wx.getStorageSync('userInfo');
-
-    if (token && userInfo) {
-      this.setData({
-        isLoggedIn: true,
-        userInfo,
-        token
-      });
-      return true;
-    } else {
-      this.setData({
-        isLoggedIn: false,
-        userInfo: null,
-        token: null
-      });
-      return false;
-    }
+    const loggedIn = hasV2Session();
+    this.setData({
+      isLoggedIn: loggedIn,
+      // legacy 字段不再作为登录判据；保留为 null 仅维持 data 结构兼容，WXML 无消费。
+      userInfo: null,
+      token: null,
+    });
+    return loggedIn;
   },
 
   // M4：真实考勤完成态来自后端 /service-records/mine；详情页据此刷新按钮，绝不本地伪造。
