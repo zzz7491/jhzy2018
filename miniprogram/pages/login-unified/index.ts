@@ -1,4 +1,6 @@
-﻿const app = getApp()
+﻿import authApi from '../../utils/authApi'
+
+const app = getApp()
 Page({
   data: {
     currentRole: 'volunteer',
@@ -38,44 +40,37 @@ Page({
 
   getUserOpenid() {
     wx.login({
-      success: (res) => {
+      success: (res: { code?: string; errMsg?: string }) => {
         if (res.code) {
-          wx.request({
-            url: 'https://api.jhzyfw.com/api/get_openid.php',
-            method: 'POST',
-            data: { code: res.code },
-            success: (resp) => {
-              if (resp.data && resp.data.openid) {
-                this.setData({ openid: resp.data.openid })
-              }
-            }
-          })
+          authApi.legacyGetOpenid(res.code, 'login')
+            .then((openid) => { this.setData({ openid }); })
+            .catch(() => { /* openid 获取失败不阻断登录流程 */ });
         }
       }
-    })
+    });
   },
 
-  onPrivacyChange(e) {
+  onPrivacyChange(e: { detail: { value: string[] } }) {
     this.setData({ isAgree: e.detail.value.length > 0 });
   },
 
   gotoServiceProtocol() { wx.navigateTo({ url: '/pages/settings/terms/terms' }); },
   gotoPrivacyPolicy() { wx.navigateTo({ url: '/pages/privacy/privacy' }); },
 
-  switchRole(e) {
+  switchRole(e: { currentTarget: { dataset: Record<string, string> } }) {
     this.setData({ currentRole: e.currentTarget.dataset.role, account: '', password: '' })
   },
 
-  onAccountInput(e) { this.setData({ account: e.detail.value }) },
-  onPasswordInput(e) { this.setData({ password: e.detail.value }) },
+  onAccountInput(e: { detail: { value: string } }) { this.setData({ account: e.detail.value }) },
+  onPasswordInput(e: { detail: { value: string } }) { this.setData({ password: e.detail.value }) },
 
-  quickLogin(e) {
+  quickLogin(e: { currentTarget: { dataset: Record<string, string> } }) {
     if (!this.data.isAgree) { wx.showToast({ title: '请先勾选同意协议', icon: 'none' }); return; }
     const { account, password } = e.currentTarget.dataset
     this.setData({ account, password }, () => { this.doLogin() })
   },
 
-  onSubmit(e) {
+  onSubmit(e: { detail: { value: { account: string; password: string } } }) {
     if (!this.data.isAgree) { wx.showToast({ title: '请先勾选同意协议', icon: 'none' }); return; }
     const { account, password } = e.detail.value
     this.setData({ account, password }, () => { this.doLogin() })
@@ -96,114 +91,41 @@ Page({
     }
   },
 
-  volunteerLogin(phone, password, openid) {
-    return new Promise((resolve, reject) => {
-      let postData = `account=${encodeURIComponent(phone)}&password=${encodeURIComponent(password)}`
-      if (openid && !openid.startsWith('ADMIN_')) { postData += `&openid=${encodeURIComponent(openid)}` }
-      
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/login.php',
-        method: 'POST',
-        header: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        data: postData,
-        success: (res) => {
-          if (res.data.code === 0) {
-            const token = res.data.token || res.data.data?.token;
-            const userInfoData = res.data.data?.user_info || res.data.user_info;
-            
-            wx.setStorageSync('access_token', token);
-            
-            const userInfo = {
-              id: userInfoData?.id,
-              username: userInfoData?.real_name || userInfoData?.username,
-              real_name: userInfoData?.real_name,
-              phone: userInfoData?.phone,
-              points: userInfoData?.current_points || 0,
-              volunteer_id: userInfoData?.volunteer_id,
-              activity_count: userInfoData?.activity_count || 0,
-              service_hours: userInfoData?.service_hours || 0,
-              current_points: userInfoData?.current_points || 0,
-              total_points: userInfoData?.total_points || 0
-            };
-            
-            wx.setStorageSync('userInfo', userInfo);
-            wx.setStorageSync('isLoggedIn', true);
-            wx.setStorageSync('token_expire', Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60);
-            
-            app.globalData.isLoggedIn = true;
-            app.globalData.userInfo = userInfo;
-            
-            wx.showToast({ title: '登录成功', icon: 'success' });
-            setTimeout(() => { wx.switchTab({ url: '/pages/index/index' }); resolve(); }, 1500);
-          } else {
-            reject(res.data.msg || '登录失败');
-          }
-        },
-        fail: () => reject('网络错误')
+  volunteerLogin(phone: string, password: string, openid: string) {
+    return authApi.legacyVolunteerLogin(phone, password, openid).then(({ userInfo }) => {
+      app.globalData.isLoggedIn = true;
+      app.globalData.userInfo = userInfo;
+      wx.showToast({ title: '登录成功', icon: 'success' });
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          wx.switchTab({ url: '/pages/index/index' });
+          resolve();
+        }, 1500);
       });
     });
   },
 
-  adminLogin(account, password) {
-    return new Promise((resolve, reject) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/admin_login.php',
-        method: 'POST',
-        data: { username: account, password: password },
-        success: (res) => {
-          if (res.data.success === true) {
-            const adminData = res.data.data;
-            const adminRole = adminData.role;
-            
-            wx.setStorageSync('access_token', adminData.token || '');
-            wx.setStorageSync('adminInfo', {
-              id: adminData.id,
-              name: adminData.real_name,
-              username: adminData.username,
-              role: adminRole,
-              email: adminData.email
-            });
-            
-            const userInfo = {
-              id: adminData.id,
-              real_name: adminData.real_name,
-              username: adminData.username,
-              email: adminData.email,
-              role: adminRole,
-              is_admin: true
-            };
-            
-            wx.setStorageSync('userInfo', userInfo);
-            wx.setStorageSync('isLoggedIn', true);
-            wx.setStorageSync('token_expire', Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60);
-            
-            app.globalData.isLoggedIn = true;
-            app.globalData.userInfo = userInfo;
-
-            wx.showToast({ title: '管理员登录成功', icon: 'success' });
-            
-            // 根据角色跳转不同页面
-            setTimeout(() => {
-              if (adminRole === 'verifier') {
-                // 核销员：直接跳转到核销页面
-                wx.redirectTo({ url: '/pages/admin/qrVerify/qrVerify' });
-              } else {
-                // 超级管理员、管理员、审核员：跳转到管理面板
-                wx.redirectTo({ url: '/pages/adminPanel/adminPanel' });
-              }
-              resolve();
-            }, 1500);
+  adminLogin(account: string, password: string) {
+    return authApi.legacyAdminLogin(account, password).then(({ userInfo, adminInfo }) => {
+      app.globalData.isLoggedIn = true;
+      app.globalData.userInfo = userInfo;
+      wx.showToast({ title: '管理员登录成功', icon: 'success' });
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (adminInfo.role === 'verifier') {
+            // 核销员：直接跳转到核销页面
+            wx.redirectTo({ url: '/pages/admin/qrVerify/qrVerify' });
           } else {
-            reject(res.data.message || '登录失败');
-            this.setData({ isRedirecting: false });
+            // 超级管理员、管理员、审核员：跳转到管理面板
+            wx.redirectTo({ url: '/pages/adminPanel/adminPanel' });
           }
-        },
-        fail: () => {
-          reject('网络错误');
-          this.setData({ isRedirecting: false });
-        }
+          resolve();
+        }, 1500);
       });
-    })
+    }).catch((err) => {
+      this.setData({ isRedirecting: false });
+      throw err;
+    });
   },
 
   gotoRegister() { wx.navigateTo({ url: '/pages/register/register' }) }

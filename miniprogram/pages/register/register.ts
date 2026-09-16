@@ -1,4 +1,6 @@
 // pages/profile/register/register.js
+import authApi from '../../utils/authApi'
+
 const app = getApp();
 
 Page({
@@ -132,7 +134,7 @@ Page({
 感谢您阅读本协议！点击"同意"表示您已充分理解并接受全部条款。`
   },
 
-  onLoad(options) {
+  onLoad(options: Record<string, string>) {
     this.initDisplayMode();
     
     // 接收openid参数
@@ -196,66 +198,27 @@ Page({
     console.log('开始微信登录获取openid...');
     
     wx.login({
-      success: (res) => {
+      success: (res: { code?: string; errMsg?: string }) => {
         if (res.code) {
-          // 调用微信登录接口获取openid
-          wx.request({
-            url: app.globalData.apiBaseUrl + 'wxlogin.php',
-            method: 'POST',
-            header: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            data: { code: res.code },
-            success: (wxRes) => {
-              if (wxRes.data.code === 0) {
-                // 已注册用户，但仍允许注册流程继续
-                const openid = wxRes.data.data.openid;
-                
-                this.setData({
-                  openid: openid,
-                  hasOpenid: true,
-                  wxLoginLoading: false
-                });
-                
-                wx.showToast({
-                  title: '微信验证成功',
-                  icon: 'success',
-                  duration: 1500
-                });
-              } else if (wxRes.data.code === 1) {
-                // 未注册用户，获取到openid
-                const openid = wxRes.data.data.openid;
-                
-                this.setData({
-                  openid: openid,
-                  hasOpenid: true,
-                  wxLoginLoading: false
-                });
-                
-                wx.showToast({
-                  title: '微信验证成功',
-                  icon: 'success',
-                  duration: 1500
-                });
-                
-              } else {
-                console.error('微信登录失败:', wxRes.data.msg);
-                wx.showToast({
-                  title: wxRes.data.msg || '微信登录失败',
-                  icon: 'none',
-                  duration: 3000
-                });
-                this.setData({ wxLoginLoading: false });
-              }
-            },
-            fail: (err) => {
-              console.error('调用微信登录接口失败:', err);
-              wx.showToast({
-                title: '网络错误',
-                icon: 'none'
-              });
-              this.setData({ wxLoginLoading: false });
-            }
+          authApi.legacyGetOpenid(res.code, 'wxlogin').then((openid) => {
+            this.setData({
+              openid: openid,
+              hasOpenid: true,
+              wxLoginLoading: false
+            });
+            wx.showToast({
+              title: '微信验证成功',
+              icon: 'success',
+              duration: 1500
+            });
+          }).catch((err) => {
+            console.error('调用微信登录接口失败:', err);
+            wx.showToast({
+              title: (typeof err === 'string' ? err : '网络错误'),
+              icon: 'none',
+              duration: 3000
+            });
+            this.setData({ wxLoginLoading: false });
           });
         } else {
           console.error('获取微信code失败:', res.errMsg);
@@ -266,7 +229,7 @@ Page({
           this.setData({ wxLoginLoading: false });
         }
       },
-      fail: (err) => {
+      fail: (err: unknown) => {
         console.error('微信登录失败:', err);
         wx.showToast({
           title: '微信登录失败',
@@ -283,7 +246,7 @@ Page({
   },
 
   // 输入框变化
-  onInputChange(e) {
+  onInputChange(e: { currentTarget: { dataset: Record<string, string> }; detail: { value: string } }) {
     const field = e.currentTarget.dataset.field;
     const value = e.detail.value;
     
@@ -296,7 +259,7 @@ Page({
   },
 
   // 验证单个字段
-  validateField(field, value) {
+  validateField(field: string, value: string) {
     let isValid = true;
     
     switch(field) {
@@ -480,7 +443,16 @@ Page({
     const { formData, simpleMode, openid } = this.data;
     
     // 准备注册数据 - 使用register.php接口
-    const registerData = {
+    // emergency_contact / emergency_phone 为可选字段（simpleMode 下不提交），故显式声明为可选。
+    const registerData: {
+      openid: string;
+      real_name: string;
+      id_card: string;
+      phone: string;
+      password: string;
+      emergency_contact?: string;
+      emergency_phone?: string;
+    } = {
       openid: openid,
       real_name: formData.real_name,
       id_card: formData.id_card,
@@ -503,117 +475,78 @@ Page({
       mask: true
     });
     
-    // 使用register.php接口
-    wx.request({
-      url: app.globalData.apiBaseUrl + 'register.php',
-      method: 'POST',
-      header: {
-        'content-type': 'application/x-www-form-urlencoded'
-      },
-      data: registerData,
-      success(res) {
-        wx.hideLoading();
-        
-        if (res.data.code === 0) {
-          // 注册成功，等待审核
-          const responseData = res.data.data || {};
-          
-          // 保存临时token和审核状态
-          if (responseData.temp_token) {
-            wx.setStorageSync('access_token', responseData.temp_token);
-            wx.setStorageSync('token_expire', responseData.token_expire > 1e12 ? Math.floor(responseData.token_expire / 1000) : (responseData.token_expire || 0));
-            
-            const pendingUserInfo = {
-              real_name: formData.real_name,
-              phone: formData.phone,
-              status: 'pending',
-              temp_token: responseData.temp_token,
-              token_expire: responseData.token_expire,
-              message: responseData.message || '请等待管理员审核'
-            };
-            
-            wx.setStorageSync('userInfo', pendingUserInfo);
-            wx.setStorageSync('isLoggedIn', false); // 未激活，不能登录
-            wx.setStorageSync('pendingApproval', true); // 标记为待审核状态
-            app.globalData.userInfo = pendingUserInfo;
-            app.globalData.pendingApproval = true;
+    // 使用register.php接口（统一经 authApi → Session Manager 写入待审核态）
+    authApi.legacyRegister(registerData).then((result) => {
+      wx.hideLoading();
+
+      if (result.pendingUserInfo) {
+        // 注册成功，等待审核
+        app.globalData.userInfo = result.pendingUserInfo;
+        app.globalData.pendingApproval = true;
+
+        // 显示审核提示
+        wx.showModal({
+          title: '注册成功',
+          content: '您的注册申请已提交！\n\n请等待管理员审核，审核通过后您将收到通知并可以开始使用全部功能。\n\n审核状态：待审核',
+          showCancel: false,
+          confirmText: '我知道了',
+          success() {
+            const pages = getCurrentPages();
+            if (pages.length > 1) {
+              wx.navigateBack({ delta: 1 });
+            } else {
+              wx.switchTab({ url: '/pages/index/index' });
+            }
           }
-          
-          // 显示审核提示
-          wx.showModal({
-            title: '注册成功',
-            content: '您的注册申请已提交！\n\n请等待管理员审核，审核通过后您将收到通知并可以开始使用全部功能。\n\n审核状态：待审核',
-            showCancel: false,
-            confirmText: '我知道了',
-            success() {
-              // 跳转到审核状态页面或首页
-              const pages = getCurrentPages();
-              if (pages.length > 1) {
-                wx.navigateBack({
-                  delta: 1
-                });
-              } else {
-                wx.switchTab({
-                  url: '/pages/index/index'
-                });
-              }
-            }
-          });
-          
-        } else if (res.data.code === -6) {
-          // 用户已存在
-          wx.showModal({
-            title: '提示',
-            content: '该身份证或手机号已注册，是否前往登录？',
-            confirmText: '去登录',
-            cancelText: '重新填写',
-            success(modalRes) {
-              if (modalRes.confirm) {
-                wx.navigateTo({
-                  url: '/pages/login-unified/index?phone=' + encodeURIComponent(formData.phone)
-                });
-              }
-            }
-          });
-        } else if (res.data.code === -8) {
-          // 申请正在审核中
-          wx.showModal({
-            title: '提示',
-            content: '您的申请正在审核中，请耐心等待。审核通过后您将收到通知。',
-            showCancel: false,
-            confirmText: '我知道了',
-            success() {
-              wx.navigateBack();
-            }
-          });
-        } else {
-          // 其他错误
-          let errorMsg = res.data.msg || '注册失败';
-          
-          // 简化错误信息显示
-          if (errorMsg.includes('SQL') || errorMsg.includes('database')) {
-            errorMsg = '系统繁忙，请稍后重试';
-          }
-          
-          wx.showToast({
-            title: errorMsg,
-            icon: 'none',
-            duration: 3000
-          });
-        }
-      },
-      fail(err) {
-        console.error('注册请求失败:', err);
-        wx.hideLoading();
-        wx.showToast({
-          title: '网络错误，请检查网络连接',
-          icon: 'none',
-          duration: 3000
         });
-      },
-      complete() {
-        that.setData({ loading: false });
+      } else if (result.success) {
+        wx.showModal({
+          title: '注册成功',
+          content: '您的注册申请已提交！\n\n请等待管理员审核，审核通过后您将收到通知并可以开始使用全部功能。\n\n审核状态：待审核',
+          showCancel: false,
+          confirmText: '我知道了',
+          success() {
+            const pages = getCurrentPages();
+            if (pages.length > 1) {
+              wx.navigateBack({ delta: 1 });
+            } else {
+              wx.switchTab({ url: '/pages/index/index' });
+            }
+          }
+        });
+      } else if (result.alreadyRegistered) {
+        wx.showModal({
+          title: '提示',
+          content: '该身份证或手机号已注册，是否前往登录？',
+          confirmText: '去登录',
+          cancelText: '重新填写',
+          success(modalRes: { confirm?: boolean; cancel?: boolean }) {
+            if (modalRes.confirm) {
+              wx.navigateTo({ url: '/pages/login-unified/index?phone=' + encodeURIComponent(formData.phone) });
+            }
+          }
+        });
+      } else if (result.underReview) {
+        wx.showModal({
+          title: '提示',
+          content: '您的申请正在审核中，请耐心等待。审核通过后您将收到通知。',
+          showCancel: false,
+          confirmText: '我知道了',
+          success() { wx.navigateBack(); }
+        });
+      } else {
+        let errorMsg = '注册失败';
+        if (errorMsg.includes('SQL') || errorMsg.includes('database')) errorMsg = '系统繁忙，请稍后重试';
+        wx.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
       }
+    }).catch((err) => {
+      console.error('注册请求失败:', err);
+      wx.hideLoading();
+      let errorMsg = (typeof err === 'string' ? err : '网络错误，请检查网络连接');
+      if (errorMsg.includes('SQL') || errorMsg.includes('database')) errorMsg = '系统繁忙，请稍后重试';
+      wx.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
+    }).finally(() => {
+      that.setData({ loading: false });
     });
   },
 

@@ -51,11 +51,27 @@ export function isLegacyTokenExpired(): boolean {
 }
 
 /** 写入 legacy 登录态（access_token + userInfo + isLoggedIn + token_expire[秒]）。 */
-export function setLegacyLogin(token: string, userInfo: any, expireSeconds: number): void {
+export function setLegacyLogin(token: string, userInfo: any, expireSeconds: number, adminInfo?: any): void {
   wx.setStorageSync(SESSION_KEYS.legacyToken, token || '');
   wx.setStorageSync(SESSION_KEYS.userInfo, userInfo);
   wx.setStorageSync(SESSION_KEYS.isLoggedIn, true);
   wx.setStorageSync(SESSION_KEYS.legacyExpire, expireSeconds);
+  if (adminInfo !== undefined) {
+    wx.setStorageSync(SESSION_KEYS.adminInfo, adminInfo);
+  }
+}
+
+/**
+ * 写入【待审核】登录态（注册成功、未激活）：保留 access_token（临时）/userInfo，
+ * 但 isLoggedIn=false、pendingApproval=true，禁止以已登录身份进入业务流。
+ * 统一经 Session Manager（与 setLegacyLogin 同一存储权威），禁止页面各自散写。
+ */
+export function setLegacyPending(token: string, userInfo: any, expireSeconds: number): void {
+  wx.setStorageSync(SESSION_KEYS.legacyToken, token || '');
+  wx.setStorageSync(SESSION_KEYS.userInfo, userInfo);
+  wx.setStorageSync(SESSION_KEYS.isLoggedIn, false);
+  wx.setStorageSync(SESSION_KEYS.legacyExpire, expireSeconds);
+  wx.setStorageSync(SESSION_KEYS.pendingApproval, true);
 }
 
 // ============================== V2 会话令牌家族 ==============================
@@ -151,6 +167,7 @@ export default {
   getLegacyExpireSeconds,
   isLegacyTokenExpired,
   setLegacyLogin,
+  setLegacyPending,
   getV2Token,
   getV2ExpireSeconds,
   isV2SessionValid,

@@ -2,12 +2,11 @@
 import {
   getLegacyToken,
   isLegacyTokenExpired,
-  setLegacyLogin,
   clearSession,
-  nowUnixSeconds,
   getUserInfo,
   isLoggedIn as sessionIsLoggedIn,
 } from './utils/session';
+import { logoutV2 } from './utils/authApi';
 
 App({
   onLaunch() {
@@ -247,92 +246,6 @@ App({
     }
   },
 
-  // 生产环境登录（志愿者）
-  userLogin(phone, password, successCallback, failCallback) {
-    const url = this.globalData.apiBaseUrl + 'login.php';
-    wx.request({
-      url: url,
-      method: 'POST',
-      header: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      data: `account=${encodeURIComponent(phone)}&password=${encodeURIComponent(password)}`,
-      success: (res) => {
-        if (res.data.code === 0) {
-          console.log('登录返回 total_points:', res.data.data.user_info.total_points);
-          const userInfo = {
-            id: res.data.data.user_info.id,
-            username: res.data.data.user_info.real_name,
-            name: res.data.data.user_info.real_name,
-            phone: res.data.data.user_info.phone,
-            volunteer_id: res.data.data.user_info.volunteer_id,
-            current_points: res.data.data.user_info.current_points || 0,
-            total_points: res.data.data.user_info.total_points || 0,
-            activity_count: res.data.data.user_info.activity_count || 0,
-            service_hours: res.data.data.user_info.service_hours || 0
-          };
-          
-          const token = res.data.data.user_info.token;
-          
-          // P2-B：登录态写入统一经 Session Manager（见下方 setLegacyLogin）。
-          
-          // 设置 token 过期时间（7天后，Unix 秒）
-          const expireTime = nowUnixSeconds() + 7 * 24 * 60 * 60;
-          setLegacyLogin(token, userInfo, expireTime);
-          
-          // 更新globalData
-          this.globalData.userInfo = userInfo;
-          this.globalData.isLoggedIn = true;
-          
-          successCallback && successCallback(res.data);
-        } else {
-          failCallback && failCallback(res.data);
-        }
-      },
-      fail: (err) => {
-        failCallback && failCallback(err);
-      }
-    });
-  },
-
-  // 生产环境管理员登录
-  adminLogin(username, password, successCallback, failCallback) {
-    const url = this.globalData.apiBaseUrl + 'admin_login.php';
-    wx.request({
-      url: url,
-      method: 'POST',
-      data: { username: username, password: password },
-      success: (res) => {
-        if (res.data.status === 'success') {
-          const adminInfo = {
-            id: res.data.data.admin.id,
-            name: res.data.data.admin.name,
-            role: res.data.data.admin.role,
-            email: res.data.data.admin.email
-          };
-          
-          // adminInfo 为管理端专属存储；其余登录态经 Session Manager 统一写入。
-          wx.setStorageSync('adminInfo', adminInfo);
-          
-          // 设置 token 过期时间（30天后，Unix 秒）
-          const expireTime = nowUnixSeconds() + 30 * 24 * 60 * 60;
-          setLegacyLogin(res.data.data.token, adminInfo, expireTime);
-          
-          // 更新globalData
-          this.globalData.userInfo = adminInfo;
-          this.globalData.isLoggedIn = true;
-          
-          successCallback && successCallback(res.data);
-        } else {
-          failCallback && failCallback(res.data);
-        }
-      },
-      fail: (err) => {
-        failCallback && failCallback(err);
-      }
-    });
-  },
-
   // 设置显示模式
   setDisplayMode(mode) {
     if (mode === 'senior' || mode === 'normal') {
@@ -351,6 +264,8 @@ App({
 
   // 用户退出登录
   logout() {
+    // P3-B：先 best-effort 撤销 V2 服务端会话（失败不影响本地清理），再经 Session Manager 统一清理本地态。
+    logoutV2();
     // P2-B：唯一登出出口。globalData 重置 + Storage 清理统一由 Session Manager 完成。
     clearSession();
   },
