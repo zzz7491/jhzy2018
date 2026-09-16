@@ -1,4 +1,21 @@
-// pages/teams/create.js
+// pages/teams/create/create.ts
+// P3-D：创建团队 —— 经 Team 域唯一接入层 utils/teamApi。
+//
+// 纪律（用户决策 2=A）：
+// - 页面禁止 wx.request / 手拼 token；一律经 teamApi.createTeam。
+// - V2 无创建团队端点（NO V2 IMPLEMENTATION），底层仍为 Legacy create_group.php；不伪造 V2 语义。
+// - 错误一律经 classifyTeamError 归一。
+
+import { classifyTeamError, createTeam } from '../../../utils/teamApi';
+
+interface InputEvent {
+  detail: { value: string };
+}
+
+interface DatasetEvent<T> {
+  currentTarget: { dataset: T };
+}
+
 Page({
   data: {
     formData: {
@@ -8,27 +25,26 @@ Page({
     }
   },
 
-  onNameInput(e) {
+  onNameInput(e: InputEvent) {
     this.setData({
       'formData.name': e.detail.value
     });
   },
 
-  onDescInput(e) {
+  onDescInput(e: InputEvent) {
     this.setData({
       'formData.description': e.detail.value
     });
   },
 
-  selectColor(e) {
+  selectColor(e: DatasetEvent<{ color: string }>) {
     const color = e.currentTarget.dataset.color;
     this.setData({
       'formData.color': color
     });
   },
 
-  submitForm() {
-    const token = wx.getStorageSync('access_token');
+  async submitForm() {
     const { name, description, color } = this.data.formData;
 
     if (!name) {
@@ -39,37 +55,15 @@ Page({
       return;
     }
 
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/create_group.php',
-      method: 'POST',
-      data: {
-        token: token,
-        name: name,
-        description: description,
-        color: color
-      },
-      success: (res) => {
-        if (res.data && res.data.code === 0) {
-          wx.showToast({
-            title: '创建成功',
-            icon: 'success'
-          });
-          setTimeout(() => {
-            wx.navigateBack();
-          }, 1500);
-        } else {
-          wx.showToast({
-            title: res.data?.msg || '创建失败',
-            icon: 'none'
-          });
-        }
-      },
-      fail: () => {
-        wx.showToast({
-          title: '网络错误',
-          icon: 'none'
-        });
-      }
-    });
+    try {
+      await createTeam({ name, description, color });
+      wx.showToast({ title: '创建成功', icon: 'success' });
+      setTimeout(() => {
+        wx.navigateBack();
+      }, 1500);
+    } catch (e) {
+      const err = classifyTeamError(e);
+      wx.showToast({ title: err.message, icon: 'none' });
+    }
   }
 });
