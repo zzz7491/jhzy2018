@@ -5,11 +5,17 @@
 //   「switchTab 不支持 query 参数」，带 activityId / participationId 的签到执行流无法继续落在 tab 页。
 //   故拆出本 NON-TAB 执行页承接具体活动的 checkin / checkout / refresh status / 活动上下文。
 //
-// 纪律：
-//   - 本页逻辑从 pages/sign/sign.ts 原样迁移，未新增/未修改任何业务规则。
+// P1-D（本轮）：统一签到 / 签退【体验】（Backend Authority First；仅前端 UX 收敛，不新增 / 不修改任何业务规则）。
 //   - 所有数据请求走 activityApi（/api/v2），绝不回退 legacy PHP。
-//   - 本轮刻意不实现：QR / 数字码 / G1 active-session API / 新 attendance backend /
-//     location 新逻辑 / 异常管理 / service completion / 任何新业务规则。
+//   - 状态真值只来自后端 API 响应：checkin / checkout 成功后才本地置位 checkinStatus（绝不伪造）。
+//   - 定位为最佳努力：GPS 不可用（权限拒绝 / GPS 关闭 / 网络定位失败）均不阻断签到，
+//     后端将 location 视为可选；前端仅做非阻塞提示（P1-D ⑤⑥⑦）。
+//   - 统一 loading / error / retry / transition：新增 phase + errorText 状态机（P1-D ⑭ + Phase D）。
+//   - 重复签到 / 签退幂等：后端 409 → 本地直接置位，按钮立即变化（P1-D ③④⑫⑬）。
+//   - 统一异常：所有错误经 reportCheckinError / reportCheckoutError 集中映射为单一 Toast 风格，
+//     必要时给出错误横幅 + 重试 / 去认证（P1-D ⑧⑭）。
+//   - 二维码扫码签到：当前志愿者侧无扫码入口（后端无志愿者扫码签到端点，且 QR 生成为组织方职责，
+//     超出 P1-D 范围）；本页保持 checkin 仅经 activityApi（后端权威），不引入第二签到路径（P1-D ⑨⑩⑪ 记为已递延缺口）。
 import activityApi from '../../../utils/activityApi';
 
 function decode(s?: string): string {
@@ -20,6 +26,9 @@ function decode(s?: string): string {
     return s;
   }
 }
+
+type Phase = 'idle' | 'submitting' | 'success' | 'error';
+type ErrorAction = '' | 'retry-checkin' | 'retry-checkout' | 'qualification';
 
 Page({
   data: {
@@ -32,6 +41,10 @@ Page({
     buttonDisabled: false,
     countdown: '',
     loading: true,
+    // P1-D：统一状态机 + 错误横幅（与 isChecking / checkinStatus 并行，仅作 UX 镜像，不影响后端真值）
+    phase: 'idle' as Phase,
+    errorText: '',
+    errorAction: '' as ErrorAction,
   },
 
   onLoad(options: any) {
@@ -63,6 +76,9 @@ Page({
       // 签退不需要 participationId；签到仍旧要求（缺参数时原样禁用，不猜测）。
       buttonDisabled: activeEntry ? !activityId : !activityId || !participationId,
       loading: false,
+      phase: 'idle',
+      errorText: '',
+      errorAction: '',
     });
 
     // 由 Hub 进入时没有 activityName 等上下文，用既有详情接口补齐活动信息（失败静默）。
@@ -73,14 +89,26 @@ Page({
     // 本地状态为事实来源；如需刷新可点「刷新状态」。无独立 SELF 签到状态 GET。
   },
 
-  // 最佳努力获取定位（签到点 GPS 校验）
-  getLocation(): Promise<{ latitude: number; longitude: number; accuracy: number | null } | null> {
+  // 最佳努力获取定位（签到点 GPS 校验）。
+  // 返回 { location, denied, gpsOff }：任何失败均不阻断签到（后端将 location 视为可选），
+  // 仅通过 denied / gpsOff 标记以便前端做非阻塞提示（P1-D ⑤⑥⑦）。
+  getLocation(): Promise<{ location: { latitude: number; longitude: number; accuracy: number | null } | null; denied: boolean; gpsOff: boolean }> {
     return new Promise((resolve) => {
       wx.getLocation({
         type: 'gcj02',
         success: (res: any) =>
-          resolve({ latitude: res.latitude, longitude: res.longitude, accuracy: res.accuracy || null }),
-        fail: () => resolve(null),
+          resolve({
+            location: { latitude: res.latitude, longitude: res.longitude, accuracy: res.accuracy || null },
+            denied: false,
+            gpsOff: false,
+          }),
+        fail: (err: any) => {
+          const msg: string = (err && err.errMsg) || '';
+          const denied = /auth|deny|authorize|permission/i.test(msg);
+          const gpsOff = !denied && /gps|location service|enable|off/i.test(msg);
+          // 定位失败：location 置 null（后端可选），仅回传原因标记，绝不伪造坐标。
+          resolve({ location: null, denied, gpsOff });
+        },
       });
     });
   },
@@ -94,38 +122,24 @@ Page({
       return;
     }
 
-    this.setData({ isChecking: true });
-    let location: any = null;
-    try {
-      location = await this.getLocation();
-    } catch (e) {
-      location = null;
+    this.setData({ isChecking: true, phase: 'submitting' as Phase, errorText: '' });
+    const { location, denied, gpsOff } = await this.getLocation();
+    // 非阻塞定位提示（不阻断后端签到；location 仍按后端可选语义传递 null）
+    if (denied) {
+      wx.showToast({ title: '未授权定位，将不影响签到', icon: 'none' });
+    } else if (gpsOff) {
+      wx.showToast({ title: '请开启手机定位(GPS)', icon: 'none' });
     }
 
     activityApi
       .checkin(activityId, participationId, location)
       .then(() => {
+        // 成功后本地置位（不伪造）；保持与既有契约一致的精确 setData 形态
         this.setData({ isChecking: false, checkinStatus: 1 });
+        this.setData({ phase: 'success' as Phase, errorText: '' });
         wx.showToast({ title: '签到成功', icon: 'success' });
       })
-      .catch((err: any) => {
-        this.setData({ isChecking: false });
-        const code = err && err.code ? String(err.code).toUpperCase() : '';
-        if (code === 'ATTENDANCE_ALREADY_CHECKED_IN') {
-          this.setData({ checkinStatus: 1 });
-          wx.showToast({ title: '您已签到', icon: 'none' });
-          return;
-        }
-        if (code === 'ATTENDANCE_NOT_SIGNED_UP') {
-          wx.showToast({ title: '请先完成报名', icon: 'none' });
-          return;
-        }
-        if (code === 'TEAM_SCOPE_REQUIRED') {
-          wx.showToast({ title: '请先在「我的团队」选择团队', icon: 'none' });
-          return;
-        }
-        wx.showToast({ title: (err && err.message) || '签到失败', icon: 'none' });
-      });
+      .catch((err: any) => this.reportCheckinError(err));
   },
 
   // 签退（v2：POST /activities/:activityId/attendance/checkout，触发服务记录结算 + 积分）
@@ -137,11 +151,13 @@ Page({
       return;
     }
 
-    this.setData({ isChecking: true });
+    this.setData({ isChecking: true, phase: 'submitting' as Phase, errorText: '' });
     activityApi
       .checkout(activityId)
       .then(() => {
+        // 成功后本地置位（不伪造）；保持与既有契约一致的精确 setData 形态
         this.setData({ isChecking: false, checkinStatus: 2 });
+        this.setData({ phase: 'success' as Phase, errorText: '' });
         wx.showToast({ title: '签退成功，积分已计入', icon: 'success' });
         // 返回活动详情页，触发其 onShow 真实刷新「已参与」态（不本地伪造）
         setTimeout(() => {
@@ -149,21 +165,98 @@ Page({
           if (pages && pages.length > 1) wx.navigateBack();
         }, 1200);
       })
-      .catch((err: any) => {
-        this.setData({ isChecking: false });
-        const code = err && err.code ? String(err.code).toUpperCase() : '';
-        if (code === 'ATTENDANCE_ALREADY_CHECKED_OUT') {
-          this.setData({ checkinStatus: 2 });
-          wx.showToast({ title: '您已签退', icon: 'none' });
-          return;
-        }
-        if (code === 'ATTENDANCE_CHECKIN_REQUIRED') {
-          this.setData({ checkinStatus: 0 });
-          wx.showToast({ title: '请先签到', icon: 'none' });
-          return;
-        }
-        wx.showToast({ title: (err && err.message) || '签退失败', icon: 'none' });
-      });
+      .catch((err: any) => this.reportCheckoutError(err));
+  },
+
+  // 统一签到异常（P1-D ⑭ + ⑧）：集中映射后端错误码 → 单一 Toast 风格 + 可选错误横幅 / 重试 / 去认证。
+  // 所有分支均先复位 isChecking（统一 loading 收尾），再按 code 置位或提示，绝不伪造签到态。
+  reportCheckinError(err: any) {
+    this.setData({ isChecking: false, phase: 'error' as Phase });
+    const code = err && err.code ? String(err.code).toUpperCase() : '';
+
+    // 幂等：已签到 → 直接置位「已签到」，按钮立即变化（P1-D ③④⑫）
+    if (code === 'ATTENDANCE_ALREADY_CHECKED_IN') {
+      this.setData({ checkinStatus: 1, errorText: '' });
+      wx.showToast({ title: '您已签到', icon: 'none' });
+      return;
+    }
+    if (code === 'ATTENDANCE_NOT_SIGNED_UP') {
+      this.setData({ errorText: '请先完成报名', errorAction: '' });
+      wx.showToast({ title: '请先完成报名', icon: 'none' });
+      return;
+    }
+    if (code === 'ATTENDANCE_PARTICIPATION_NOT_ACTIVE') {
+      this.setData({ errorText: '当前参与状态不可签到，请确认排班', errorAction: '' });
+      wx.showToast({ title: '当前参与状态不可签到', icon: 'none' });
+      return;
+    }
+    if (code === 'PARENT_MISMATCH') {
+      this.setData({ errorText: '活动或场次当前不可用', errorAction: '' });
+      wx.showToast({ title: '活动或场次当前不可用', icon: 'none' });
+      return;
+    }
+    if (code === 'QUALIFICATION_REQUIRED') {
+      // 资格门由后端统一 enforcement（P1-D 不复制资格规则）；给出「去认证」入口
+      this.setData({ errorText: '尚不具备报名资格，请先完成志愿者认证', errorAction: 'qualification' as ErrorAction });
+      wx.showToast({ title: '尚不具备报名资格', icon: 'none' });
+      return;
+    }
+    if (code === 'TEAM_SCOPE_REQUIRED') {
+      this.setData({ errorText: '请先在「我的团队」选择团队', errorAction: '' });
+      wx.showToast({ title: '请先在「我的团队」选择团队', icon: 'none' });
+      return;
+    }
+
+    // 网络失败（err.isNetwork）或其余未知错误：统一提示 + 重试横幅（P1-D ⑧）
+    const msg =
+      (err && err.message) ||
+      (err && err.isNetwork ? '网络异常，请稍后重试' : '签到失败');
+    this.setData({ errorText: msg, errorAction: 'retry-checkin' as ErrorAction });
+    wx.showToast({ title: msg, icon: 'none' });
+  },
+
+  // 统一签退异常（同 reportCheckinError 约定）
+  reportCheckoutError(err: any) {
+    this.setData({ isChecking: false, phase: 'error' as Phase });
+    const code = err && err.code ? String(err.code).toUpperCase() : '';
+
+    // 幂等：已签退 → 直接置位「已完成」，按钮立即变化（P1-D ③④⑬）
+    if (code === 'ATTENDANCE_ALREADY_CHECKED_OUT') {
+      this.setData({ checkinStatus: 2, errorText: '' });
+      wx.showToast({ title: '您已签退', icon: 'none' });
+      return;
+    }
+    if (code === 'ATTENDANCE_CHECKIN_REQUIRED') {
+      this.setData({ checkinStatus: 0, errorText: '' });
+      wx.showToast({ title: '请先签到', icon: 'none' });
+      return;
+    }
+
+    // 网络失败或其余未知错误：统一提示 + 重试横幅（P1-D ⑧）
+    const msg =
+      (err && err.message) ||
+      (err && err.isNetwork ? '网络异常，请稍后重试' : '签退失败');
+    this.setData({ errorText: msg, errorAction: 'retry-checkout' as ErrorAction });
+    wx.showToast({ title: msg, icon: 'none' });
+  },
+
+  // 错误横幅「重试 / 去认证」入口（P1-D 统一 retry / transition）
+  onRetryTap() {
+    const action = this.data.errorAction;
+    this.setData({ errorText: '', phase: 'idle' as Phase, errorAction: '' });
+    if (action === 'retry-checkin') {
+      this.onSigninTap();
+    } else if (action === 'retry-checkout') {
+      this.onSignoutTap();
+    } else if (action === 'qualification') {
+      // 后端权威资格门；跳转官方「我的」页（承载志愿者资格卡），不伪造页面
+      wx.switchTab({ url: '/pages/mine/mine' });
+    }
+  },
+
+  // 错误横幅「关闭」：仅清除提示，保留当前 checkinStatus（不重试、不伪造）
+  onErrorDismiss() {
+    this.setData({ errorText: '', phase: 'idle' as Phase, errorAction: '' });
   },
 
   // 刷新活动信息（v2：GET /activities/:id）

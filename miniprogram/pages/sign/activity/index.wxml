@@ -1,7 +1,31 @@
 <!-- sign/activity/index.wxml —— 具体活动签到 / 签退执行页（NON-TAB）
      由 pages/sign/sign.wxml 原样迁移；业务交互与文案保持不变。 -->
 <view class="container safe-top">
-  
+
+  <!-- P1-D：统一错误横幅（loading/error/retry/transition） -->
+  <view class="att-error-banner" wx:if="{{errorText}}">
+    <view class="att-error-main">
+      <text class="att-error-icon">!</text>
+      <text class="att-error-text">{{errorText}}</text>
+    </view>
+    <view class="att-error-actions">
+      <button
+        class="att-error-btn att-error-retry"
+        bindtap="onRetryTap"
+        wx:if="{{errorAction === 'retry-checkin' || errorAction === 'retry-checkout'}}"
+      >重试</button>
+      <button
+        class="att-error-btn att-error-qual"
+        bindtap="onRetryTap"
+        wx:if="{{errorAction === 'qualification'}}"
+      >去认证</button>
+      <button
+        class="att-error-btn att-error-dismiss"
+        bindtap="onErrorDismiss"
+      >关闭</button>
+    </view>
+  </view>
+
   <!-- 🔴 新增：醒目签到区域 - 放在最顶部 -->
   <view class="quick-sign-area" wx:if="{{checkinStatus === 0 || checkinStatus === 1}}">
     <view class="quick-sign-card">

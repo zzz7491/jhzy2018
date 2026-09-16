@@ -486,3 +486,77 @@
   color: rgba(255,255,255,0.8);
   margin-top: 8rpx;
 }
+
+/* P1-D：统一错误横幅（loading/error/retry/transition） */
+.att-error-banner {
+  margin: 0 0 30rpx;
+  padding: 28rpx 32rpx;
+  background: #fff4f4;
+  border: 2rpx solid rgba(250, 82, 82, 0.4);
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 16rpx rgba(250, 82, 82, 0.1);
+}
+
+.att-error-main {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 22rpx;
+}
+
+.att-error-icon {
+  flex-shrink: 0;
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #fa5252;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-right: 16rpx;
+}
+
+.att-error-text {
+  flex: 1;
+  font-size: 28rpx;
+  color: #c0392b;
+  line-height: 1.6;
+}
+
+.att-error-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20rpx;
+}
+
+.att-error-btn {
+  height: 68rpx;
+  line-height: 68rpx;
+  padding: 0 36rpx;
+  border-radius: 34rpx;
+  font-size: 28rpx;
+  border: none;
+}
+
+.att-error-btn::after {
+  border: none;
+}
+
+.att-error-retry {
+  background: #fa5252;
+  color: #fff;
+  font-weight: 600;
+}
+
+.att-error-qual {
+  background: #ff6b35;
+  color: #fff;
+  font-weight: 600;
+}
+
+.att-error-dismiss {
+  background: #fff;
+  color: #666;
+  border: 2rpx solid #ddd !important;
+}
