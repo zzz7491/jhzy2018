@@ -6,6 +6,7 @@
 // - 4 个页面（activities/my、admin/review-aggregate、profile/change-password、profile/edit）仍依赖
 //   本文件的错误契约（reject(res.data) / reject({code,msg}) / redirectTo login），故保留其运行时行为。
 const session = require('./session');
+const transport = require('./transport');
 
 const request = (options) => {
   return new Promise((resolve, reject) => {
@@ -33,13 +34,11 @@ const request = (options) => {
       return
     }
 
+    // Header 统一经 transport.buildHeaders（与 V2 wrapper 同一 Header Builder，消除重复拼装）。
+    // options.header 仍可在其后覆盖（页面级自定义头优先）。
     const header = {
-      'Content-Type': 'application/json',
+      ...transport.buildHeaders({ token, teamScoped: false }),
       ...options.header
-    }
-
-    if (token) {
-      header['Authorization'] = `Bearer ${token}`
     }
 
     wx.request({
