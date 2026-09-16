@@ -1,8 +1,10 @@
 // 请求封装（legacy PHP transport）
-// P2-B Authentication & Transport Consolidation：
+// P2-C Legacy API Retirement & V2 Migration：
 // - 本文件仅服务 legacy PHP 端点（https://api.jhzyfw.com/api/）；V2 请求一律走 utils/transport。
-// - token 读取 / 过期判定 / 登出清理统一经 Session Manager（utils/session），
-//   不再各自 removeStorage（统一登出出口）。
+// - Header 构造统一经 transport.buildHeaders（与 V2 wrapper 同一 Header Builder，消除重复拼装）。
+// - token 读取 / 过期判定 / 登出清理统一经 Session Manager（utils/session），不再各自 removeStorage。
+// - 4 个页面（activities/my、admin/review-aggregate、profile/change-password、profile/edit）仍依赖
+//   本文件的错误契约（reject(res.data) / reject({code,msg}) / redirectTo login），故保留其运行时行为。
 const session = require('./session');
 
 const request = (options) => {

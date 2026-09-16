@@ -1,56 +1,23 @@
 /**
- * 签到服务模块（Legacy 兼容层）
+ * 签到服务模块
  *
- * P2-A / L8（Core Infrastructure Cleanup）后仅保留被 V2 签到流程
- * （pages/sign/*）之外的少数页面仍在使用的辅助能力：
+ * P2-A / L8（Core Infrastructure Cleanup）后仅保留被 V2 签到流程（pages/sign/*）
+ * 之外的少数页面仍在使用的辅助能力：
  *   - getCurrentLocation：定位缓存（pages/mine 使用）
  *   - stopLocationTimer：停止定位定时器状态（pages/mine 使用）
- *   - getAttendanceHistory：从服务端拉取签到历史（pages/attendance/history 使用）
+ *   - getAttendanceHistory：从 legacy PHP 端点拉取签到历史（pages/attendance/history 使用）
  *
- * 已移除：
- *   - Legacy 签到写缓存 current_attendance 及其全部读取/写入/同步；
- *   - 5 分钟定位上报定时器 startLocationTimer（Legacy 上报已无服务端对应）；
- *   - checkIn / checkOut / getActiveAttendance / checkActivityStatus / calculateDistance
- *     （均为 0 调用者的死方法，且依赖 current_attendance）。
+ * P2-C Legacy API Retirement & V2 Migration：
+ *   - 已移除本模块自带的私有 request() 与 API_BASE 常量，以及直接读取
+ *     wx.getStorageSync('access_token') 的逻辑；传输层统一经 utils/request
+ *     （legacy PHP transport，唯一遗留请求出口），令牌读取与登出统一走 Session Manager。
+ *   - 自此 utils / services 层不再有任何直接读 access_token 的传输代码。
  *
  * V2 签到真源为 GET /api/v2/attendance-sessions/me（pages/sign/*），
  * 本模块不再承担签到状态职责。
  */
 
-const API_BASE = 'https://api.jhzyfw.com/api';
-
-// 请求封装
-const request = (url, options = {}) => {
-  return new Promise((resolve, reject) => {
-    const token = wx.getStorageSync('access_token');
-
-    wx.request({
-      url: API_BASE + url,
-      method: options.method || 'GET',
-      data: options.data || {},
-      header: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      },
-      success: (res) => {
-        if (res.statusCode === 200) {
-          resolve(res.data);
-        } else if (res.statusCode === 401) {
-          wx.showToast({ title: '登录已过期', icon: 'none' });
-          setTimeout(() => {
-            wx.redirectTo({ url: '/pages/login-unified/index' });
-          }, 1500);
-          reject(new Error('未授权'));
-        } else {
-          reject(new Error(`请求失败: ${res.statusCode}`));
-        }
-      },
-      fail: (err) => {
-        reject(err);
-      }
-    });
-  });
-};
+const jhzyRequest = require('../utils/request');
 
 // 获取当前位置
 const getCurrentLocation = () => {
@@ -101,10 +68,13 @@ const stopLocationTimer = () => {
   violationCount = 0;
 };
 
-// 获取签到历史
+// 获取签到历史（legacy PHP 端点；传输经 utils/request，契约与历史实现一致）
 const getAttendanceHistory = async (page = 1, limit = 20) => {
   try {
-    const res = await request(`/attendance_history.php?page=${page}&limit=${limit}`);
+    const res = await jhzyRequest({
+      url: `/attendance_history.php?page=${page}&limit=${limit}`,
+      method: 'GET'
+    });
     return res;
   } catch (error) {
     console.error('获取签到历史失败:', error);
