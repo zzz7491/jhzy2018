@@ -32,7 +32,9 @@ Page({
     attendanceCompleted: false,
     serviceRecord: null as any,
     // 重复活动相关
-    recurrenceInfo: null
+    recurrenceInfo: null,
+    // P1-C4：报名截止门控 UI 标志（仅前端展示用，不新增报名状态/枚举）
+    signupDeadlinePassed: false
   },
 
   onLoad(options) {
@@ -86,10 +88,12 @@ Page({
 
   // M4：根据真实后端状态更新底部按钮（绝不本地伪造签到/签退态）
   updateButtonByStatus() {
-    const { signupStatus, attendanceCompleted } = this.data;
+    const { signupStatus, attendanceCompleted, activity } = this.data;
 
     let buttonText = "立即报名";
     let buttonBgColor = "#07c160";
+    // P1-C4：报名截止门控 UI 标志（仅作用于「未报名」态；已报名/已签到/已取消报名不受影响）
+    let deadlinePassed = false;
 
     if (attendanceCompleted) {
       // 后端已生成服务记录（签到+签退完成）→ 真实「已参与」态，不可再操作
@@ -108,9 +112,19 @@ Page({
     } else if (signupStatus === 3) {
       buttonText = "已参与";
       buttonBgColor = "#9e9e9e";
+    } else if (signupStatus === 0) {
+      // P1-C4：报名截止门控（仅「未报名」态受影响；已报名/已签到/已取消报名均不进此分支）。
+      // 后端 signup_deadline 为 epoch 秒；截止后按钮展示「报名已截止」并禁用，不得进入报名流程。
+      // 后端当前未在 signup 创建路径强制 signup_deadline，故此处仅做前端 UX 阻断，不替代 Backend Authority。
+      const dl = activity && activity.signup_deadline;
+      deadlinePassed = typeof dl === 'number' && dl > 0 && dl * 1000 <= Date.now();
+      if (deadlinePassed) {
+        buttonText = "报名已截止";
+        buttonBgColor = "#9e9e9e";
+      }
     }
 
-    this.setData({ buttonText, buttonBgColor });
+    this.setData({ buttonText, buttonBgColor, signupDeadlinePassed: deadlinePassed });
   },
 
   // 加载活动详情（v2：GET /activities/:id）
@@ -171,6 +185,9 @@ Page({
           this.fetchSignupForm();
           this.checkSignupStatus();
           this.loadAttendanceStatus();
+        } else {
+          // 未登录：活动已加载，刷新按钮（含报名截止态）以便正确展示「报名已截止」禁用态
+          this.updateButtonByStatus();
         }
       })
       .catch((err: any) => {
@@ -410,6 +427,16 @@ Page({
 
   // 点击报名按钮
   handleJoinClick() {
+    // P1-C4：报名截止门控（Backend Authority First）。
+    // 后端当前未在 signup 创建路径强制 signup_deadline，前端仅做 UX 阻断：截止后不得进入
+    // 「确认报名」弹窗（P20）/ POST /signups，直接提示并 return。不替代后端权威校验。
+    const dl = this.data.activity && this.data.activity.signup_deadline;
+    const deadlinePassed = typeof dl === 'number' && dl > 0 && dl * 1000 <= Date.now();
+    if (deadlinePassed) {
+      wx.showToast({ title: '报名已截止，无法报名', icon: 'none' });
+      return;
+    }
+
     if (this.data.hasJoined) {
       wx.showToast({
         title: this.getSignupStatusText(this.data.signupStatus),

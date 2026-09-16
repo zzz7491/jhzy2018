@@ -185,10 +185,11 @@
           bindtap="handleCancelClick"
         >取消报名</button>
         <button
+          disabled="{{signupDeadlinePassed && signupStatus === 0}}"
           class="cta-btn
             {{buttonText === '立即报名' || buttonText === '立即签到' ? 'cta-btn--primary' : ''}}
             {{buttonText === '待审核' ? 'cta-btn--warning' : ''}}
-            {{buttonText === '已参与' || buttonText === '报名未通过' ? 'cta-btn--disabled' : ''}}"
+            {{buttonText === '已参与' || buttonText === '报名未通过' || buttonText === '报名已截止' ? 'cta-btn--disabled' : ''}}"
           style="background-color: {{buttonBgColor}}"
           bindtap="handleMainButtonClick"
         >
