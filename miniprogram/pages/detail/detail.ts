@@ -596,17 +596,27 @@ Page({
         wx.hideLoading();
         const code = err && err.code ? String(err.code).toUpperCase() : '';
         if (code === 'QUALIFICATION_REQUIRED') {
-          // B5：资格门由后端统一 enforcement；前端仅展示引导，绝不绕过
+          // B5：资格门由后端统一 enforcement；前端仅展示引导 + 提供官方入口，绝不绕过、绝不自行判断资格。
           const reasons = (err.details && err.details.reasons ? String(err.details.reasons) : '')
             .split(',')
             .map((s: string) => s.trim())
             .filter(Boolean);
-          this.setData({ qualificationBlocked: true, qualificationReasons: reasons });
+          // 立即终止报名流程：不进入 P20 表单、不二次 POST signup、不进入签到/其它流程。
+          const guidanceText = this.qualificationGuidance(reasons);
+          this.setData({
+            qualificationBlocked: true,
+            qualificationReasons: reasons,
+            qualificationGuidanceText: guidanceText,
+          });
           wx.showModal({
             title: '尚不具备报名资格',
-            content: this.qualificationGuidance(reasons),
-            showCancel: false,
-            confirmText: '我知道了',
+            content: guidanceText,
+            showCancel: true,
+            cancelText: '稍后再说',
+            confirmText: '去完成资格',
+            success: (res: any) => {
+              if (res.confirm) this.goCompleteQualification();
+            },
           });
           return;
         }
@@ -639,6 +649,12 @@ Page({
       return '请先完成志愿者资格认证（实名、绑手机、初始培训考试）。';
     }
     return '请先完成：' + reasons.map((r) => map[r] || r).join('、') + '。';
+  },
+
+  /** P1-C5：去完成资格 —— 跳官方「我的」页（志愿者资格中心，展示并引导补齐各子项）。绝不伪造资格页面。 */
+  goCompleteQualification() {
+    // mine 为 tabBar 官方页，承载志愿者资格卡（实名 / 手机 / 培训考试）；后端为资格唯一权威。
+    wx.switchTab({ url: '/pages/mine/mine' });
   },
 
   // ========== M3：P20 报名动态表单消费（前端 consumer） ==========

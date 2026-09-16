@@ -765,3 +765,58 @@ $jh-danger: #FF3B30;
 .form-submit::after {
   border: none;
 }
+
+// P1-C5：资格未满足提示卡（后端 QUALIFICATION_REQUIRED 触发；仅展示 + 官方入口）
+.qual-block {
+  border: 2rpx solid rgba(-danger, 0.45);
+  background: rgba(-danger, 0.06);
+}
+
+.qual-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14rpx;
+}
+
+.qual-icon {
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: -danger;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-right: 14rpx;
+}
+
+.qual-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: -danger;
+}
+
+.qual-body {
+  display: block;
+  font-size: 28rpx;
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 22rpx;
+}
+
+.qual-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: -primary;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 700;
+  border: none;
+}
+
+.qual-btn::after {
+  border: none;
+}

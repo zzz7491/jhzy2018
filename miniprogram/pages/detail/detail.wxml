@@ -147,6 +147,16 @@
         <view class="description-content">{{activity.description || activity.summary || '暂无活动介绍'}}</view>
       </view>
 
+      <!-- P1-C5：资格未满足提示（后端 QUALIFICATION_REQUIRED 触发；仅展示 + 提供官方入口，不替代 Backend Authority、不自行判断资格） -->
+      <view wx:if="{{qualificationBlocked}}" class="jh-card qual-block">
+        <view class="qual-head">
+          <view class="qual-icon">!</view>
+          <text class="qual-title">尚不具备报名资格</text>
+        </view>
+        <text class="qual-body">{{qualificationGuidanceText}}</text>
+        <button class="qual-btn" bindtap="goCompleteQualification">去完成资格</button>
+      </view>
+
       <!-- M4：服务记录（完成后真实展示） -->
       <view wx:if="{{attendanceCompleted && serviceRecord}}" class="jh-card success-card">
         <view class="success-head">
