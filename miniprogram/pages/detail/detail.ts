@@ -24,9 +24,8 @@ Page({
       remainingSlots: 0,
       totalParticipants: 0
     },
-    // 保险相关
+    // 保险相关（平台引导，无伪造二维码 / 硬编码联系人）
     showInsuranceModal: false,
-    insuranceQRCode: 'https://api.jhzyfw.com/static/insurance-qr.jpg',
     // 签到相关
     isCheckinActive: false,
     // M4：真实服务记录完成态（来自后端 /service-records/mine，非本地伪造）
@@ -150,6 +149,11 @@ Page({
           // N0-E5A：读取 V2 正式「活动主地址」（activities.address，经 GET /activities/:id 下发）。
           // 为空时 '待定' 仅为展示 fallback，不代表真实数据。
           address: typeof a.address === 'string' && a.address.trim() ? a.address.trim() : '待定',
+          // P1-B3：报名截止（真实后端字段 signup_deadline，epoch 秒；无值不伪造）
+          signup_deadline: a.signup_deadline || null,
+          signupDeadlineText: a.signup_deadline ? this.formatDateTime(a.signup_deadline) : '',
+          // P1-B3：生命周期状态（权威 enum：1 报名中 / 2 进行中 / 3 已结束 / 4 已取消）
+          lifecycleStatusText: this.mapLifecycleStatus(a.status),
           signin_radius: 300,
         };
         activity.display_time = this.formatDisplayTime(activity.start_time, activity.end_time);
@@ -318,6 +322,17 @@ Page({
     }
   },
 
+  /** P1-B3：活动生命周期状态 → 权威展示文本（与 workers repository ACTIVITY_STATUS 对齐：1 报名中 / 2 进行中 / 3 已结束 / 4 已取消）。 */
+  mapLifecycleStatus(status: number): string {
+    switch (status) {
+      case 1: return '报名中';
+      case 2: return '进行中';
+      case 3: return '已结束';
+      case 4: return '已取消';
+      default: return '';
+    }
+  },
+
   // 检查报名状态（v2：GET /activities/:id/signups/me）
   checkSignupStatus() {
     const activityId = this.data.activityId;
@@ -409,7 +424,7 @@ Page({
 
     if (!this.data.isLoggedIn) {
       wx.navigateTo({
-        url: '/pages/profile/login/login'
+        url: '/pages/login-unified/index'
       });
       return;
     }
@@ -452,7 +467,7 @@ Page({
       return;
     }
     if (!this.data.isLoggedIn) {
-      wx.navigateTo({ url: '/pages/profile/login/login' });
+      wx.navigateTo({ url: '/pages/login-unified/index' });
       return;
     }
     if (this.data.activityStatus.isFull) {
@@ -494,12 +509,12 @@ Page({
 
         subscribe.subscribeAfterSignup().catch(() => {});
         if (status === 2) {
-          wx.showToast({ title: '报名成功，已通过审核', icon: 'success', duration: 1500 });
+          wx.showToast({ title: '审核已通过，请前往签到', icon: 'success', duration: 1500 });
           this.proceedToCheckin();
         } else if (status === 4) {
           wx.showToast({ title: '报名未通过审核', icon: 'none', duration: 2000 });
         } else {
-          wx.showToast({ title: '报名提交成功，等待审核', icon: 'none', duration: 1500 });
+          wx.showToast({ title: '报名已提交，等待审核', icon: 'none', duration: 1500 });
         }
       })
       .catch((err: any) => {
@@ -657,7 +672,9 @@ Page({
 
   /**
    * 参与准备（v2）：GET setup → 找到可确定性物化的 occurrence → POST ensure 拿到 participation_public_id，
-   * 然后跳转签到页（/pages/sign/sign）完成签到 / 签退闭环。
+   * 然后跳转具体活动考勤执行页（/pages/sign/activity/index）完成签到 / 签退闭环。
+   * 注：pages/sign/sign 已升为 tabBar 中心 Hub，navigateTo 不可跳转 tabBar 页、
+   *     switchTab 又不支持 query，故带参执行流改由 NON-TAB 执行页承接。
    * 若活动尚未通过审核 / 需人工排班（无 can_ensure 的 occurrence），则仅提示，不强制跳转。
    */
   proceedToCheckin() {
@@ -690,7 +707,7 @@ Page({
             const radius = activity.signin_radius || 300;
             const status = activity.status === 1 || activity.status === 2 ? 'ongoing' : 'ended';
             wx.navigateTo({
-              url: `/pages/sign/sign?activityId=${activityId}&participationId=${ppid}&activityName=${title}&points=${points}&radius=${radius}&status=${status}`,
+              url: `/pages/sign/activity/index?activityId=${activityId}&participationId=${ppid}&activityName=${title}&points=${points}&radius=${radius}&status=${status}`,
             });
             return ppid;
           });
@@ -714,65 +731,7 @@ Page({
     });
   },
 
-  saveInsuranceQRCode() {
-    const qrcodeUrl = this.data.insuranceQRCode;
-
-    wx.showLoading({
-      title: '保存中...',
-      mask: true
-    });
-
-    wx.downloadFile({
-      url: qrcodeUrl,
-      success: (res) => {
-        if (res.statusCode === 200) {
-          wx.saveImageToPhotosAlbum({
-            filePath: res.tempFilePath,
-            success: () => {
-              wx.hideLoading();
-              wx.showToast({
-                title: '保存成功',
-                icon: 'success',
-                duration: 2000
-              });
-
-              this.closeInsuranceModal();
-            },
-            fail: (err) => {
-              wx.hideLoading();
-              console.error('保存到相册失败:', err);
-
-              if (err.errMsg.includes('auth deny') || err.errMsg.includes('authorized')) {
-                wx.showModal({
-                  title: '需要相册权限',
-                  content: '保存二维码需要访问您的相册权限',
-                  confirmText: '去设置',
-                  success: (modalRes) => {
-                    if (modalRes.confirm) {
-                      wx.openSetting();
-                    }
-                  }
-                });
-              } else {
-                wx.showToast({
-                  title: '保存失败',
-                  icon: 'none'
-                });
-              }
-            }
-          });
-        }
-      },
-      fail: (err) => {
-        wx.hideLoading();
-        console.error('下载二维码失败:', err);
-        wx.showToast({
-          title: '下载失败',
-          icon: 'none'
-        });
-      }
-    });
-  },
+  // P1-B3：已移除 saveInsuranceQRCode（伪造保险二维码下载）。保险购买改为平台引导，无伪造二维码。
 
   // ========== 辅助函数 ==========
   goBack() {
