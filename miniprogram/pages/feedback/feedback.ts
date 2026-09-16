@@ -1,4 +1,55 @@
 // pages/feedback/feedback.js
+// P3-E Feedback Domain Migration —— 用户端意见反馈页。
+//
+// 纪律（与 P3-C profileApi / P3-D teamApi 同范式）：
+// - 本页面的【全部】网络调用统一经 utils/feedbackApi（唯一 Feedback 接入层）。
+// - 禁止 wx.request / wx.uploadFile / wx.getStorageSync('access_token') / 手拼 API URL。
+// - 令牌由 Session Manager 提供；错误一律经 classifyFeedbackError 归一为五类。
+//
+// Backend Authority（P3-E Phase A 审计，禁止猜测）：
+// - feedback_submit.php / upload_feedback_image.php 在 V2 均为 NO V2 IMPLEMENTATION
+//   （workers/src 无 /api/v2/feedback 路由、无 feedback 表；/api/v2/files 不支持反馈图片）。
+// - 因此在统一 wrapper 之下保留 legacy PHP 端点，等待 V2 后端就绪后再切换；本次不伪造 V2 语义。
+//
+// 行为保全：图片 ≤2MB 过滤、上传失败弹窗询问「是否无图继续提交」、最多 3 张、成功后延迟返回 —— 均保持原样。
+
+import {
+  classifyFeedbackError,
+  submitFeedback as submitFeedbackToServer,
+  uploadFeedbackImage,
+} from '../../utils/feedbackApi';
+
+interface DatasetEvent {
+  currentTarget: { dataset: Record<string, string> };
+}
+
+interface ValueEvent {
+  detail: { value: string };
+}
+
+interface ChosenImageFile {
+  path: string;
+  size: number;
+}
+
+interface ChooseImageSuccessResult {
+  tempFiles: ChosenImageFile[];
+}
+
+interface ChooseImageFailResult {
+  errMsg: string;
+}
+
+interface ShowModalResult {
+  confirm: boolean;
+}
+
+interface FeedbackFormErrors {
+  type: string;
+  content: string;
+  contact: string;
+}
+
 const app = getApp()
 
 Page({
@@ -9,14 +60,14 @@ Page({
       content: '',    // 问题描述
       contact: ''     // 联系方式
     },
-    
+
     // 表单错误信息
     formErrors: {
       type: '',
       content: '',
       contact: ''
     },
-    
+
     // 反馈类型选项
     feedbackTypes: [
       { value: 'bug', label: '功能异常', icon: '🐛' },
@@ -24,15 +75,15 @@ Page({
       { value: 'experience', label: '体验问题', icon: '😊' },
       { value: 'other', label: '其他反馈', icon: '📝' }
     ],
-    
+
     // 上传的图片
-    uploadedImages: [],
-    
+    uploadedImages: [] as string[],
+
     // 页面状态
     submitting: false,
     loading: false,
     isFormValid: false,
-    
+
     // 老年模式
     isSeniorMode: false
   },
@@ -41,7 +92,7 @@ Page({
     // 检查老年模式
     const isSeniorMode = app.globalData.isSeniorMode || false
     this.setData({ isSeniorMode })
-    
+
     // 设置页面样式
     if (isSeniorMode) {
       wx.setNavigationBarTitle({ title: '意见反馈' })
@@ -54,7 +105,7 @@ Page({
   },
 
   // 选择反馈类型
-  selectType(e) {
+  selectType(e: DatasetEvent) {
     const type = e.currentTarget.dataset.value
     this.setData({
       'formData.type': type,
@@ -64,7 +115,7 @@ Page({
   },
 
   // 内容输入变化
-  onContentChange(e) {
+  onContentChange(e: ValueEvent) {
     const content = e.detail.value
     this.setData({
       'formData.content': content,
@@ -74,7 +125,7 @@ Page({
   },
 
   // 联系方式输入变化
-  onContactChange(e) {
+  onContactChange(e: ValueEvent) {
     const contact = e.detail.value
     this.setData({
       'formData.contact': contact,
@@ -91,11 +142,11 @@ Page({
       count: maxCount,
       sizeType: ['compressed'], // 压缩图
       sourceType: ['album', 'camera'],
-      success: (res) => {
+      success: (res: ChooseImageSuccessResult) => {
         // 检查图片大小
         const tempFiles = res.tempFiles
-        const validFiles = tempFiles.filter(file => file.size <= 2 * 1024 * 1024) // 2MB限制
-        
+        const validFiles = tempFiles.filter((file: ChosenImageFile) => file.size <= 2 * 1024 * 1024) // 2MB限制
+
         if (validFiles.length < tempFiles.length) {
           wx.showToast({
             title: '部分图片超过2MB',
@@ -103,15 +154,15 @@ Page({
             duration: 2000
           })
         }
-        
+
         if (validFiles.length > 0) {
-          const newImages = validFiles.map(file => file.path)
+          const newImages = validFiles.map((file: ChosenImageFile) => file.path)
           this.setData({
             uploadedImages: [...this.data.uploadedImages, ...newImages].slice(0, 3)
           })
         }
       },
-      fail: (err) => {
+      fail: (err: ChooseImageFailResult) => {
         console.error('选择图片失败:', err)
         if (err.errMsg.includes('cancel')) return
         wx.showToast({
@@ -124,8 +175,8 @@ Page({
   },
 
   // 删除图片
-  deleteImage(e) {
-    const index = e.currentTarget.dataset.index
+  deleteImage(e: DatasetEvent) {
+    const index = Number(e.currentTarget.dataset.index)
     const images = this.data.uploadedImages
     images.splice(index, 1)
     this.setData({ uploadedImages: images })
@@ -134,7 +185,7 @@ Page({
   // 验证表单
   validateForm() {
     const { type, content } = this.data.formData
-    const errors = {}
+    const errors: FeedbackFormErrors = { type: '', content: '', contact: '' }
     let isValid = true
 
     // 验证反馈类型
@@ -157,7 +208,7 @@ Page({
       const contact = this.data.formData.contact.trim()
       const phoneRegex = /^1[3-9]\d{9}$/
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      
+
       if (!phoneRegex.test(contact) && !emailRegex.test(contact)) {
         errors.contact = '请输入正确的手机号或邮箱'
         isValid = false
@@ -168,57 +219,18 @@ Page({
       formErrors: errors,
       isFormValid: isValid
     })
-    
+
     return isValid
   },
 
-  // 上传图片到服务器
-  async uploadImages(images) {
+  // 上传图片到服务器（统一经 feedbackApi；成功返回 URL 列表）
+  async uploadImages(images: string[]) {
     if (images.length === 0) return []
 
-    // 检查apiBaseUrl配置，确保没有双斜杠
-    const apiBaseUrl = app.globalData.apiBaseUrl || 'https://api.jhzyfw.com/api'
-    const uploadUrl = `${apiBaseUrl.replace(/\/$/, '')}/upload_feedback_image.php`
-    
-    console.log('上传图片到:', uploadUrl)
-
-    const uploadTasks = images.map(imagePath => {
-      return new Promise((resolve, reject) => {
-        wx.uploadFile({
-          url: uploadUrl,
-          filePath: imagePath,
-          name: 'file',
-          header: {
-            'Authorization': `Bearer ${wx.getStorageSync('access_token')}`
-          },
-          success: (res) => {
-            try {
-              const result = JSON.parse(res.data)
-              if (result.code === 200) {
-                resolve(result.data.url)
-              } else {
-                reject(new Error(result.message || '上传失败'))
-              }
-            } catch (err) {
-              console.error('解析响应失败:', res.data)
-              reject(new Error('服务器响应异常'))
-            }
-          },
-          fail: (err) => {
-            console.error('上传请求失败:', err)
-            reject(new Error('网络请求失败'))
-          }
-        })
-      })
-    })
-
-    try {
-      const imageUrls = await Promise.all(uploadTasks)
-      return imageUrls
-    } catch (err) {
-      console.error('图片上传失败:', err)
-      throw err // 直接抛出错误，让上层处理
-    }
+    const imageUrls = await Promise.all(
+      images.map((imagePath: string) => uploadFeedbackImage(imagePath)),
+    )
+    return imageUrls
   },
 
   // 提交反馈
@@ -238,8 +250,8 @@ Page({
     this.setData({ submitting: true, loading: true })
 
     try {
-      let imageUrls = []
-      
+      let imageUrls: string[] = []
+
       // 如果有图片，先上传图片
       if (this.data.uploadedImages.length > 0) {
         try {
@@ -247,12 +259,13 @@ Page({
           console.log('图片上传成功:', imageUrls)
         } catch (uploadErr) {
           console.error('图片上传失败:', uploadErr)
+          const feedbackError = classifyFeedbackError(uploadErr)
           wx.showModal({
             title: '图片上传失败',
-            content: '是否继续提交反馈（不含图片）？',
+            content: feedbackError.message || '是否继续提交反馈（不含图片）？',
             confirmText: '继续提交',
             cancelText: '取消',
-            success: (modalRes) => {
+            success: (modalRes: ShowModalResult) => {
               if (modalRes.confirm) {
                 // 继续提交，但不包含图片
                 this.submitFeedback([])
@@ -271,7 +284,7 @@ Page({
     } catch (err) {
       console.error('提交失败:', err)
       wx.showToast({
-        title: err.message || '提交失败，请重试',
+        title: classifyFeedbackError(err).message || '提交失败，请重试',
         icon: 'none',
         duration: 3000
       })
@@ -280,88 +293,35 @@ Page({
   },
 
   // 提交反馈到后端
-  async submitFeedback(imageUrls) {
+  async submitFeedback(imageUrls: string[]) {
     const { type, content, contact } = this.data.formData
-    const token = wx.getStorageSync('access_token')
-    
-    if (!token) {
-      wx.showToast({
-        title: '请先登录',
-        icon: 'none',
-        duration: 2000
-      })
-      this.setData({ submitting: false, loading: false })
-      return
-    }
-
-    // 检查apiBaseUrl配置，确保没有双斜杠
-    const apiBaseUrl = app.globalData.apiBaseUrl || 'https://api.jhzyfw.com/api'
-    const submitUrl = `${apiBaseUrl.replace(/\/$/, '')}/feedback_submit.php`
-    
-    console.log('提交反馈到:', submitUrl)
-
-    // 构造请求数据
-    const requestData = {
-      type,
-      content,
-      contact: contact || '',
-      images: imageUrls,
-      timestamp: Date.now()
-    }
-
-    console.log('提交数据:', requestData)
 
     try {
-      // 发送请求
-      const result = await new Promise((resolve, reject) => {
-        wx.request({
-          url: submitUrl,
-          method: 'POST',
-          header: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          data: requestData,
-          success: (res) => {
-            console.log('API响应:', res.data)
-            if (res.statusCode === 200) {
-              resolve(res.data)
-            } else {
-              reject(new Error(`网络请求失败，状态码: ${res.statusCode}`))
-            }
-          },
-          fail: (err) => {
-            console.error('请求失败:', err)
-            reject(new Error('网络连接失败'))
-          }
-        })
+      await submitFeedbackToServer({
+        type,
+        content,
+        contact: contact || '',
+        images: imageUrls,
+        timestamp: Date.now(),
       })
 
-      console.log('处理结果:', result)
-      
-      // 处理响应
-      if (result.code === 200) {
-        // 先重置加载状态
-        this.setData({ 
-          submitting: false, 
-          loading: false 
-        })
-        
-        // 显示成功提示
-        wx.showToast({
-          title: '反馈提交成功',
-          icon: 'success',
-          duration: 2000
-        })
-        
-        // 延迟1.5秒后返回上一页
-        setTimeout(() => {
-          wx.navigateBack({ delta: 1 })
-        }, 1500)
-      } else {
-        throw new Error(result.message || '提交失败')
-      }
-      
+      // 提交成功
+      this.setData({
+        submitting: false,
+        loading: false
+      })
+
+      wx.showToast({
+        title: '反馈提交成功',
+        icon: 'success',
+        duration: 2000
+      })
+
+      // 延迟1.5秒后返回上一页
+      setTimeout(() => {
+        wx.navigateBack({ delta: 1 })
+      }, 1500)
+
     } catch (err) {
       console.error('提交过程出错:', err)
       this.setData({ submitting: false, loading: false })
@@ -376,7 +336,7 @@ Page({
       content: '请拨打服务热线：0573-82099982',
       confirmText: '拨打',
       cancelText: '取消',
-      success: (res) => {
+      success: (res: ShowModalResult) => {
         if (res.confirm) {
           wx.makePhoneCall({
             phoneNumber: '0573-82099982'
