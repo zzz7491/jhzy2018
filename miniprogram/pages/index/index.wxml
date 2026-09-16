@@ -26,6 +26,58 @@
     </view>
   </view>
 
+  <!-- 0. 今日志愿服务智能状态卡（P0-B：权威 G1 状态，首页最高优先级功能卡；ranking 等不得高于此） -->
+  <view class="service-card service-{{serviceState}}">
+
+    <!-- LOADING：轻量 skeleton，绝不显示「当前没有服务」假状态 -->
+    <block wx:if="{{serviceState === 'LOADING'}}">
+      <view class="sv-skeleton">
+        <view class="sv-skel-line sv-skel-line-1"></view>
+        <view class="sv-skel-line sv-skel-line-2"></view>
+      </view>
+    </block>
+
+    <!-- GUEST：不请求 G1、不强制登录，引导走现有合法登录入口 -->
+    <block wx:elif="{{serviceState === 'GUEST'}}">
+      <text class="sv-kicker">今日志愿服务</text>
+      <text class="sv-title">开始志愿服务</text>
+      <text class="sv-sub">登录后可查看服务状态并参与志愿活动</text>
+      <button class="sv-btn sv-btn-primary" bindtap="onServicePrimary" hover-class="sv-btn-hover">登录 / 注册</button>
+    </block>
+
+    <!-- NO_ACTIVE：G2 未完成，不提供「立即签到」（首页无 authoritative eligible activity） -->
+    <block wx:elif="{{serviceState === 'NO_ACTIVE'}}">
+      <text class="sv-kicker">今日志愿服务</text>
+      <text class="sv-title">今日志愿服务</text>
+      <text class="sv-sub">当前没有进行中的志愿服务</text>
+      <button class="sv-btn sv-btn-primary" bindtap="onServicePrimary" hover-class="sv-btn-hover">发现活动</button>
+    </block>
+
+    <!-- ACTIVE：最高优先级，明显显示「服务进行中」+ 签到时间 + 签退（唯一主动作） -->
+    <block wx:elif="{{serviceState === 'ACTIVE'}}">
+      <view class="sv-head">
+        <view class="sv-live">
+          <text class="sv-live-dot"></text>
+          <text class="sv-live-text">服务进行中</text>
+        </view>
+      </view>
+      <text class="sv-title">{{serviceActivityName ? serviceActivityName : '志愿活动服务中'}}</text>
+      <view class="sv-meta" wx:if="{{serviceCheckinText}}">
+        <text class="sv-meta-label">签到时间</text>
+        <text class="sv-meta-value">{{serviceCheckinText}}</text>
+      </view>
+      <button class="sv-btn sv-btn-active" bindtap="onServicePrimary" hover-class="sv-btn-hover">签退</button>
+    </block>
+
+    <!-- ERROR：保留 UNKNOWN，不得误导为「当前没有进行中的志愿服务」 -->
+    <block wx:elif="{{serviceState === 'ERROR'}}">
+      <text class="sv-kicker">今日志愿服务</text>
+      <text class="sv-title">服务状态暂时无法获取</text>
+      <text class="sv-sub">请检查网络后重试</text>
+      <button class="sv-btn sv-btn-primary" bindtap="onServicePrimary" hover-class="sv-btn-hover">重新获取</button>
+    </block>
+  </view>
+
   <!-- 2. AI 智能问答入口（输入条样式：左图形 / 中问题 / 右箭头，不新增 API / 不改后端） -->
   <view class="ai-entry" bindtap="goToAi">
     <view class="ai-mark">
@@ -60,7 +112,7 @@
               <text class="rec-meta-text" wx:if="{{item.location}}">{{item.location}}</text>
             </view>
             <view class="rec-foot">
-              <text class="rec-points">+{{item.points}}积分</text>
+              <text wx:if="{{item.points}}" class="rec-points">+{{item.points}}积分</text>
               <text class="rec-status status-{{item.status}}">{{item.statusText}}</text>
             </view>
           </view>

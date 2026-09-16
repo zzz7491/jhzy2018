@@ -22,7 +22,11 @@ import type { AuthContext } from '../types/auth';
 import type { TenantContext } from '../types/tenant';
 import { ActivityRepository } from '../repository/activities';
 import { ActivitySignupRepository, SIGNUP_STATUS } from '../repository/activity-signups';
-import { AttendanceSessionRepository, ATTENDANCE_STATUS } from '../repository/attendance-sessions';
+import {
+  AttendanceSessionRepository,
+  ATTENDANCE_STATUS,
+  type AttendanceSessionRow,
+} from '../repository/attendance-sessions';
 import { ParticipationRepository, PARTICIPATION_STATUS } from '../repository/participation';
 import { AttendanceSessionOwnershipPolicy } from '../policies/ownership';
 import { ServiceRecordService } from './service-record-service';
@@ -63,13 +67,11 @@ export class ActivityAttendanceService {
   private readonly db: D1Database;
   private readonly auth: AuthContext;
   private readonly tenant: TenantContext;
-  private readonly srService: ServiceRecordService;
 
   constructor(deps: AttendanceServiceDeps) {
     this.db = deps.db;
     this.auth = deps.auth;
     this.tenant = deps.tenant;
-    this.srService = new ServiceRecordService({ db: this.db, auth: this.auth, tenant: this.tenant });
   }
 
   /**
@@ -84,8 +86,8 @@ export class ActivityAttendanceService {
     return { userId: auth.userId, teamId: this.tenant.teamId };
   }
 
-  private repos() {
-    const ctx = { auth: this.auth, tenant: this.tenant };
+  private repos(tenantOverride?: TenantContext) {
+    const ctx = { auth: this.auth, tenant: tenantOverride ?? this.tenant };
     return {
       activities: new ActivityRepository({ db: this.db, ctx }),
       signups: new ActivitySignupRepository({ db: this.db, ctx }),
@@ -238,56 +240,149 @@ export class ActivityAttendanceService {
   /**
    * 本人签退（POST /api/v2/activities/:activityId/attendance/checkout）。
    *
-   * 顺序：
+   * ── G1-CROSS-TEAM-CLOSEOUT：权威 team 来源 ──────────────────────────────
+   * 冻结规则：ONE_VOLUNTEER_ONE_ACTIVE_SESSION = YES / ACTIVE_SESSION_SCOPE = GLOBAL_PER_USER。
+   * 因此：只要 `GET /attendance-sessions/me` 返回 active=true，本端点【必须】允许签退，
+   * 无论当前 X-Team-Id 是否等于该会话所属 team。签退所需的一切 team 归属
+   * （tenant 过滤 / 事件 team_id / settlement / ServiceRecord）一律取自【会话自身 team_id】，
+   * 而不是请求头 —— 否则跨团队会写入 TEAM_B 的错误业务记录（§3 / §7）。
+   *
+   * 分支策略（保证同队行为零回归）：
+   *   - 无全局 active session                      → 走 checkOutOwnInTeam（原有路径，原错误语义）
+   *   - 有 active session 但请求活动 ≠ 会话活动     → 走 checkOutOwnInTeam（原 404 / 409 分类不变）
+   *   - 有 active session 且请求活动 == 会话活动    → 以会话 team 为权威完成签退（Case A / Case B）
+   *
+   * Case C（当前 X-Team-Id 为 null）：不予支持，也不绕过。
+   *   attendance_sessions 在 S2-3 表矩阵中为 TEAM_SCOPED，BaseRepository.ensureTableRead →
+   *   tenant-scope.ts::checkReadAccess 对 TEAM_SCOPED 恒定要求 auth.teamId != null，
+   *   因此无团队上下文时 requireActor() 抛 403 TEAM_SCOPE_REQUIRED（与 G1 /me 完全一致的既有门禁）。
+   *   绕过该 guard 等于破坏全局租户隔离，本轮不实施，作为 AUTH_TEAM_CONTEXT_BLOCKER 上报。
+   *
+   * 顺序（同队路径，与历史完全一致）：
    * 1) 身份 + 团队上下文
    * 2) 活动存在 + 属于当前租户 → 404
    * 3) 本人有效报名 → 无 → 409 NOT_SIGNED_UP
-   * 4) 本人考勤会话（user_id + team_id 双过滤）→ 无 → 409 CHECKIN_REQUIRED
+   * 4) 本人活跃考勤会话 → 无 → 409 CHECKIN_REQUIRED
    * 5) Ownership 策略（SELF）断言 → 不成立 → 404（不泄露存在）
-   * 6) 已签退（status=2）→ 409 ALREADY_CHECKED_OUT（不被 UPDATE 0 命中掩盖）
-   * 7) 原子 UPDATE（signup_id+user_id+team_id+status=1 同在 WHERE）→ 0 命中 → 409
-   * 8) 写最小 checkout 事件证据行
+   * 6) 已签退（status=2）→ 409 ALREADY_CHECKED_OUT
+   * 7) 原子 UPDATE + 证据事件 + 强事务 settlement
    */
   async checkOutOwn(activityPublicId: string): Promise<AttendanceView> {
     const { userId, teamId } = this.requireActor();
+    const { attendance } = this.repos();
+
+    // 权威定位：authenticated user 自己的全局唯一 active session（GLOBAL_PER_USER）。
+    const activeSession = await attendance.findOwnActiveSessionForCheckout(userId);
+
+    // 分支 1/2：没有 active session，或请求的活动不是持有 active session 的那个活动
+    // → 严格沿用既有（当前团队）路径，404 / 409 错误语义零变化（Case D / Case E）。
+    if (activeSession == null || activeSession.activity_public_id !== activityPublicId) {
+      return this.checkOutOwnInTeam(activityPublicId, userId, teamId);
+    }
+
+    // 分支 3：请求活动 == active session 的活动 → team 权威来源 = 会话自身（Case A / Case B）。
+    const sessionTeamId = activeSession.team_id;
+    const sessionTenant: TenantContext = { scope: 'TEAM_SCOPED', teamId: sessionTeamId, userId };
+
+    // 本人有效报名（在会话真实 team 内解析；跨团队时不再是"当前团队查不到"）。
+    const signup = await this.repos(sessionTenant).signups.findOwnActiveSignup(
+      activeSession.activity_id,
+      userId,
+    );
+    if (signup == null) throw conflict(ConflictReason.ATTENDANCE_NOT_SIGNED_UP);
+
+    return this.finalizeCheckout({
+      session: activeSession,
+      signupId: signup.id,
+      activityId: activeSession.activity_id,
+      teamId: sessionTeamId,
+      tenant: sessionTenant,
+      userId,
+    });
+  }
+
+  /**
+   * 既有（当前团队）签退路径 —— 逐行保持 S2-6h 原始语义与错误分类，未做任何放宽。
+   * 仅在「没有全局 active session」或「请求活动 ≠ active session 活动」时进入。
+   */
+  private async checkOutOwnInTeam(
+    activityPublicId: string,
+    userId: number,
+    teamId: number,
+  ): Promise<AttendanceView> {
     const { activities, signups, attendance } = this.repos();
 
-    // 2) 活动 + 租户范围。
     const activity = await activities.findSignupTargetByPublicId(activityPublicId);
-
-    // 3) 本人有效报名。
     const signup = await signups.findOwnActiveSignup(activity.id, userId);
     if (signup == null) throw conflict(ConflictReason.ATTENDANCE_NOT_SIGNED_UP);
 
-    // 4) 本人【活跃】考勤会话（SELF + 租户双重过滤）。已签退会话不命中 → 409 CHECKIN_REQUIRED。
     const session = await attendance.findOwnActiveSession(signup.id, userId);
     if (session == null) throw conflict(ConflictReason.ATTENDANCE_CHECKIN_REQUIRED);
 
-    // 5) Ownership（SELF）：策略判定失败直接 404，不泄露资源存在性（§六/§十三）。
+    return this.finalizeCheckout({
+      session,
+      signupId: signup.id,
+      activityId: activity.id,
+      teamId,
+      tenant: this.tenant,
+      userId,
+    });
+  }
+
+  /**
+   * 签退收口：Ownership → 已签退判定 → 原子写（事件 + UPDATE + settlement）。
+   *
+   * @param p.teamId   【权威】team —— 同队 = 当前团队；跨队 = 会话自身团队（§3 / §7）。
+   * @param p.tenant   与 p.teamId 一致的 TenantContext，用于构造 repository / settlement service。
+   */
+  private async finalizeCheckout(p: {
+    session: AttendanceSessionRow;
+    signupId: number;
+    activityId: number;
+    teamId: number;
+    tenant: TenantContext;
+    userId: number;
+  }): Promise<AttendanceView> {
+    const { session, teamId, tenant, userId } = p;
+
+    // Ownership（SELF）：策略判定失败直接 404，不泄露资源存在性（§六/§十三）。
     if (!ownershipPolicy.canAct(session, this.auth)) throw notFound('Attendance session');
 
-    // 6) 已签退 → 409（不被步骤 7 的 0 命中掩盖）。
+    // 已签退 → 409（不被下方 0 命中掩盖）。
     if (session.status === ATTENDANCE_STATUS.CHECKED_OUT) {
       throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_OUT);
     }
 
-    // 7) 原子签退 + 证据事件 + 强事务 settlement（同批原子，P22-P3）。
-    //    nonce 同时作为 settlement 的 transition-gate（EXISTS 本次 transition event）：
-    //    仅当本次 CHECKED_IN→CHECKED_OUT 真实发生时，才创建 EFFECTIVE ServiceRecord；
-    //    duplicate checkout（changes=0）不写 event ⇒ gate 不命中 ⇒ 无 SR 副作用。
+    // 原子签退 + 证据事件 + 强事务 settlement（同批原子，P22-P3）。
+    // nonce 同时作为 settlement 的 transition-gate（EXISTS 本次 transition event）。
     const now = Math.floor(Date.now() / 1000);
     const nonce = `checkout:${session.id}:${now}:${Math.floor(Math.random() * 1e9).toString(36)}`;
-    const settleStmts = await this.srService.buildSettleStatementWithPoints(session.id, teamId, 'automatic', nonce, 'checkout', null);
-    const ok = await attendance.checkOutAtomically(signup.id, userId, teamId, now, activity.id, {
+
+    // settlement / 积分一律按【会话自身 team】归属 —— 绝不写入当前 TEAM_B（§7 downstream integrity）。
+    const srService = new ServiceRecordService({ db: this.db, auth: this.auth, tenant });
+    const settleStmts = await srService.buildSettleStatementWithPoints(
+      session.id,
+      teamId,
+      'automatic',
       nonce,
-      extraStatements: settleStmts,
-    });
+      'checkout',
+      null,
+    );
+
+    const ok = await this.repos(tenant).attendance.checkOutAtomically(
+      p.signupId,
+      userId,
+      teamId,
+      now,
+      p.activityId,
+      { nonce, extraStatements: settleStmts },
+    );
     if (!ok) throw conflict(ConflictReason.ATTENDANCE_ALREADY_CHECKED_OUT);
 
     return {
       session_id: session.id,
-      signup_id: signup.id,
-      activity_id: activity.id,
+      signup_id: p.signupId,
+      activity_id: p.activityId,
       user_id: userId,
       participation_id: session.participation_id,
       participation_public_id: null,

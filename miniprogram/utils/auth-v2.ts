@@ -20,19 +20,37 @@ function getV2Token(): string {
   return wx.getStorageSync('v2_access_token') || '';
 }
 
-function getV2Expire(): number {
+/**
+ * V2 session 过期时间读值（Unix 秒）。
+ * 单位契约：v2_token_expire 与后端 /auth/wechat/login 返回的 expires_at 同为 Unix【秒】，
+ * 故此处不做任何换算。
+ */
+function getV2ExpireSeconds(): number {
   return Number(wx.getStorageSync('v2_token_expire') || 0);
 }
+
+/** 当前 Unix 秒（与 expires_at 同单位）。 */
+function currentUnixSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+/** 复用安全窗口（秒）：剩余有效期不足此值时提前重登，避免边界请求失败。 */
+const V2_EXPIRY_SAFETY_WINDOW_SECONDS = 30;
 
 /**
  * 确保存在有效的 V2 Bearer 会话；返回 token。
  * - 若已有未过期 token → 直接复用（不触发 wx.login）。
  * - 否则 wx.login() 换取 code → POST /api/v2/auth/wechat/login → 存储。
  * - 失败抛错（由调用方决定重试/提示）；绝不静默返回空 token。
+ *
+ * 单位修复（STEP 6A.2）：后端 expires_at 为 Unix 秒，历史实现误与 Date.now()（毫秒）比较，
+ * 导致复用判断恒为 false、每次强制 wx.login。现在统一到秒级语义：
+ *   expireSeconds > currentUnixSeconds() + safetyWindowSeconds
+ * release / develop / trial 使用同一正确语义，无环境特判。
  */
 export async function ensureV2Session(): Promise<string> {
   const token = getV2Token();
-  if (token && getV2Expire() > Date.now() + 30_000) {
+  if (token && getV2ExpireSeconds() > currentUnixSeconds() + V2_EXPIRY_SAFETY_WINDOW_SECONDS) {
     return token;
   }
   const code = await new Promise<string>((resolve, reject) => {

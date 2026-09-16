@@ -96,6 +96,31 @@ export interface VolunteerActivityRow {
   max_session_minutes: number | null;
 }
 
+/**
+ * 匿名 public-read 活动视图（G2）。
+ *
+ * 刻意与 VolunteerActivityRow / ActivityRow 分离：本视图
+ * - 不进入管理端 / 志愿者（已认证）GET /activities 响应契约；
+ * - 排除内部 numeric id / team_id / audit_status / submitted_at / reviewed_at / reject_reason，
+ *   避免 id 泄露与内部工作流态暴露（A.§14 / D.§12）。
+ * 仅含真正公开可展示所需字段（见 §13 PUBLIC_FIELD_ALLOWLIST）：
+ *   public_id / title / summary / address / start_time / end_time /
+ *   signup_deadline / quota / signed_count / status（lifecycle，招募态）/ max_session_minutes。
+ */
+export interface PublicActivityRow {
+  public_id: string;
+  title: string;
+  summary: string | null;
+  address: string | null;
+  start_time: number;
+  end_time: number;
+  signup_deadline: number | null;
+  quota: number;
+  signed_count: number;
+  status: number;
+  max_session_minutes: number | null;
+}
+
 // =========================================================================
 // P31-P1A：活动管理端（team-scoped）数据契约与原子写。
 // 以下接口仅暴露 Beta 管理必需字段；team_id / created_by / 内部 numeric id
@@ -315,6 +340,58 @@ export class ActivityRepository extends BaseRepository {
         WHERE public_id = ? AND team_id = ? AND deleted_at IS NULL
           AND audit_status = 2 AND status IN (1,2,3,4)`,
       [publicId, this.ctx.tenant.teamId],
+    );
+    if (!row) throw notFound('Activity');
+    return row;
+  }
+
+  /**
+   * G2：活动匿名 public-read 列表（跨团队、无 team scope）。
+   *
+   * 安全边界 = publication predicate：
+   *   deleted_at IS NULL AND audit_status = 2 (APPROVED) AND status IN (1,2,3,4)（displayable lifecycle）。
+   * - 该 predicate 为【唯一】授权依据；本方法不得用于任何非 public 查询（禁止通用 tenant bypass）。
+   * - 投影排除：内部 numeric id / team_id / audit_status / submitted_at / reviewed_at / reject_reason。
+   * - 不调用 ensureTableRead（其要求 auth/team，与匿名 public-read 冲突）；
+   *   仅本方法 + findPublicVisibleByPublicId 构成 activities 的匿名读路径。
+   * - 复用既有分页（page/page_size/offset），忽略任何 status/team 等 query（防止绕过 public predicate）。
+   */
+  async listPublicVisible(page: number, pageSize: number, offset: number): Promise<Paginated<PublicActivityRow>> {
+    const where = `WHERE deleted_at IS NULL AND audit_status = 2 AND status IN (1,2,3,4)`;
+    const items = await this.all<PublicActivityRow>(
+      `SELECT public_id, title, summary, address, start_time, end_time,
+              signup_deadline, quota, signed_count, status, max_session_minutes
+         FROM activities ${where}
+        ORDER BY start_time DESC
+        LIMIT ? OFFSET ?`,
+      [pageSize, offset],
+    );
+
+    const totalRow = await this.first<{ total: number }>(`SELECT COUNT(*) AS total FROM activities ${where}`);
+    const total = totalRow?.total ?? 0;
+    return {
+      items,
+      pagination: { page, page_size: pageSize, total, total_pages: Math.max(1, Math.ceil(total / pageSize)) },
+    };
+  }
+
+  /**
+   * G2：活动匿名 public-read 详情（publication predicate 收口）。
+   *
+   * - public_id 格式校验在路由层（requireUlidParam）先行，非法格式 → 400（注入防护）。
+   * - 命中 publication predicate → 200（PublicActivityRow）；否则 → 404（与"不存在"同一分支，
+   *   不泄露活动存在性 / 内部状态，§4 NON-ENUMERATION）。
+   * - 不调用 ensureTableRead（理由同 listPublicVisible）。
+   */
+  async findPublicVisibleByPublicId(publicId: string): Promise<PublicActivityRow> {
+    if (!isUlid(publicId)) throw notFound('Activity');
+
+    const row = await this.first<PublicActivityRow>(
+      `SELECT public_id, title, summary, address, start_time, end_time, signup_deadline,
+              quota, signed_count, status, max_session_minutes
+         FROM activities
+        WHERE public_id = ? AND deleted_at IS NULL AND audit_status = 2 AND status IN (1,2,3,4)`,
+      [publicId],
     );
     if (!row) throw notFound('Activity');
     return row;

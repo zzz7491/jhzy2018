@@ -1,5 +1,7 @@
 /**
- * /api/v2/attendance-sessions —— 考勤管理端点（S2-6i：Review 审核 + Force Checkout）。
+ * /api/v2/attendance-sessions —— 考勤端点（S2-6i：Review 审核 + Force Checkout；G1：SELF 活跃会话查询）。
+ *
+ * G1 追加：GET /api/v2/attendance-sessions/me（SELF / GLOBAL_PER_USER / 纯读，见文件内注释）。
  *
  * 资源键为 attendance_session.id（多参加模型下 signup → N sessions，管理操作必须针对 sessionId，
  * 绝不通过 signup_id 唯一定位，§2 / §11）。
@@ -20,12 +22,60 @@
 import { Hono } from 'hono';
 import type { Env, AppVars } from '../env';
 import { AttendanceManagementService } from '../services/attendance-management-service';
+import { AttendanceSessionRepository } from '../repository/attendance-sessions';
 import { requirePermission } from '../middleware/rbac';
 import { ok } from '../utils/response';
 import { authRequired, teamScopeRequired, invalidParam } from '../utils/errors';
 import { requirePositiveIntParam, isUlid, parsePagination } from '../utils/validation';
 
 const sessions = new Hono<{ Bindings: Env; Variables: AppVars }>();
+
+// =========================================================================
+// G1：GET /api/v2/attendance-sessions/me —— 本人当前【活跃】考勤会话（AUTHORITATIVE ACTIVE SESSION）。
+//
+// 语义（G1 冻结）：
+// - ACTIVE predicate = status = 1 AND checkout_at IS NULL（与 checkin/checkout 同一业务语义）。
+// - SCOPE = GLOBAL_PER_USER：不按当前 X-Team-Id 过滤，用户在他队的活跃会话同样必须被发现。
+// - SELF BY CONSTRUCTION：查询对象恒为 server-authenticated user，客户端不得指定 user_id / team_id。
+// - 纯读：本 handler 不产生任何 DB 写（无 INSERT/UPDATE/DELETE/batch/points/audit）。
+//
+// 路由纪律：字面量 /me 必须注册在任意动态段之前（与 routes/forms.ts、routes/service-records.ts 同纪律）。
+// 授权：复用 attendance.record.checkin（USER scope）—— 本端点是"签到动作的前置状态查询"，
+//       不是通用 attendance read；本阶段不新增权限、不改 catalog、不改 seed、不建 migration。
+// =========================================================================
+sessions.get('/me', requirePermission('attendance.record.checkin'), async (c) => {
+  // strict-input（G1 §8）：本端点不接受任何 query 参数。
+  // 特别禁止 ?user_id= / ?team_id= 覆盖服务端身份（analytics-service 的 FORBIDDEN_QUERY_KEYS 同纪律）。
+  for (const k of Object.keys(c.req.query() ?? {})) {
+    throw invalidParam(
+      k,
+      k === 'user_id' || k === 'team_id'
+        ? 'query parameter is not allowed (identity is server-derived)'
+        : 'unknown query parameter',
+    );
+  }
+
+  const auth = c.get('auth');
+  if (!auth.authenticated) throw authRequired();
+  const userId = auth.userId;
+  if (userId == null) throw authRequired();
+
+  const repo = new AttendanceSessionRepository({
+    db: c.env.DB,
+    ctx: { auth, tenant: c.get('tenant') },
+  });
+  const row = await repo.findOwnActiveSessionGlobal(userId);
+
+  // 响应 allowlist（G1 §10）：active；active=true 时仅 session.activity_public_id + session.checkin_at。
+  if (!row) return ok(c, { active: false });
+  return ok(c, {
+    active: true,
+    session: {
+      activity_public_id: row.activity_public_id,
+      checkin_at: row.checkin_at,
+    },
+  });
+});
 
 /**
  * POST /api/v2/attendance-sessions/:sessionId/review

@@ -8,6 +8,7 @@
 
 import notificationApi from '../../utils/notificationApi';
 import type { NotificationListItem, NotificationDetail } from '../../utils/notificationApi';
+import { TAB_INDEX, syncTabSelected } from '../../utils/tabbar';
 
 const PAGE_SIZE = 20;
 
@@ -94,6 +95,8 @@ Page({
   },
 
   onShow() {
+    // P0-A：同步自定义 tabBar 选中态（3=消息）；不存在 custom tabBar 时静默跳过
+    syncTabSelected(this, TAB_INDEX.MESSAGE);
     // 每次显示时刷新列表（标记已读 / 返回后反映最新状态）
     this.loadFirstPage();
   },

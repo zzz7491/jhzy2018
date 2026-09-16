@@ -2,6 +2,10 @@
 .activities-page {
   background-color: #f5f5f5;
   min-height: 100vh;
+  box-sizing: border-box;
+  /* custom tabBar 浮层不占原生高度，页面自行让出：
+     160rpx = tabBar 120rpx + 呼吸区 40rpx，另加 iOS 安全区 */
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
 }
 
 /* 轮播图 */

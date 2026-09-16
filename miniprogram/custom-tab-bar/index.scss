@@ -1,0 +1,99 @@
+// P0-A 全局自定义 tabBar 样式
+// 基调：warm orange / cream，延续产品基线 #FF6B35。
+// 约束：克制、senior-friendly；无霓虹、无玻璃拟态、无复杂动画、不过度阴影。
+
+$brand: #ff6b35;
+$text-idle: #999999;
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #ffffff;
+  border-top: 1rpx solid #f1e7dd;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-bar__row {
+  display: flex;
+  align-items: stretch;
+  height: 120rpx;
+}
+
+.tab-item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-item__text {
+  font-size: 26rpx;
+  line-height: 36rpx;
+  color: $text-idle;
+}
+
+.tab-item__text--active {
+  color: $brand;
+  font-weight: 600;
+}
+
+.tab-item__badge {
+  position: absolute;
+  top: 10rpx;
+  left: 50%;
+  margin-left: 16rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  box-sizing: border-box;
+  border-radius: 16rpx;
+  background: #e8452a;
+  color: #ffffff;
+  font-size: 20rpx;
+  line-height: 32rpx;
+  text-align: center;
+}
+
+// ===== 中心凸起主按钮（签到/签退）=====
+.tab-item--center {
+  justify-content: flex-end;
+}
+
+.center-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 42rpx;
+  transform: translateX(-50%);
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 52rpx;
+  background: $brand;
+  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.center-btn__icon {
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 34rpx;
+}
+
+.center-btn__text {
+  margin-bottom: 8rpx;
+  font-size: 22rpx;
+  line-height: 30rpx;
+  color: $brand;
+  font-weight: 600;
+}
+
+.center-btn__text--active {
+  color: $brand;
+}

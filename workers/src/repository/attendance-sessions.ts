@@ -148,6 +148,90 @@ export class AttendanceSessionRepository extends BaseRepository {
   }
 
   /**
+   * G1：按 authenticated user 定位其【全局唯一】活跃考勤会话（SELF / GLOBAL_PER_USER）。
+   *
+   * 与 findOwnActiveSessionAny(userId, teamId) 的唯一区别：**不带 team_id 过滤**。
+   * 依据 = 0004 的 partial unique index：
+   *   `uq_active_attendance ON attendance_sessions(user_id) WHERE status = 1 AND checkout_at IS NULL`
+   * ⇒ 同一用户【全平台】至多一条活跃会话（冻结规则 ONE_VOLUNTEER_ONE_ACTIVE_SESSION）。
+   * 若改用带 team_id 的查询：用户在 A 队的活跃会话会在其切到 B 队时被漏掉，
+   * /me 会误报 active=false，进而诱导 UI 引导二次签到 —— G1 §9 明确禁止。
+   *
+   * 租户安全：仍经 ensureTableRead('attendance_sessions')（TEAM_SCOPED 需 authenticated + team 上下文），
+   * 且 WHERE 恒带 user_id = ?（SELF）。不绕过认证，只是不把 team_id 当作身份/范围过滤条件。
+   *
+   * 投影最小化（G1 §10 allowlist）：仅 activities.public_id AS activity_public_id + checkin_at。
+   * 不返回 session.id / activity_id(internal) / user_id / team_id / participation_id /
+   * 位置 / 设备 / IP / risk / status 等。
+   * 刻意【不】加 a.deleted_at IS NULL 过滤：活跃会话必须如实暴露，否则同样会诱发二次签到。
+   *
+   * LIMIT 1 + DB UNIQUE 不变式：理论上至多 1 行；不建立"取最新一条"的第二套排序规则
+   * （见 G1 §6 MULTIPLE_ACTIVE_SESSION_HANDLING = DB UNIQUE INVARIANT）。
+   */
+  async findOwnActiveSessionGlobal(
+    userId: number,
+  ): Promise<{ activity_public_id: string; checkin_at: number | null } | null> {
+    this.ensureTableRead('attendance_sessions');
+
+    return this.first<{ activity_public_id: string; checkin_at: number | null }>(
+      `SELECT a.public_id AS activity_public_id,
+              s.checkin_at AS checkin_at
+         FROM attendance_sessions s
+         JOIN activities a ON a.id = s.activity_id
+        WHERE s.user_id = ?
+          AND s.status = ?
+          AND s.checkout_at IS NULL
+        LIMIT 1`,
+      [userId, ATTENDANCE_STATUS.CHECKED_IN],
+    );
+  }
+
+  /**
+   * G1-CROSS-TEAM-CLOSEOUT：按 authenticated user 定位其【全局唯一】活跃考勤会话，
+   * 返回 SELF 签退内部流程所需的字段（GLOBAL_PER_USER，**不带 team_id 过滤**）。
+   *
+   * 存在理由（冻结规则 ONE_VOLUNTEER_ONE_ACTIVE_SESSION / ACTIVE_SESSION_SCOPE = GLOBAL_PER_USER）：
+   * `GET /api/v2/attendance-sessions/me` 已返回 active=true，那么无论当前 X-Team-Id 是否等于
+   * 该会话所属 team，用户都必须能对自己的这条 active session 签退。若继续用
+   * findOwnActiveSession / findOwnActiveSessionAny（带 team_id = 当前团队），
+   * 跨团队场景会 0 命中 → 409 ALREADY_CHECKED_OUT，形成「显示服务中却签不了退」的死结。
+   *
+   * 与 findOwnActiveSessionGlobal 的区别：
+   * - 同一 GLOBAL_PER_USER 谓词（user_id + status=1 + checkout_at IS NULL），同样不带 team_id；
+   * - 本方法返回【完整内部行 + activities.public_id】，仅供后端签退流程内部使用：
+   *   internal session id / signup_id / activity_id / team_id / participation_id …
+   *   这些字段【绝不】出现在任何 HTTP 响应里（G1 public response 仍严格为
+   *   { active, session: { activity_public_id, checkin_at } }）。
+   *
+   * 需要 activity_public_id 的原因：路由只拿到 activity public id，后端必须在【不查 activities
+   * 表第二次】的前提下校验「请求的活动 == 持有 active session 的活动」（Case E 拒绝条件）。
+   *
+   * 租户安全：仍经 ensureTableRead('attendance_sessions')（不绕过任何 guard），
+   * 且 WHERE 恒带 user_id = ?（SELF）。只是不把 team_id 当作身份/范围过滤条件。
+   *
+   * LIMIT 1 + DB UNIQUE 不变式：理论上至多 1 行，不建立"取最新一条"的第二套排序规则。
+   */
+  async findOwnActiveSessionForCheckout(
+    userId: number,
+  ): Promise<(AttendanceSessionRow & { activity_public_id: string }) | null> {
+    this.ensureTableRead('attendance_sessions');
+
+    return this.first<AttendanceSessionRow & { activity_public_id: string }>(
+      `SELECT s.id, s.signup_id, s.activity_id, s.user_id, s.team_id, s.participation_id,
+              s.service_date, s.slot, s.checkin_at, s.checkout_at, s.status, s.review_status,
+              s.created_at, s.updated_at, s.business_service_date,
+              a.public_id AS activity_public_id
+         FROM attendance_sessions s
+         JOIN activities a ON a.id = s.activity_id
+        WHERE s.user_id = ?
+          AND s.status = ?
+          AND s.checkout_at IS NULL
+        LIMIT 1`,
+      [userId, ATTENDANCE_STATUS.CHECKED_IN],
+    );
+  }
+
+  /**
    * 创建签到会话（INSERT）。
    * - signup_id 来自调用方（Service 经 ActivitySignupRepository 查得，绝不来自请求体）。
    * - status = CHECKED_IN(1)；checkin_at = now；service_date/slot 锚定本次参加实例。

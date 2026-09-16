@@ -1,5 +1,6 @@
 ﻿// pages/activities/activities.js
 import activityApi from '../../utils/activityApi';
+import { TAB_INDEX, syncTabSelected } from '../../utils/tabbar';
 
 const API_BASE = 'https://api.jhzyfw.com/api';
 
@@ -29,6 +30,8 @@ Page({
   },
 
   onShow() {
+    // P0-A：同步自定义 tabBar 选中态（1=活动）；不存在 custom tabBar 时静默跳过
+    syncTabSelected(this, TAB_INDEX.ACTIVITIES);
     this.checkLoginStatus();
     if (this.data.isLoggedIn && this.data.activities.length > 0) {
       this.updateActivitiesSignupStatus();
@@ -260,10 +263,6 @@ Page({
   },
 
   goToDetail(e) {
-    if (!this.checkLoginStatus()) {
-      this.showLoginModal();
-      return;
-    }
     const id = e.currentTarget.dataset.id;
     if (!id) return;
     wx.navigateTo({ url: `/pages/detail/detail?id=${id}` });

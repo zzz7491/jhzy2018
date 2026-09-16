@@ -54,6 +54,21 @@ export interface PointsAccountSelfView {
   updated_at: number | null;
 }
 
+/**
+ * G1：GET /api/v2/attendance-sessions/me 响应契约（AUTHORITATIVE ACTIVE SESSION）。
+ * 字段严格最小化：active；active=true 时仅 session.activity_public_id + session.checkin_at。
+ * 注意：activity_public_id 是 activities.public_id（ULID），绝不是内部 numeric attendance_sessions.activity_id。
+ */
+export type ActiveAttendanceSessionNone = { active: false };
+export type ActiveAttendanceSessionActive = {
+  active: true;
+  session: {
+    activity_public_id: string;
+    checkin_at: number | null;
+  };
+};
+export type ActiveAttendanceSession = ActiveAttendanceSessionNone | ActiveAttendanceSessionActive;
+
 export interface ServiceRecordView {
   public_id: string;
   business_service_date?: string;
@@ -70,6 +85,25 @@ async function getToken(): Promise<string> {
     return await ensureV2Session();
   } catch {
     return '';
+  }
+}
+
+/**
+ * 是否持有【未过期】的 V2 会话（纯本地读取，绝不触发 wx.login / 不发起任何网络请求）。
+ *
+ * G1 前置门禁：custom-tab-bar 渲染时不得无条件调用需要认证的 G1 API（会为 Guest 触发登录），
+ * 因此先用本函数判断；Guest 一律保持中性态，不发请求。
+ * 单位契约与 auth-v2.ts 一致：v2_token_expire 与后端 expires_at 同为 Unix【秒】。
+ */
+export function hasV2Session(): boolean {
+  try {
+    const token = wx.getStorageSync('v2_access_token') || '';
+    if (!token) return false;
+    const expire = Number(wx.getStorageSync('v2_token_expire') || 0);
+    if (!expire) return false;
+    return expire > Math.floor(Date.now() / 1000);
+  } catch (e) {
+    return false;
   }
 }
 
@@ -96,11 +130,13 @@ interface RequestOpts {
 // 与 wx.request 的 method 枚举保持一致（string 无法赋值给该枚举）
 type RequestMethod = 'OPTIONS' | 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'TRACE' | 'CONNECT';
 
-function request<T>(method: RequestMethod, path: string, data?: any, opts: RequestOpts = {}): Promise<T> {
+async function request<T>(method: RequestMethod, path: string, data?: any, opts: RequestOpts = {}): Promise<T> {
   const base = opts.base || V2_BASE;
   const teamScoped = opts.teamScoped !== false; // 默认团队作用域
+  // G1 FIX: getToken() 是 async，此前未 await 导致 Authorization 恒为 "Bearer [object Promise]"，
+  // 所有经本模块的鉴权请求实际未携带有效 Bearer（后端一律 401）。此处补齐 await。
+  const token = await getToken();
   return new Promise<T>((resolve, reject) => {
-    const token = getToken();
     const header: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) header['Authorization'] = `Bearer ${token}`;
     if (teamScoped) {
@@ -238,6 +274,19 @@ export const activityApi = {
   /** POST /activities/:activityId/attendance/checkout —— 本人签退（触发服务记录结算 + 积分）。 */
   checkout(activityId: string): Promise<{ attendance: any }> {
     return request<{ attendance: any }>('POST', `/activities/${activityId}/attendance/checkout`, {});
+  },
+
+  // ===================== G1：本人活跃考勤会话（SELF / 权威） =====================
+  /**
+   * GET /attendance-sessions/me —— 本人当前【活跃】考勤会话（G1 AUTHORITATIVE ACTIVE SESSION）。
+   *
+   * - 语义：active = (status=1 AND checkout_at IS NULL)；SCOPE = GLOBAL_PER_USER（后端不按 X-Team-Id 过滤）。
+   * - 仍按默认【团队作用域】发送 X-Team-Id：志愿者角色/租户上下文依赖该头，
+   *   缺失会被后端判为无团队上下文（403）。该头只用于鉴权，不过滤结果。
+   * - 不得用 storage / 页面参数 / 当前 team / 客户端推断替代本接口判定 active。
+   */
+  getMyActiveAttendanceSession(): Promise<ActiveAttendanceSession> {
+    return request<ActiveAttendanceSession>('GET', '/attendance-sessions/me');
   },
 
   // ===================== 成长数据（团队作用域） =====================

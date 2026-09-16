@@ -1,0 +1,26 @@
+<!-- P0-A 全局自定义 tabBar：0 首页 / 1 活动 / 2 签到·签退（中心凸起）/ 3 消息 / 4 我的 -->
+<view class="tab-bar">
+  <view class="tab-bar__row">
+    <view
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="tab-item {{item.center ? 'tab-item--center' : ''}}"
+      data-index="{{item.index}}"
+      bindtap="onTabTap"
+    >
+      <!-- 中心凸起主按钮：橙色主视觉 + 白色文字 + 明确文案，触控区 > 88rpx -->
+      <block wx:if="{{item.center}}">
+        <view class="center-btn">
+          <text class="center-btn__icon">{{serviceActive ? '签退' : '签到'}}</text>
+        </view>
+        <text class="center-btn__text {{selected === item.index ? 'center-btn__text--active' : ''}}">{{item.text}}</text>
+      </block>
+
+      <!-- 普通 tab -->
+      <block wx:else>
+        <text class="tab-item__text {{selected === item.index ? 'tab-item__text--active' : ''}}">{{item.text}}</text>
+        <view class="tab-item__badge" wx:if="{{item.index === messageIndex && unreadCount > 0}}">{{unreadText}}</view>
+      </block>
+    </view>
+  </view>
+</view>

@@ -25,8 +25,10 @@
   padding-top: calc(env(safe-area-inset-top) + 24rpx);
 }
 
+/* custom tabBar 为非原生占位（浮层），页面需自行让出：
+   160rpx = tabBar 120rpx + 呼吸区 40rpx，另加 iOS 安全区 */
 .safe-bottom {
-  height: 40rpx;
+  height: calc(160rpx + env(safe-area-inset-bottom));
 }
 
 /* ============ 1. SMART HERO（带 AI/志愿/公益视觉焦点的品牌首屏） ============ */
@@ -137,6 +139,144 @@
 .hero-mode-text {
   font-size: 24rpx;
   color: var(--text-3);
+}
+
+/* ============ 0. 今日志愿服务智能状态卡（P0-B：首页最高优先级功能卡） ============ */
+/* 视觉层级高于普通功能卡：大留白、大标题、清楚状态、大触控主按钮，适合年长志愿者。 */
+.service-card {
+  margin-top: 24rpx;
+  background: var(--surface);
+  border: 1rpx solid var(--line);
+  border-radius: 28rpx;
+  padding: 36rpx 32rpx 36rpx;
+  box-shadow: 0 10rpx 30rpx rgba(225, 90, 43, 0.10);
+  display: flex;
+  flex-direction: column;
+}
+
+.sv-kicker {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 1rpx;
+}
+
+.sv-title {
+  margin-top: 16rpx;
+  font-size: 46rpx;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.sv-sub {
+  margin-top: 14rpx;
+  font-size: 30rpx;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+/* 主按钮：大触控区域（≥96rpx 高），橙色主行动 / 红色签退 */
+.sv-btn {
+  margin-top: 30rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  border-radius: 16rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
+  padding: 0;
+  border: none;
+}
+
+.sv-btn-hover {
+  opacity: 0.9;
+}
+
+.sv-btn-primary {
+  background: var(--primary);
+}
+
+/* ACTIVE：明显服务进行中标识 + 红色签退（与「签到」严格区分） */
+.sv-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.sv-live {
+  display: flex;
+  align-items: center;
+}
+
+.sv-live-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: #e54d42;
+  margin-right: 12rpx;
+  box-shadow: 0 0 0 6rpx rgba(229, 77, 66, 0.16);
+}
+
+.sv-live-text {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #e54d42;
+  letter-spacing: 1rpx;
+}
+
+.sv-btn-active {
+  background: #e54d42;
+}
+
+.sv-meta {
+  margin-top: 20rpx;
+  display: flex;
+  align-items: center;
+  background: var(--surface-warm);
+  border-radius: 14rpx;
+  padding: 18rpx 22rpx;
+}
+
+.sv-meta-label {
+  font-size: 28rpx;
+  color: var(--text-2);
+  margin-right: 16rpx;
+}
+
+.sv-meta-value {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* LOADING：轻量 skeleton，避免闪烁为 NO_ACTIVE */
+.sv-skeleton {
+  padding: 12rpx 0;
+}
+
+.sv-skel-line {
+  height: 28rpx;
+  border-radius: 10rpx;
+  background: linear-gradient(90deg, #f0ece6 0%, #e7e1d9 50%, #f0ece6 100%);
+  background-size: 200% 100%;
+  animation: sv-skel-shine 1.2s ease-in-out infinite;
+}
+
+.sv-skel-line-1 {
+  width: 60%;
+  height: 44rpx;
+  margin-bottom: 22rpx;
+}
+
+.sv-skel-line-2 {
+  width: 80%;
+}
+
+@keyframes sv-skel-shine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* ============ 2. AI 智能问答入口（输入条样式） ============ */
@@ -407,6 +547,19 @@
 
 .rec-status.status-rejected {
   color: #e54d42;
+}
+
+/* P0-C：公开活动生命周期徽标（token 来自 G2 公开投影 status 枚举，非报名态） */
+.rec-status.status-open {
+  color: var(--primary);
+}
+
+.rec-status.status-ongoing {
+  color: #07c160;
+}
+
+.rec-status.status-ended {
+  color: var(--text-3);
 }
 
 /* 空状态（无活动时不伪造数据；进一步轻量） */
@@ -850,4 +1003,26 @@
 .senior-mode .ai-mark {
   width: 80rpx;
   height: 80rpx;
+}
+
+/* P0-B：适老模式放大状态卡文字与触控目标 */
+.senior-mode .sv-kicker,
+.senior-mode .sv-sub,
+.senior-mode .sv-meta-label {
+  font-size: 34rpx;
+}
+
+.senior-mode .sv-title {
+  font-size: 54rpx;
+}
+
+.senior-mode .sv-live-text,
+.senior-mode .sv-meta-value {
+  font-size: 36rpx;
+}
+
+.senior-mode .sv-btn {
+  height: 108rpx;
+  line-height: 108rpx;
+  font-size: 38rpx;
 }

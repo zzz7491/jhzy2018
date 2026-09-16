@@ -4,6 +4,7 @@ import activityApi from '../../utils/activityApi';
 import phoneApi from '../../utils/phoneApi';
 import notificationApi from '../../utils/notificationApi';
 import qualificationApi, { VolunteerQualification } from '../../utils/qualificationApi';
+import { TAB_INDEX, syncTabSelected, setMessageUnread } from '../../utils/tabbar';
 
 Page({
   data: {
@@ -49,6 +50,8 @@ Page({
 
   onShow() {
     console.log('我的页面显示');
+    // P0-A：同步自定义 tabBar 选中态（4=我的）；不存在 custom tabBar 时静默跳过
+    syncTabSelected(this, TAB_INDEX.MINE);
     // 强制修正头像URL
     const userInfo = this.data.userInfo;
     if (userInfo && userInfo.avatar && typeof userInfo.avatar === 'string' && !userInfo.avatar.startsWith('http')) {
@@ -90,19 +93,9 @@ Page({
     });
   },
 
-  // 更新tabBar红点
+  // 更新tabBar红点（P0-A：徽标绑定「消息」tab，索引来自共享常量，不再使用魔法数字 index:3）
   updateTabBarBadge() {
-    const unreadCount = this.data.unreadCount;
-    if (unreadCount > 0) {
-      wx.setTabBarBadge({
-        index: 3,
-        text: unreadCount > 99 ? '99+' : String(unreadCount)
-      });
-    } else {
-      wx.removeTabBarBadge({
-        index: 3
-      });
-    }
+    setMessageUnread(this, this.data.unreadCount);
   },
 
   // 初始化页面
@@ -154,9 +147,9 @@ Page({
     }
   },
 
-  // 前往消息页面
+  // 前往消息页面（P0-A：消息已升为 tabBar 页，navigateTo 不可跳转 tabBar 页）
   goToMessage() {
-    wx.navigateTo({ url: '/pages/message/message' });
+    wx.switchTab({ url: '/pages/message/message' });
   },
 
   // 前往订阅设置页面

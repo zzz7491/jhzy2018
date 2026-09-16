@@ -1,8 +1,8 @@
 {
   "pages": [
-    "pages/login-unified/index",
     "pages/index/index",
     "pages/about/index",
+    "pages/login-unified/index",
     "pages/mine/mine",
     "pages/phone-bind/phone-bind",
     "pages/identity-verify/identity-verify",
@@ -15,6 +15,7 @@
     "pages/goods-detail/goods-detail",
     "pages/points/points",
     "pages/sign/sign",
+    "pages/sign/activity/index",
     "pages/activities/my/my",
     "pages/profile/edit/edit",
     "pages/profile/change-password/change-password",
@@ -73,6 +74,7 @@
     "pages/ai/chat"
   ],
   "tabBar": {
+    "custom": true,
     "color": "#999999",
     "selectedColor": "#FF6B35",
     "backgroundColor": "#ffffff",
@@ -87,12 +89,16 @@
         "text": "活动"
       },
       {
-        "pagePath": "pages/community/index/index",
-        "text": "公益社区"
+        "pagePath": "pages/sign/sign",
+        "text": "签到/签退"
+      },
+      {
+        "pagePath": "pages/message/message",
+        "text": "消息"
       },
       {
         "pagePath": "pages/mine/mine",
-        "text": "个人"
+        "text": "我的"
       }
     ]
   },

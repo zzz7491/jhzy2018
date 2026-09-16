@@ -48,7 +48,8 @@ page {
   background: var(--mine-bg);
   padding-top: 16rpx;
   padding-right: 30rpx;
-  padding-bottom: 60rpx;
+  /* 底部 160rpx = custom tabBar 120rpx + 呼吸区 40rpx，另加 iOS 安全区 */
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
   padding-left: 30rpx;
   box-sizing: border-box;
 }

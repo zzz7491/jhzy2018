@@ -1,5 +1,8 @@
 // pages/index/index.ts - 重构版（集成随手公益 + 排行榜）
 const app = getApp();
+import { TAB_INDEX, syncTabSelected, refreshServiceActive } from '../../utils/tabbar';
+// P0-B：复用既有 G1 client（GET /attendance-sessions/me）与 V2 会话门禁，绝不另写第二套 G1 client。
+import activityApi, { hasV2Session } from '../../utils/activityApi';
 
 Page({
   data: {
@@ -33,37 +36,26 @@ Page({
       totalHours: 0
     },
     
-    // 主轮播图
-    mainBanners: [] as any[],
-    bannersLoading: false,
-    
-    // 热点活动
+    // 热点活动（公开活动 discovery：数据源已迁移至 V2 canonical GET /api/v2/activities，见 loadHotActivities）
     hotActivities: [] as any[],
     hotActivitiesLoading: false,
     
-    // 志愿者排行榜
-    rankings: [] as any[],
-    rankingsLoading: false,
-    showAllRankings: false,
-    topRankings: [] as any[],
-    otherRankings: [] as any[],
-    
-    // 热门兑换物品
-    exchangeItems: [] as any[],
-    exchangeLoading: false,
-    
-    // 随手公益数据
-    casualWelfareStats: {
-      totalCompleted: 0,
-      totalPending: 0,
-      totalPoints: 0
-    },
+    // 随手公益数据（仅保留「已审核」列表用于「公益故事」；stats 字段无 WXML 消费者，已移除避免冗余 V1 请求）
     approvedCasualWelfare: [] as any[],
     casualWelfareLoading: false,
     
     // 加载状态
     loading: true,
-    refreshing: false
+    refreshing: false,
+
+    // P0-B：今日志愿服务智能状态卡（权威 G1 状态，首页最高优先级功能卡）
+    // 冻结最小状态机：GUEST / LOADING / NO_ACTIVE / ACTIVE / ERROR
+    // - 默认 LOADING 仅用于避免首屏误现 NO_ACTIVE 假状态（登录用户会在 onShow 立即刷新 G1）。
+    // - Guest 不走 G1、不触发登录，由 loadServiceState 直接置 GUEST。
+    serviceState: 'LOADING' as 'GUEST' | 'LOADING' | 'NO_ACTIVE' | 'ACTIVE' | 'ERROR',
+    serviceActivityName: '',
+    serviceCheckinText: '',
+    serviceActivityPublicId: ''
   },
 
   onLoad() {
@@ -88,10 +80,15 @@ Page({
 
   onShow() {
     console.log('首页显示');
+    // P0-A：同步自定义 tabBar 选中态（0=首页）；不存在 custom tabBar 时静默跳过
+    syncTabSelected(this, TAB_INDEX.HOME);
     // 每次显示都同步storage中的登录状态
     this.syncLoginStatus();
     // P1-A: 同步多团队身份（仅读已存在 storage，不新增接口）
     this.loadTeamIdentity();
+    // P0-B：登录用户每次 onShow 拉取权威 G1 状态（无 timer / 无 polling / 无长期缓存）；
+    // Guest 不请求、不强制登录，直接 GUEST。
+    this.loadServiceState();
     this.refreshData();
   },
 
@@ -315,11 +312,8 @@ Page({
     this.setData({ loading: true });
     
     return Promise.all([
-      this.loadMainBanners(),
       this.loadHotActivities(),
-      this.loadRankings(),
-      // loadUserStats 已移除，积分由 syncLoginStatus 设置
-      this.loadExchangeItems(),
+      // 登录用户：仅拉取已审核随手公益列表（approvedCasualWelfare → 公益故事）；stats 已移除
       this.loadCasualWelfareData()
     ]).catch((error: any) => {
       console.error('加载数据失败:', error);
@@ -330,11 +324,9 @@ Page({
   },
 
   loadPublicData(): Promise<void> {
+    // 游客：仅拉取 V2 公开活动列表（公开活动 discovery）；不请求任何 V1/PHP 端点
     return Promise.all([
-      this.loadMainBanners(),
-      this.loadHotActivities(),
-      this.loadRankings(),
-      this.loadExchangeItems()
+      this.loadHotActivities()
     ]).catch((error: any) => {
       console.error('加载公开数据失败:', error);
     }).then(() => {
@@ -342,363 +334,68 @@ Page({
     });
   },
 
-  // ========== 修改后的轮播图加载方法 ==========
-  loadMainBanners(): Promise<void> {
-    this.setData({ bannersLoading: true });
-    
-    return new Promise((resolve) => {
-      // 改为从新接口获取轮播图
-      wx.request({
-        url: 'https://exam.jhzyfw.com/api_get_carousel.php',
-        method: 'GET',
-        success: (res: any) => {
-          console.log('轮播图接口返回:', res.data);
-          
-          if (res.data.code === 0 && res.data.data && res.data.data.length > 0) {
-            // 转换新接口数据格式为原有格式
-            const banners = res.data.data.map((item: any) => ({
-              id: item.id,
-              image: item.image_url,
-              title: item.title || '',
-              description: item.title || '',
-              link: item.link_url,
-              type: item.link_url ? 'link' : 'static'
-            }));
-            this.setData({ mainBanners: banners });
-          } else {
-            // 如果新接口无数据，使用活动作为备选
-            this.loadBannersFromActivities();
-          }
-          resolve();
-        },
-        fail: (err: any) => {
-          console.error('加载轮播图失败:', err);
-          // 失败时使用活动作为备选
-          this.loadBannersFromActivities();
-          resolve();
-        },
-        complete: () => {
-          this.setData({ bannersLoading: false });
-        }
+  // [P0-C] 主轮播图（mainBanners）已从首页移除：原 V1/PHP 轮播与静态 banner 图无 WXML 消费者，
+  // 相关 wx.request 已删除；公开活动 discovery 改由 loadHotActivities（V2）承担。
+
+
+  /**
+   * 公开活动 discovery（P0-C）：数据源迁移至 V2 canonical API（GET /api/v2/activities）。
+   * 复用既有 activityApi.getActivities（统一 V2 client，绝不调用 legacy PHP 端点）。
+   * G2 后端按 auth 自动分支：Guest → listPublicVisible（publication predicate 收口）；
+   * Authenticated → 团队作用域可见活动。前端只消费 G2 公开投影字段，不伪造封面/积分/报名态。
+   */
+  loadHotActivities(): Promise<void> {
+    this.setData({ hotActivitiesLoading: true });
+    return activityApi
+      .getActivities(1, 6)
+      .then((res: any) => {
+        const items: any[] = (res && res.items) || [];
+        const hotActivities = items.map((a: any) => ({
+          id: a.public_id, // 导航至详情页用 public_id（详情页 getActivity 按 ULID 取公开活动）
+          title: a.title || '',
+          // coverImage：G2 公开投影不含封面，留空 → WXML 显示高质量占位（UI fallback，非伪造封面）
+          time: this.formatActivityTime(a.start_time) + '-' + this.formatActivityTime(a.end_time),
+          location: a.address || '待定', // G2 字段为 address（非 V1 location）
+          // points：G2 公开合同不含 points_reward，不伪造 → WXML 按 item.points 条件隐藏
+          status: this.activityLifecycleToken(a.status), // 'open' | 'ongoing' | 'ended'（生命周期，非报名态）
+          statusText: this.activityLifecycleText(a.status)
+        }));
+        this.setData({ hotActivities: hotActivities });
+      })
+      .catch((error: any) => {
+        console.error('加载公开活动失败:', error);
+        this.setData({ hotActivities: [] });
+      })
+      .then(() => {
+        this.setData({ hotActivitiesLoading: false });
       });
-    });
-  },
-
-  loadBannersFromActivities() {
-    wx.request({
-      url: 'https://api.jhzyfw.com/api/activities.php',
-      method: 'GET',
-      data: {
-        page: 1,
-        limit: 6,
-        sort: 'hot',
-        status: 'open'
-      },
-      success: (res: any) => {
-        if (res.data.code === 0 && res.data.data && res.data.data.activities) {
-          const activities = res.data.data.activities;
-          let banners = activities
-            .filter((activity: any) => activity.cover_image)
-            .slice(0, 5)
-            .map((activity: any) => ({
-              id: activity.id,
-              image: this.formatImageUrl(activity.cover_image),
-              title: activity.title,
-              description: activity.location || '志愿活动',
-              type: 'activity',
-              link: '/pages/detail/detail?id=' + activity.id
-            }));
-          
-          if (banners.length < 5) {
-            const defaultBanners = this.getStaticBanners().slice(0, 5 - banners.length);
-            banners = banners.concat(defaultBanners);
-          }
-          
-          this.setData({ mainBanners: banners });
-        } else {
-          this.setData({ mainBanners: this.getStaticBanners() });
-        }
-      },
-      fail: () => {
-        this.setData({ mainBanners: this.getStaticBanners() });
-      }
-    });
-  },
-
-  getStaticBanners() {
-    return [
-      {
-        id: 1,
-        image: 'https://api.jhzyfw.com/api/uploads/banners/banner1.jpg',
-        title: '志愿服务，传递爱心',
-        description: '人人参与，共创美好社会',
-        type: 'static'
-      },
-      {
-        id: 2,
-        image: 'https://api.jhzyfw.com/api/uploads/banners/banner2.jpg',
-        title: '积分激励，回馈志愿',
-        description: '志愿服务可兑换精美礼品',
-        type: 'static'
-      },
-      {
-        id: 3,
-        image: 'https://api.jhzyfw.com/api/uploads/banners/banner3.jpg',
-        title: '随手公益，点滴爱心',
-        description: '随时随地参与公益活动',
-        type: 'static'
-      },
-      {
-        id: 4,
-        image: 'https://api.jhzyfw.com/api/uploads/banners/banner4.jpg',
-        title: '社区服务，共建和谐',
-        description: '关爱社区，服务邻里',
-        type: 'static'
-      },
-      {
-        id: 5,
-        image: 'https://api.jhzyfw.com/api/uploads/banners/banner5.jpg',
-        title: '环保志愿，绿色家园',
-        description: '保护环境，从我做起',
-        type: 'static'
-      }
-    ];
-  },
-  // ========== 轮播图修改结束 ==========
-
-  loadHotActivities() {
-    return new Promise<void>((resolve) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/activities.php',
-        method: 'GET',
-        data: {
-          page: 1,
-          limit: 6,
-          sort: 'hot',
-          status: 'open'
-        },
-        success: (res: any) => {
-          if (res.data.code === 0 && res.data.data && res.data.data.activities) {
-            const hotActivities = res.data.data.activities.slice(0, 5).map((item: any) => ({
-              id: item.id,
-              title: item.title,
-              coverImage: this.formatImageUrl(item.cover_image),
-              time: this.formatActivityTime(item.start_time) + '-' + this.formatActivityTime(item.end_time),
-              location: item.location || '待定',
-              points: item.points_reward || 0,
-              status: this.getActivityStatus(item),
-              statusText: this.getActivityStatusText(item)
-            }));
-            
-            this.setData({ hotActivities: hotActivities });
-          }
-          resolve();
-        },
-        fail: (error: any) => {
-          console.error('加载热点活动失败:', error);
-          resolve();
-        }
-      });
-    });
   },
 
   /**
    * 加载志愿者排行榜 - 修复头像显示问题
    */
-  loadRankings() {
-    this.setData({ rankingsLoading: true });
-    
-    return new Promise<void>((resolve) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/rankings.php',
-        method: 'GET',
-        data: {
-          type: 'points',
-          limit: 10
-        },
-        success: (res: any) => {
-          console.log('排行榜API响应:', res.data);
-          
-          let rankings = [];
-          
-          if (res.data && res.data.code === 0 && res.data.data) {
-            if (Array.isArray(res.data.data)) {
-              rankings = res.data.data;
-            } else if (res.data.data.rankings && Array.isArray(res.data.data.rankings)) {
-              rankings = res.data.data.rankings;
-            }
-          }
-          
-          console.log('排行榜原始数据:', rankings);
-          console.log('第一个用户数据:', rankings[0]);
-          
-          const formattedRankings = rankings.map((item: any, index: number) => {
-             // 修复头像URL
-             let avatarUrl = item.avatar || '';
-             
-             // 如果头像URL存在且不是完整的HTTP地址，需要修正
-             if (avatarUrl && !avatarUrl.startsWith('http')) {
-               if (avatarUrl.startsWith('/')) {
-                 // 如果以斜杠开头，直接拼接到域名后
-                 avatarUrl = 'https://api.jhzyfw.com' + avatarUrl;
-               } else {
-                 // 否则，手动添加 /api/ 前缀
-                 avatarUrl = 'https://api.jhzyfw.com/api/' + avatarUrl;
-               }
-             } else if (!avatarUrl) {
-               // 如果没有头像，使用默认图片
-               avatarUrl = '/images/default-avatar.png';
-             }
-             
-             console.log('用户头像URL:', avatarUrl);
-             
-             return {
-                 id: item.user_id || item.id || index + 1,
-                 real_name: item.real_name || item.nickname || item.name || '',
-                 avatar: avatarUrl,
-                 total_points: item.total_points || item.points || 0,
-                 points: item.total_points || item.points || 0,
-                 total_hours: item.total_hours || item.hours || 0
-             };
-          });
-          
-          this.setData({ 
-            rankings: formattedRankings,
-            topRankings: formattedRankings.slice(0, 3),
-            otherRankings: formattedRankings.slice(3)
-          });
-          
-          resolve();
-        },
-        fail: (error: any) => {
-          console.error('加载排行榜失败:', error);
-          this.setData({ 
-            rankings: [],
-            topRankings: [],
-            otherRankings: []
-          });
-          resolve();
-        },
-        complete: () => {
-          this.setData({ rankingsLoading: false });
-        }
-      });
-    });
-  },
 
   // loadUserStats 已移除，积分由 syncLoginStatus 设置
 
-  loadExchangeItems() {
-    this.setData({ exchangeLoading: true });
-    
-    return new Promise<void>((resolve) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/mall_products.php',
-        method: 'GET',
-        data: {
-          page: 1,
-          limit: 6,
-          status: 'available'
-        },
-        success: (res: any) => {
-          console.log('兑换物品API响应:', res.data);
-          
-          if (res.data.code === 0 && res.data.data && res.data.data.products) {
-            const exchangeItems = res.data.data.products.map((item: any) => ({
-              id: item.product_id,
-              name: item.product_name,
-              description: item.description || '',
-              image: item.image_url ? this.formatImageUrl(item.image_url) : '',
-              points: item.points_required,
-              value: item.value || Math.round(item.points_required / 3),
-              stock: item.stock,
-              source: item.source || '',
-              status: item.status
-            }));
-            
-            this.setData({ exchangeItems: exchangeItems });
-          } else {
-            console.warn('兑换物品API返回数据格式异常:', res.data);
-            this.setData({ exchangeItems: [] });
-          }
-          resolve();
-        },
-        fail: (error: any) => {
-          console.error('加载兑换物品失败:', error);
-          this.setData({ exchangeItems: [] });
-          resolve();
-        },
-        complete: () => {
-          this.setData({ exchangeLoading: false });
-        }
-      });
-    });
-  },
 
-  loadCasualWelfareData() {
+  /**
+   * 随手公益「已审核」列表（公益故事区块）：保留 V1/PHP quick_actions.php(list) 调用，
+   * 因其对应可见的「公益故事」UI 且无 V2 canonical 等价能力（DEFERRED_V2_GAP，不伪造 backend）。
+   * 原先的 stats V1 请求已移除（对应的 casualWelfareStats 字段无 WXML 消费者）。
+   */
+  loadCasualWelfareData(): Promise<void> {
     if (!this.data.userInfo) {
       return Promise.resolve();
     }
-    
     this.setData({ casualWelfareLoading: true });
-    
-    return new Promise<void>((resolve) => {
-      wx.request({
-        url: 'https://api.jhzyfw.com/api/quick_actions.php',
-        method: 'GET',
-        header: {
-          'Authorization': 'Bearer ' + wx.getStorageSync('access_token')
-        },
-        data: {
-          action: 'stats'
-        },
-        success: (res: any) => {
-          console.log('随手公益统计响应:', res.data);
-          
-          if (res.data.code === 0 && res.data.data) {
-            this.setData({
-              casualWelfareStats: {
-                totalCompleted: res.data.data.completed_count || 0,
-                totalPending: res.data.data.pending_count || 0,
-                totalPoints: res.data.data.total_points || 0
-              }
-            });
-          } else {
-            this.setData({
-              casualWelfareStats: {
-                totalCompleted: 0,
-                totalPending: 0,
-                totalPoints: 0
-              }
-            });
-          }
-          
-          this.loadApprovedCasualWelfare().then(() => {
-            resolve();
-          }).catch(() => {
-            resolve();
-          });
-        },
-        fail: (error: any) => {
-          console.error('加载随手公益统计失败:', error);
-          this.setData({
-            casualWelfareStats: {
-              totalCompleted: 0,
-              totalPending: 0,
-              totalPoints: 0
-            }
-          });
-          this.loadApprovedCasualWelfare().then(() => {
-            resolve();
-          }).catch(() => {
-            resolve();
-          });
-        },
-        complete: () => {
-          this.setData({ casualWelfareLoading: false });
-        }
+    return this.loadApprovedCasualWelfare()
+      .catch((err: any) => {
+        console.error('加载随手公益失败:', err);
+        this.setData({ approvedCasualWelfare: [] });
+      })
+      .then(() => {
+        this.setData({ casualWelfareLoading: false });
       });
-    });
   },
 
   loadApprovedCasualWelfare(): Promise<void> {
@@ -834,44 +531,20 @@ Page({
     }
   },
 
-  getActivityStatus(activity: any): string {
-    if (!activity) return 'available';
-    
-    if (activity.is_signed) {
-      return 'signed';
-    }
-    
-    if (activity.signup_status === 'closed') {
-      return 'full';
-    } else if (activity.signup_status === 'pending') {
-      return 'pending';
-    } else if (activity.signup_status === 'rejected') {
-      return 'rejected';
-    }
-    
-    const maxParticipants = activity.max_participants || 0;
-    const currentParticipants = activity.current_participants || 0;
-    const availableSlots = activity.available_slots || (maxParticipants - currentParticipants);
-    
-    if (availableSlots <= 0) {
-      return 'full';
-    }
-    
-    return 'available';
+  /**
+   * 活动生命周期 token（P0-C）：仅映射 G2 公开投影的 status 枚举（1 SIGNUP_OPEN / 2 IN_PROGRESS / 3 ENDED / 4 CANCELLED）。
+   * 这是真实可展示生命周期，绝非报名态（is_signed / signup_status 等 V1 字段 G2 不返回，亦不伪造）。
+   */
+  activityLifecycleToken(status: number): 'open' | 'ongoing' | 'ended' {
+    if (status === 1) return 'open';
+    if (status === 2) return 'ongoing';
+    return 'ended'; // 3 ENDED / 4 CANCELLED 均在公开谓词内，统一展示为「已结束」
   },
 
-  getActivityStatusText(activity: any): string {
-    const status = this.getActivityStatus(activity);
-    
-    const statusMap: {[key: string]: string} = {
-      'available': '可报名',
-      'full': '已满员',
-      'signed': '已报名',
-      'pending': '审核中',
-      'rejected': '已拒绝'
-    };
-    
-    return statusMap[status] || '可报名';
+  activityLifecycleText(status: number): string {
+    if (status === 1) return '招募中';
+    if (status === 2) return '进行中';
+    return '已结束'; // 3 ENDED / 4 CANCELLED
   },
 
   toggleDisplayMode() {
@@ -893,26 +566,15 @@ Page({
     });
   },
 
-  toggleRankingsExpand() {
-    this.setData({
-      showAllRankings: !this.data.showAllRankings
-    });
-  },
-
   onMainSwiperTap(e: any) {
     const index = e.currentTarget.dataset.index;
-    const banner = this.data.mainBanners[index];
+    const banner = (this.data as any).mainBanners?.[index];
     
     if (!banner) return;
     
     wx.vibrateShort();
     
     if (banner.type === 'activity' && banner.id) {
-      if (!this.data.userInfo) {
-        this.showLoginModal('查看活动');
-        return;
-      }
-      
       wx.navigateTo({
         url: '/pages/detail/detail?id=' + banner.id
       });
@@ -925,9 +587,9 @@ Page({
 
   viewVolunteerRank(e: any) {
     const index = e.currentTarget.dataset.index;
-    const volunteer = this.data.rankings[index];
+    const volunteer = (this.data as any).rankings?.[index];
     
-    if (!volunteer || !this.data.userInfo) {
+    if (!volunteer) {
       return;
     }
     
@@ -937,11 +599,6 @@ Page({
   },
 
   viewAllRankings() {
-    if (!this.data.userInfo) {
-      this.showLoginModal('查看排行榜');
-      return;
-    }
-    
     wx.navigateTo({
       url: '/pages/rankings/rankings'
     });
@@ -1007,96 +664,14 @@ Page({
   goToActivityDetail(e: any) {
     const id = e.currentTarget.dataset.id;
     
-    if (!this.data.userInfo) {
-      this.showLoginModal('查看活动详情');
-      return;
-    }
-    
     wx.navigateTo({
       url: '/pages/detail/detail?id=' + id
     });
   },
 
-  goToExchangeDetail(e: any) {
-    const itemId = e.currentTarget.dataset.id;
-    
-    if (!this.data.userInfo) {
-      this.showLoginModal('查看兑换物品');
-      return;
-    }
-    
-    wx.navigateTo({
-      url: `/pages/points/detail/detail?id=${itemId}`
-    });
-  },
 
-  exchangeItem(e: any) {
-    e.stopPropagation();
-    const itemId = e.currentTarget.dataset.id;
-    const item = this.data.exchangeItems.find((item: any) => item.id == itemId);
-    
-    if (!item) return;
-    
-    if (!this.data.userInfo) {
-      this.showLoginModal('兑换物品');
-      return;
-    }
-    
-    wx.showModal({
-      title: '确认兑换',
-      content: `确定要兑换【${item.name}】吗？\n需要消耗 ${item.points} 积分`,
-      success: (res) => {
-        if (res.confirm) {
-          console.log('兑换物品:', itemId);
-          
-          wx.showLoading({ title: '兑换中...' });
-          
-          wx.request({
-            url: 'https://api.jhzyfw.com/api/mall/exchange.php',
-            method: 'POST',
-            header: {
-              'Authorization': 'Bearer ' + wx.getStorageSync('access_token')
-            },
-            data: {
-              product_id: itemId
-            },
-            success: (exchangeRes: any) => {
-              wx.hideLoading();
-              if (exchangeRes.data.code === 0) {
-                wx.showToast({
-                  title: '兑换成功',
-                  icon: 'success',
-                  duration: 2000
-                });
-                this.refreshData();
-              } else {
-                wx.showToast({
-                  title: exchangeRes.data.message || '兑换失败',
-                  icon: 'error',
-                  duration: 2000
-                });
-              }
-            },
-            fail: () => {
-              wx.hideLoading();
-              wx.showToast({
-                title: '网络错误',
-                icon: 'error',
-                duration: 2000
-              });
-            }
-          });
-        }
-      }
-    });
-  },
 
   goToAllActivities() {
-    if (!this.data.userInfo) {
-      this.showLoginModal('查看活动');
-      return;
-    }
-    
     wx.navigateTo({
       url: '/pages/activities/activities'
     });
@@ -1111,7 +686,7 @@ Page({
       success: (res) => {
         if (res.confirm) {
           wx.navigateTo({
-            url: '/pages/login/index'
+            url: '/pages/login-unified/index'
           });
         }
       }
@@ -1146,9 +721,86 @@ Page({
     });
   },
 
-  // P1-A: 核心行动 + 中心导航（全部指向真实已存在页面，由目标页自身执行登录/团队门禁）
+  // P0-B：今日志愿服务智能状态卡 —— 唯一真值 = GET /attendance-sessions/me（G1 authoritative）。
+  // 纪律：
+  // - Guest（无有效 V2 会话）【不发起任何请求】，直接 GUEST，不触发登录。
+  // - 登录用户：先 LOADING（避免闪烁为 NO_ACTIVE），再请求权威态。
+  // - ERROR 不得降级为 NO_ACTIVE；ACTIVE 不得因活动名读取失败而降级/伪造。
+  // - 活动真实名称：best-effort 经 activityApi.getActivity(activity_public_id) 读取；失败留空（不伪造）。
+  // - 同步 custom-tab-bar 中心按钮由 refreshServiceActive 内部 applyServiceActive 完成（不建第二套 store）。
+  async loadServiceState(): Promise<void> {
+    if (!hasV2Session()) {
+      this.setData({ serviceState: 'GUEST', serviceActivityPublicId: '' });
+      return;
+    }
+
+    this.setData({ serviceState: 'LOADING' });
+
+    try {
+      const state = await refreshServiceActive(this);
+
+      if (state.kind === 'ACTIVE') {
+        let name = '';
+        try {
+          const res = await activityApi.getActivity(state.activityPublicId);
+          name = res && res.activity && res.activity.title ? res.activity.title : '';
+        } catch (e) {
+          // 读取失败：保持 ACTIVE，不得降级、不得伪造活动名。
+          name = '';
+        }
+        this.setData({
+          serviceState: 'ACTIVE',
+          serviceActivityPublicId: state.activityPublicId,
+          serviceActivityName: name,
+          serviceCheckinText: state.checkinAt ? this.formatCheckinTime(state.checkinAt) : ''
+        });
+      } else if (state.kind === 'NO_ACTIVE') {
+        this.setData({ serviceState: 'NO_ACTIVE', serviceActivityPublicId: '', serviceActivityName: '', serviceCheckinText: '' });
+      } else if (state.kind === 'ERROR') {
+        this.setData({ serviceState: 'ERROR' });
+      } else {
+        // GUEST（理论上 hasV2Session 已拦截，保险分支）
+        this.setData({ serviceState: 'GUEST', serviceActivityPublicId: '' });
+      }
+    } catch (e) {
+      this.setData({ serviceState: 'ERROR' });
+    }
+  },
+
+  // 状态卡主按钮统一入口（按当前状态分流，复用既有合法页面入口）。
+  onServicePrimary() {
+    const s = this.data.serviceState;
+    if (s === 'GUEST') {
+      // 走现有合法登录入口（统一登录页），不绕过身份验证。
+      wx.navigateTo({ url: '/pages/login-unified/index' });
+    } else if (s === 'NO_ACTIVE') {
+      // G2 未完成前首页无 authoritative eligible/checkin-ready activity，只引导发现活动。
+      wx.switchTab({ url: '/pages/activities/activities' });
+    } else if (s === 'ACTIVE') {
+      // 复用 G1 已闭环 execution page（mode=active），首页只负责导航，不在首页调用 checkout API。
+      const pid = this.data.serviceActivityPublicId;
+      if (!pid) return;
+      wx.navigateTo({ url: `/pages/sign/activity/index?activityId=${pid}&mode=active` });
+    } else if (s === 'ERROR') {
+      this.loadServiceState();
+    }
+    // LOADING：忽略点击，避免误触。
+  },
+
+  formatCheckinTime(ts: number): string {
+    if (!ts) return '';
+    let ms = Number(ts);
+    if (!isNaN(ms) && ms > 0 && ms < 1e12) ms = ms * 1000; // 秒 → 毫秒
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => (n < 10 ? '0' + n : String(n));
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  // P0-A: 核心行动 + 中心导航（全部指向真实已存在页面，由目标页自身执行登录/团队门禁）
   goToSign() {
-    wx.navigateTo({ url: '/pages/sign/sign' });
+    // 签到/签退已是 tabBar 页，navigateTo 不可跳转 tabBar 页，必须用 switchTab
+    wx.switchTab({ url: '/pages/sign/sign' });
   },
 
   goToTrainings() {

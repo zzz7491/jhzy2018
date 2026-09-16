@@ -12,7 +12,10 @@ const ROOT = 'E:/D盘备份/miniprogram';
 const files = {
   detailTs: `${ROOT}/miniprogram/pages/detail/detail.ts`,
   detailWxml: `${ROOT}/miniprogram/pages/detail/detail.wxml`,
-  signTs: `${ROOT}/miniprogram/pages/sign/sign.ts`,
+  // P0-A NAV-CLOSEOUT: 具体活动考勤执行职责已由 pages/sign/sign（GLOBAL ATTENDANCE HUB / TABBAR CENTER）
+  // 迁移至 pages/sign/activity/index（NON-TAB ACTIVITY ATTENDANCE EXECUTION PAGE）。
+  // 本合同的 checkin/checkout/GPS/navigateBack 断言继续验证执行页。
+  signTs: `${ROOT}/miniprogram/pages/sign/activity/index.ts`,
   activityApi: `${ROOT}/miniprogram/utils/activityApi.ts`,
   attendanceService: `${ROOT}/workers/src/services/attendance-service.ts`,
   serviceRecordsRepo: `${ROOT}/workers/src/repository/service-records.ts`,

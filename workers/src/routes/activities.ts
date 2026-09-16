@@ -53,13 +53,27 @@ function assertNoForbiddenPublicationFields(body: Record<string, unknown>): void
   }
 }
 
-/** GET /api/v2/activities —— 本团队活动列表（分页，page/page_size 上限 clamp）。 */
+/**
+ * GET /api/v2/activities —— 活动列表（G2：允许匿名 public-read）。
+ *
+ * - 未认证（guest）：返回全平台真正公开、可展示的活动（publication predicate 收口，
+ *   跨团队、无 team scope），使用 public projection（排除内部 id/team_id/audit 工作流态）。
+ * - 已认证：保持既有 TEAM_SCOPED 行为——管理员（review/submit）走完整 listByMyTeam，
+ *   志愿者走 listVolunteerVisible（仅本队可见）。认证契约不变。
+ *
+ * 注意：全局 authContextMiddleware 已为所有请求注入 auth；伪造/无效 Authorization 按其既有
+ * 安全策略回落 UNAUTHENTICATED（guest），不复制 JWT 解析、不静默放行恶意令牌为新逻辑。
+ */
 activities.get('/', async (c) => {
   const auth = c.get('auth');
-  if (!auth.authenticated) throw authRequired();
-
   const pagination = parsePagination(c.req.query());
   const repo = new ActivityRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+
+  if (!auth.authenticated) {
+    const result = await repo.listPublicVisible(pagination.page, pagination.pageSize, pagination.offset);
+    return ok(c, result);
+  }
+
   // P34-C3：无活动管理权限者（志愿者）仅可见"已审核公开"活动；具备 review/submit 的管理员走完整列表（§5 不得误伤 admin）。
   const isManager = (await can(c.env, auth, c.get('tenant'), 'activity.activity.review')) ||
     (await can(c.env, auth, c.get('tenant'), 'activity.activity.submit'));
@@ -70,13 +84,24 @@ activities.get('/', async (c) => {
   return ok(c, result);
 });
 
-/** GET /api/v2/activities/:id —— 本团队单个活动详情。 */
+/**
+ * GET /api/v2/activities/:id —— 单个活动详情（G2：允许匿名 public-read）。
+ *
+ * - 未认证（guest）：按 publication predicate 收口；命中 → 200（public projection），
+ *   未命中（draft/pending/rejected/unpublished/deleted/未知 public_id）→ 404（不泄露存在性）。
+ * - 已认证：保持既有 TEAM_SCOPED 行为（manager → findByPublicId，volunteer → findVolunteerVisibleByPublicId）。
+ * - public_id 格式由 requireUlidParam 先行校验（非法 → 400，先于 DB 访问，注入防护）。
+ */
 activities.get('/:id', async (c) => {
   const auth = c.get('auth');
-  if (!auth.authenticated) throw authRequired();
-
   const publicId = requireUlidParam(c.req.param('id'), 'id');
   const repo = new ActivityRepository({ db: c.env.DB, ctx: { auth, tenant: c.get('tenant') } });
+
+  if (!auth.authenticated) {
+    const activity = await repo.findPublicVisibleByPublicId(publicId);
+    return ok(c, { activity });
+  }
+
   const isManager = (await can(c.env, auth, c.get('tenant'), 'activity.activity.review')) ||
     (await can(c.env, auth, c.get('tenant'), 'activity.activity.submit'));
   const activity = isManager
