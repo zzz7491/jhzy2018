@@ -250,6 +250,11 @@ export const activityApi = {
     return request<{ signup: any }>('GET', `/activities/${activityId}/signups/me`);
   },
 
+  /** DELETE /activities/:activityId/signups/me —— 取消本人报名（S2-6g；signup.signup.cancel 权限）。 */
+  cancelOwn(activityId: string): Promise<{ signup: any }> {
+    return request<{ signup: any }>('DELETE', `/activities/${activityId}/signups/me`);
+  },
+
   // ===================== 参与 / 排班（团队作用域） =====================
   /** GET /activities/:activityId/participations/setup —— 本人参与就绪状态（纯读）。 */
   getParticipationSetup(activityId: string): Promise<{ status: string; participations: any[]; occurrences: any[] }> {

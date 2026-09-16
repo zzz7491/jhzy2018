@@ -525,6 +525,23 @@ $jh-danger: #FF3B30;
   box-shadow: none;
 }
 
+.cancel-btn {
+  width: 100%;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  color: #757575;
+  font-size: 28rpx;
+  font-weight: 500;
+  background-color: #F5F5F5;
+  border: 1rpx solid #E0E0E0;
+  margin-bottom: 16rpx;
+}
+
+.cancel-btn::after {
+  border: none;
+}
+
 /* 弹窗 */
 .jh-modal {
   position: fixed;

@@ -436,6 +436,58 @@ Page({
     this.showConfirmDialog();
   },
 
+  // ========== P1-C3：取消报名完整闭环 ==========
+  /** 取消报名入口（二次确认）。仅当存在可取消的有效报名（待审核=1 / 已通过=2）且未完成服务时暴露。 */
+  handleCancelClick() {
+    const { signupStatus, attendanceCompleted } = this.data;
+    if (attendanceCompleted) return;
+    if (signupStatus !== 1 && signupStatus !== 2) return;
+    wx.showModal({
+      title: '取消报名',
+      content: '确认取消本次报名吗？取消后可重新报名。',
+      confirmText: '确认取消',
+      cancelText: '再想想',
+      success: (res) => {
+        if (res.confirm) this.doCancelSignup();
+      },
+    });
+  },
+
+  /**
+   * 真正发起取消（DELETE /activities/:activityId/signups/me）。
+   * 成功后重新读取 GET /signups/me（checkSignupStatus）以权威刷新状态：
+   *   取消后 signup.status = CANCELLED(2) → 状态机映射为 signupStatus = 0 → 按钮恢复「立即报名」。
+   * 不刷新整个页面；不新增状态 / 枚举；不动签到逻辑。
+   * 失败（重复取消 / 已无有效报名 / 活动不允许取消）按幂等处理：回源真实状态，绝不伪造。
+   */
+  doCancelSignup() {
+    const activityId = this.data.activityId;
+    if (!activityId || !this.data.isLoggedIn) return;
+    if (this.data.attendanceCompleted) return;
+    const s = this.data.signupStatus;
+    if (s !== 1 && s !== 2) return;
+
+    wx.showLoading({ title: '取消中...', mask: true });
+    activityApi
+      .cancelOwn(activityId)
+      .then(() => {
+        wx.hideLoading();
+        // 重新读取权威状态 → signupStatus=0 → 按钮恢复「立即报名」（不整页刷新）
+        this.checkSignupStatus();
+        wx.showToast({ title: '已取消报名', icon: 'success', duration: 1500 });
+      })
+      .catch((err: any) => {
+        wx.hideLoading();
+        const code = err && err.code ? String(err.code).toUpperCase() : '';
+        if (code === 'SIGNUP_NOT_FOUND' || code === 'NOT_FOUND' || code === 'CONFLICT' || code === 'ACTIVITY_CANCEL_NOT_ALLOWED') {
+          // 幂等：重复取消 / 已无有效报名 / 活动不允许取消 → 回源真实状态，不崩溃
+          this.checkSignupStatus();
+          return;
+        }
+        wx.showToast({ title: (err && err.message) || '取消失败', icon: 'none' });
+      });
+  },
+
   // 显示确认报名弹窗
   showConfirmDialog() {
     const activityName = this.data.activity ? this.data.activity.title : '活动';
