@@ -339,8 +339,11 @@ Page({
         const inner = outer && outer.signup ? outer.signup : outer;
         let status = 0;
         if (inner && inner.status === 1) {
-          // status=1(REGISTERED)；review_status=1(APPROVED) 才可签到
-          status = inner.review_status === 1 ? 2 : 1;
+          // status=1(REGISTERED)；review_status=1(APPROVED)→已通过(2)；review_status=2(REJECTED)→未通过(4)。
+          // 必须与 doSignup 写路径保持一致，避免 onShow 重读后 REJECTED 被错误回退为「待审核」(1)。
+          if (inner.review_status === 1) status = 2;
+          else if (inner.review_status === 2) status = 4;
+          else status = 1;
         }
         this.setData({ hasJoined: status > 0, signupStatus: status });
         this.updateButtonByStatus();
