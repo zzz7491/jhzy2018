@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": []
+  },
+  "include": [
+    "./wxglobals.d.ts",
+    "./miniprogram/utils/request.d.ts",
+    "./miniprogram/utils/quickActionApi.ts",
+    "./miniprogram/pages/quick-action/quick-action.ts"
+  ]
+}
