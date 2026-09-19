@@ -1,0 +1,137 @@
+=== P8-3 WP6 REHEARSAL ===
+status=PASS batchId=WP6-1789748133731
+sourceHash=53bc525607ffc8d196ac84885f71039e6213b72d3572096d9f4c446b54a9a956
+
+[1 ENVIRONMENT GATE]
+isolated=true
+checks={"sourceIsFixture":true,"targetIsolated":true,"targetAdapter":"MemoryTarget","productionCredentialsAbsent":true,"productionDbEndpointAbsent":true,"productionWriteCapabilityAbsent":true,"fileCheckpointPersistenceVerified":true}
+preflight={"status":"PASS","errors":0,"warnings":0,"decision":"PROCEED"}
+envScan={"keyCount":198,"observedNonCredentialKeys":["TENCENT_DOCS_LOCAL_MCP","TENCENT_DOCS_LOCAL_SERVER"],"note":"2 个 infra 前缀环境变量被观察到，但不具备本项目生产数据面凭据语义（如本地工具链变量），故不计入 production write capability。"}
+detectedProductionEnvKeys=[]
+
+[2 CLEAN TEST MIGRATION] COMPLETED
+{
+  "totalSourceRowsIncludingExcluded": 35,
+  "totalSourceRowsSubjectToMigration": 34,
+  "perSourceKindRowCounts": {
+    "EXCLUDED": 1,
+    "MIGRATE": 25,
+    "MERGE": 7,
+    "DROP": 1,
+    "ARCHIVE": 1
+  },
+  "migrated": 32,
+  "transformed": 0,
+  "merged": 7,
+  "migratedDirect": 25,
+  "archived": 1,
+  "dropped": 1,
+  "excluded": 1,
+  "failed": 0,
+  "skippedIdempotent": 0,
+  "targetRowsInserted": 35,
+  "legacyIdMapsCount": 32,
+  "migrationIssuesCount": 2,
+  "migrationIssuesByType": {
+    "excluded": 1,
+    "dropped": 1
+  },
+  "checkpointState": {
+    "doneTables": 130,
+    "lastBatch": "B18"
+  }
+}
+
+[3 RECONCILIATION] PASS
+{
+  "row_conservation": "PASS",
+  "identity_integrity": "PASS",
+  "relationship_integrity": "PASS",
+  "activity_chain": "PASS",
+  "points_growth": "PASS",
+  "training_result": "PASS",
+  "media_references": "PASS",
+  "audit_integrity": "PASS",
+  "excluded_unknown": "PASS"
+}
+rowConservation={"sourceRowsTotal":34,"migrated":32,"archived":1,"dropped":1,"excluded":1,"failed":0,"idempotentSkipped":null,"formula":"sourceTotal === migrated + archived + dropped + failed","balanced":true}
+stop={"status":"PROCEED","nextBatchAllowed":true,"criticals":[],"warnings":[]}
+
+[4 RESUME / IDEMPOTENCY] PASS
+{
+  "status": "PASS",
+  "sameInstanceRerun": {
+    "inserted": 0,
+    "tablesProcessed": 0
+  },
+  "newInstanceDoneTables": 130,
+  "crossInstanceRerun": {
+    "inserted": 0,
+    "tablesProcessed": 0
+  },
+  "legacyIdMaps": {
+    "before": 32,
+    "after": 32
+  },
+  "pointsLedgerRows": {
+    "before": 1,
+    "after": 1
+  },
+  "reconciliationAfterResume": "PASS"
+}
+
+[5 FAILURE INJECTION] PASS count=6
+  {"id":"FI-1","reconcile":"PASS","check":"row_conservation=PASS","stop":"STOP/nextBatchAllowed=false","criticals":"","verdict":"PASS"}
+  {"id":"FI-2","reconcile":"FAIL","check":"relationship_integrity=FAIL","stop":"STOP/nextBatchAllowed=false","criticals":"SC-03,SC-04","verdict":"PASS"}
+  {"id":"FI-3","reconcile":"FAIL","check":"row_conservation=FAIL","stop":"STOP/nextBatchAllowed=false","criticals":"SC-01,SC-03,SC-04","verdict":"PASS"}
+  {"id":"FI-4","reconcile":"FAIL","check":"identity_integrity=FAIL","stop":"STOP/nextBatchAllowed=false","criticals":"SC-01,SC-02,SC-03,SC-04","verdict":"PASS"}
+  {"id":"FI-5","reconcile":"FAIL","check":"row_conservation=FAIL","stop":"STOP/nextBatchAllowed=false","criticals":"SC-01,SC-03,SC-04","verdict":"PASS"}
+  {"id":"FI-6","reconcile":"FAIL","check":"points_growth=FAIL","stop":"STOP/nextBatchAllowed=false","criticals":"SC-05","verdict":"PASS"}
+    FI-1 incomplete={"sourceRows":2,"migrated":0,"incomplete":true}
+    FI-1 runnerErrors=1 openErrorIssues=1 runLevelStop=true evidenceRecorded=true
+    FI-2 runnerErrors=0 openErrorIssues=0 runLevelStop=false evidenceRecorded=true
+    FI-3 runnerErrors=0 openErrorIssues=0 runLevelStop=false evidenceRecorded=true
+    FI-4 runnerErrors=0 openErrorIssues=0 runLevelStop=false evidenceRecorded=true
+    FI-5 runnerErrors=0 openErrorIssues=0 runLevelStop=false evidenceRecorded=true
+    FI-6 runnerErrors=0 openErrorIssues=0 runLevelStop=false evidenceRecorded=true
+
+[6 BATCH ROLLBACK] PASS batch=B6
+reconcileBefore=PASS
+rollback={"rowsRemoved":2,"idmapsRemoved":2,"archiveRemoved":0,"checkpointHandling":{"removed":7,"error":null},"issuesRetained":3}
+recoveryChecks={"batch_target_rows_removed":"PASS","legacy_id_maps_handled":"PASS","migration_issues_retained":"PASS","checkpoint_rolled_back":"PASS","source_untouched":"PASS","user_favorites_excluded":"PASS","batch_archive_cleared":"PASS"}
+rerunBatch={"inserted":2,"tablesProcessed":7}
+reconcileAfterRerun=PASS
+
+[7 FULL ROLLBACK] PASS
+reconcileBefore=PASS
+rollback={"rowsCleared":35,"idmapsCleared":32,"archiveCleared":1,"checkpointReset":{"reset":true,"error":null,"skipped":false},"issuesRetained":3}
+recoveryChecks={"target_state_restored":"PASS","source_untouched":"PASS","no_orphan_migration_rows":"PASS","no_stale_checkpoints":"PASS","no_invalid_legacy_id_maps":"PASS","no_unintended_user_favorites_migration":"PASS","reconciliation_state_valid":"PASS"}
+
+[8 SECOND CLEAN RUN] PASS
+reconcile={"status":"PASS","errors":0,"warnings":0}
+comparedToFirstRun={"migrated":{"first":32,"second":32},"archived":{"first":1,"second":1},"dropped":{"first":1,"second":1},"identical":true}
+finalCheckpointDoneTables=130
+
+[FINAL GATE]
+{
+  "rehearsalEnvironmentIsolated": "YES",
+  "productionCredentialsAbsent": "YES",
+  "fullB0B20MigrationCompleted": "YES",
+  "cleanReconciliation": "PASS",
+  "resumePersistence": "PASS",
+  "idempotency": "PASS",
+  "failureInjection": "PASS",
+  "stopConditionsTriggeredCorrectly": "YES",
+  "batchRollback": "PASS",
+  "batchRecoveryVerification": "PASS",
+  "fullRollback": "PASS",
+  "fullRecoveryVerification": "PASS",
+  "secondCleanMigration": "PASS",
+  "userFavoritesExclusionPreserved": "YES",
+  "evidencePackageComplete": "YES",
+  "freezeConflictCount": 0,
+  "productionDataTouched": "NO",
+  "productionDeploymentPerformed": "NO",
+  "wp6Gate": "PASS",
+  "readyForCloseout": "YES"
+}

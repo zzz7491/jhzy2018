@@ -1,0 +1,1436 @@
+{
+  "schema": "p8-3-wp6-rehearsal-evidence/v1",
+  "schemaVersion": "1.0.0",
+  "startedAt": "2026-09-18T16:15:33.730Z",
+  "batchId": "WP6-1789748133731",
+  "operator": {
+    "name": "p8-3-rehearsal-harness",
+    "timestamp": "2026-09-18T16:15:33.730Z"
+  },
+  "versions": {
+    "migration": "p8-3-migration@1.0.0",
+    "reconciliation": "p8-3-reconcile@1.0.0",
+    "rollback": "p8-3-rollback@1.0.0",
+    "recovery": "p8-3-recovery@1.0.0",
+    "runbook": "p8-3-runbook@1.0.0",
+    "checkpoint": "p8-3-checkpoint@1.0.0"
+  },
+  "topology": [
+    "中国大陆用户 / 微信小程序 / 管理端",
+    "→ 国内备案域名",
+    "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+    "→ Cloudflare Worker",
+    "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+    "→ R2 / KV 等 Cloudflare 服务"
+  ],
+  "productionBoundary": {
+    "productionDataTouched": false,
+    "productionDeploymentPerformed": false,
+    "outOfScope": [
+      "生产正式迁移",
+      "生产部署",
+      "正式切换（域名/小程序）",
+      "灰度放量"
+    ]
+  },
+  "sections": {
+    "environmentGate": {
+      "source": {
+        "type": "fixture",
+        "label": "deterministic in-memory rehearsal fixture",
+        "class": "FixtureSource"
+      },
+      "target": {
+        "type": "isolated-local",
+        "class": "MemoryTarget",
+        "note": "MemoryTarget — 无任何外部连接"
+      },
+      "productionBoundary": {
+        "productionAccessAllowed": false,
+        "outOfScope": [
+          "生产正式迁移",
+          "生产部署",
+          "正式切换（域名/小程序）",
+          "灰度放量"
+        ]
+      },
+      "detectedProductionEnvKeys": [],
+      "envScan": {
+        "keyCount": 198,
+        "observedNonCredentialKeys": [
+          "TENCENT_DOCS_LOCAL_MCP",
+          "TENCENT_DOCS_LOCAL_SERVER"
+        ],
+        "note": "2 个 infra 前缀环境变量被观察到，但不具备本项目生产数据面凭据语义（如本地工具链变量），故不计入 production write capability。"
+      },
+      "checkpointPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\p83-wp6-rehearsal-vO0rvR/cp-envprobe.json",
+      "fileCheckpointPersistence": {
+        "ok": true
+      },
+      "versions": {
+        "migration": "p8-3-migration@1.0.0",
+        "reconciliation": "p8-3-reconcile@1.0.0",
+        "rollback": "p8-3-rollback@1.0.0",
+        "recovery": "p8-3-recovery@1.0.0",
+        "runbook": "p8-3-runbook@1.0.0",
+        "checkpoint": "p8-3-checkpoint@1.0.0"
+      },
+      "sourceSnapshot": {
+        "hash": "53bc525607ffc8d196ac84885f71039e6213b72d3572096d9f4c446b54a9a956",
+        "algorithm": "sha256",
+        "hashVerified": true
+      },
+      "batchId": "WP6-1789748133731",
+      "operator": {
+        "name": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z"
+      },
+      "topology": [
+        "中国大陆用户 / 微信小程序 / 管理端",
+        "→ 国内备案域名",
+        "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+        "→ Cloudflare Worker",
+        "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+        "→ R2 / KV 等 Cloudflare 服务"
+      ],
+      "checks": {
+        "sourceIsFixture": true,
+        "targetIsolated": true,
+        "targetAdapter": "MemoryTarget",
+        "productionCredentialsAbsent": true,
+        "productionDbEndpointAbsent": true,
+        "productionWriteCapabilityAbsent": true,
+        "fileCheckpointPersistenceVerified": true
+      },
+      "isolated": true,
+      "decision": "PROCEED",
+      "note": "演练环境隔离：无生产凭据、无生产端点、无生产写入能力，FileCheckpoint 持久化可用。",
+      "preflight": {
+        "status": "PASS",
+        "errors": 0,
+        "warnings": 0,
+        "decision": "PROCEED"
+      }
+    },
+    "cleanMigration": {
+      "status": "COMPLETED",
+      "stats": {
+        "inserted": 35,
+        "archived": 1,
+        "dropped": 1,
+        "skippedIdempotent": 0,
+        "errors": 0,
+        "issues": 2,
+        "tablesProcessed": 130
+      },
+      "summary": {
+        "totalSourceRowsIncludingExcluded": 35,
+        "totalSourceRowsSubjectToMigration": 34,
+        "perSourceKindRowCounts": {
+          "EXCLUDED": 1,
+          "MIGRATE": 25,
+          "MERGE": 7,
+          "DROP": 1,
+          "ARCHIVE": 1
+        },
+        "migrated": 32,
+        "transformed": 0,
+        "merged": 7,
+        "migratedDirect": 25,
+        "archived": 1,
+        "dropped": 1,
+        "excluded": 1,
+        "failed": 0,
+        "skippedIdempotent": 0,
+        "targetRowsInserted": 35,
+        "legacyIdMapsCount": 32,
+        "migrationIssuesCount": 2,
+        "migrationIssuesByType": {
+          "excluded": 1,
+          "dropped": 1
+        },
+        "checkpointState": {
+          "doneTables": 130,
+          "lastBatch": "B18"
+        }
+      },
+      "targetSnapshot": {
+        "tables": {
+          "roles": 1,
+          "permissions": 1,
+          "role_permissions": 1,
+          "users": 4,
+          "volunteer_profiles": 4,
+          "teams": 2,
+          "user_roles": 1,
+          "activities": 2,
+          "activity_signups": 2,
+          "attendance_sessions": 2,
+          "attendance_events": 2,
+          "service_records": 1,
+          "points_ledger": 1,
+          "badges": 1,
+          "courses": 1,
+          "course_enrollments": 1,
+          "learning_records": 1,
+          "exam_sessions": 1,
+          "certificates": 1,
+          "mall_products": 2,
+          "notifications": 1,
+          "files": 1,
+          "operation_logs": 1
+        },
+        "idmaps": 32,
+        "issues": 2,
+        "archive": 1
+      },
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "CLEAN_MIGRATION",
+        "result": "COMPLETED",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    },
+    "cleanReconciliation": {
+      "status": "PASS",
+      "errors": 0,
+      "warnings": 0,
+      "checkSummary": {
+        "row_conservation": "PASS",
+        "identity_integrity": "PASS",
+        "relationship_integrity": "PASS",
+        "activity_chain": "PASS",
+        "points_growth": "PASS",
+        "training_result": "PASS",
+        "media_references": "PASS",
+        "audit_integrity": "PASS",
+        "excluded_unknown": "PASS"
+      },
+      "rowConservation": {
+        "sourceRowsTotal": 34,
+        "migrated": 32,
+        "archived": 1,
+        "dropped": 1,
+        "excluded": 1,
+        "failed": 0,
+        "idempotentSkipped": null,
+        "formula": "sourceTotal === migrated + archived + dropped + failed",
+        "balanced": true
+      },
+      "excludedUnknown": {
+        "excludedObjects": [
+          "api.user_favorites"
+        ],
+        "bcrPending": true,
+        "user_favorites_excluded": true
+      },
+      "stopDecision": {
+        "status": "PROCEED",
+        "nextBatchAllowed": true,
+        "criticals": [],
+        "warnings": []
+      },
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "CLEAN_RECONCILIATION",
+        "result": "PASS",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    },
+    "resumeIdempotency": {
+      "status": "PASS",
+      "sameInstanceRerun": {
+        "inserted": 0,
+        "tablesProcessed": 0
+      },
+      "newInstanceDoneTables": 130,
+      "crossInstanceRerun": {
+        "inserted": 0,
+        "tablesProcessed": 0
+      },
+      "legacyIdMaps": {
+        "before": 32,
+        "after": 32
+      },
+      "pointsLedgerRows": {
+        "before": 1,
+        "after": 1
+      },
+      "reconciliationAfterResume": "PASS",
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "RESUME_IDEMPOTENCY",
+        "result": "PASS",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    },
+    "failureInjection": {
+      "status": "PASS",
+      "count": 6,
+      "results": [
+        {
+          "id": "FI-1",
+          "label": "Batch 中途失败（B6 api.jhzy_activity_signups 流式读取在第 2 行抛错）",
+          "mode": "incomplete-batch",
+          "expectCheck": "row_conservation",
+          "expectStop": "(run-level)",
+          "reconcileStatus": "PASS",
+          "checkStatus": "PASS",
+          "alsoCheckStatus": null,
+          "reconcileStop": "PROCEED",
+          "runnerErrors": 1,
+          "openErrorIssues": 1,
+          "evidenceRecorded": true,
+          "batchIncomplete": {
+            "sourceRows": 2,
+            "migrated": 0,
+            "incomplete": true
+          },
+          "runLevelStopTriggered": true,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-1",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        },
+        {
+          "id": "FI-2",
+          "label": "relationship / orphan 错误（删除目标 activities 行）",
+          "mode": "reconcile-fail",
+          "expectCheck": "relationship_integrity",
+          "expectStop": "SC-03",
+          "reconcileStatus": "FAIL",
+          "checkStatus": "FAIL",
+          "alsoCheckStatus": null,
+          "reconcileStop": "STOP",
+          "runnerErrors": 0,
+          "openErrorIssues": 0,
+          "evidenceRecorded": true,
+          "batchIncomplete": null,
+          "runLevelStopTriggered": false,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [
+            {
+              "id": "SC-03",
+              "label": "orphan relation",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-04",
+              "label": "missing legacy mapping",
+              "severity": "CRITICAL"
+            }
+          ],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-2",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        },
+        {
+          "id": "FI-3",
+          "label": "row conservation mismatch（迁移后新增源行）",
+          "mode": "reconcile-fail",
+          "expectCheck": "row_conservation",
+          "expectStop": "SC-01",
+          "reconcileStatus": "FAIL",
+          "checkStatus": "FAIL",
+          "alsoCheckStatus": null,
+          "reconcileStop": "STOP",
+          "runnerErrors": 0,
+          "openErrorIssues": 0,
+          "evidenceRecorded": true,
+          "batchIncomplete": null,
+          "runLevelStopTriggered": false,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [
+            {
+              "id": "SC-01",
+              "label": "row conservation FAIL",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-03",
+              "label": "orphan relation",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-04",
+              "label": "missing legacy mapping",
+              "severity": "CRITICAL"
+            }
+          ],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-3",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        },
+        {
+          "id": "FI-4",
+          "label": "duplicate identity（重复 legacy_id_maps target 映射）",
+          "mode": "reconcile-fail",
+          "expectCheck": "identity_integrity",
+          "expectStop": "SC-02",
+          "reconcileStatus": "FAIL",
+          "checkStatus": "FAIL",
+          "alsoCheckStatus": null,
+          "reconcileStop": "STOP",
+          "runnerErrors": 0,
+          "openErrorIssues": 0,
+          "evidenceRecorded": true,
+          "batchIncomplete": null,
+          "runLevelStopTriggered": false,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [
+            {
+              "id": "SC-01",
+              "label": "row conservation FAIL",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-02",
+              "label": "identity duplicate",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-03",
+              "label": "orphan relation",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-04",
+              "label": "missing legacy mapping",
+              "severity": "CRITICAL"
+            }
+          ],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-4",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        },
+        {
+          "id": "FI-5",
+          "label": "missing legacy mapping（移除一条 legacy_id_maps）",
+          "mode": "reconcile-fail",
+          "expectCheck": "row_conservation",
+          "expectStop": "SC-01",
+          "reconcileStatus": "FAIL",
+          "checkStatus": "FAIL",
+          "alsoCheckStatus": "FAIL",
+          "reconcileStop": "STOP",
+          "runnerErrors": 0,
+          "openErrorIssues": 0,
+          "evidenceRecorded": true,
+          "batchIncomplete": null,
+          "runLevelStopTriggered": false,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [
+            {
+              "id": "SC-01",
+              "label": "row conservation FAIL",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-03",
+              "label": "orphan relation",
+              "severity": "CRITICAL"
+            },
+            {
+              "id": "SC-04",
+              "label": "missing legacy mapping",
+              "severity": "CRITICAL"
+            }
+          ],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-5",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        },
+        {
+          "id": "FI-6",
+          "label": "points duplication（重复 points_ledger 行）",
+          "mode": "reconcile-fail",
+          "expectCheck": "points_growth",
+          "expectStop": "SC-05",
+          "reconcileStatus": "FAIL",
+          "checkStatus": "FAIL",
+          "alsoCheckStatus": null,
+          "reconcileStop": "STOP",
+          "runnerErrors": 0,
+          "openErrorIssues": 0,
+          "evidenceRecorded": true,
+          "batchIncomplete": null,
+          "runLevelStopTriggered": false,
+          "stopStatus": "STOP",
+          "nextBatchAllowed": false,
+          "stopCriticals": [
+            {
+              "id": "SC-05",
+              "label": "points/growth mismatch",
+              "severity": "CRITICAL"
+            }
+          ],
+          "status": "PASS",
+          "evidence": {
+            "schema": "p8-3-operator-evidence/v1",
+            "operator": "p8-3-rehearsal-harness",
+            "timestamp": "2026-09-18T16:15:33.730Z",
+            "batchId": "WP6-1789748133731",
+            "phase": "FAILURE_INJECTION:FI-6",
+            "result": "PASS",
+            "topology": [
+              "中国大陆用户 / 微信小程序 / 管理端",
+              "→ 国内备案域名",
+              "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+              "→ Cloudflare Worker",
+              "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+              "→ R2 / KV 等 Cloudflare 服务"
+            ],
+            "productionBoundary": {
+              "productionDataTouched": false,
+              "productionCutoverExecuted": false,
+              "outOfScope": [
+                "生产正式迁移",
+                "生产部署",
+                "正式切换（域名/小程序）",
+                "灰度放量"
+              ]
+            },
+            "userFavorites": {
+              "excluded": true,
+              "bcrPending": true,
+              "migrated": false
+            },
+            "extras": {}
+          }
+        }
+      ],
+      "summary": [
+        {
+          "id": "FI-1",
+          "reconcile": "PASS",
+          "check": "row_conservation=PASS",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "",
+          "verdict": "PASS"
+        },
+        {
+          "id": "FI-2",
+          "reconcile": "FAIL",
+          "check": "relationship_integrity=FAIL",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "SC-03,SC-04",
+          "verdict": "PASS"
+        },
+        {
+          "id": "FI-3",
+          "reconcile": "FAIL",
+          "check": "row_conservation=FAIL",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "SC-01,SC-03,SC-04",
+          "verdict": "PASS"
+        },
+        {
+          "id": "FI-4",
+          "reconcile": "FAIL",
+          "check": "identity_integrity=FAIL",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "SC-01,SC-02,SC-03,SC-04",
+          "verdict": "PASS"
+        },
+        {
+          "id": "FI-5",
+          "reconcile": "FAIL",
+          "check": "row_conservation=FAIL",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "SC-01,SC-03,SC-04",
+          "verdict": "PASS"
+        },
+        {
+          "id": "FI-6",
+          "reconcile": "FAIL",
+          "check": "points_growth=FAIL",
+          "stop": "STOP/nextBatchAllowed=false",
+          "criticals": "SC-05",
+          "verdict": "PASS"
+        }
+      ]
+    },
+    "batchRollback": {
+      "status": "PASS",
+      "batch": "B6",
+      "reconcileBefore": "PASS",
+      "preSnapshot": {
+        "tables": {
+          "roles": 1,
+          "permissions": 1,
+          "role_permissions": 1,
+          "users": 4,
+          "volunteer_profiles": 4,
+          "teams": 2,
+          "user_roles": 1,
+          "activities": 2,
+          "activity_signups": 2,
+          "attendance_sessions": 2,
+          "attendance_events": 2,
+          "service_records": 1,
+          "points_ledger": 1,
+          "badges": 1,
+          "courses": 1,
+          "course_enrollments": 1,
+          "learning_records": 1,
+          "exam_sessions": 1,
+          "certificates": 1,
+          "mall_products": 2,
+          "notifications": 1,
+          "files": 1,
+          "operation_logs": 1
+        },
+        "idmaps": 32,
+        "issues": 2,
+        "archive": 1
+      },
+      "rollbackResult": {
+        "class": "CLASS_1_BATCH",
+        "batch": "B6",
+        "sourceObjects": [
+          "api.jhzy_activity_time_slots",
+          "api.volunteer_activities",
+          "api.jhzy_activity_signups",
+          "api.jhzy_activity_signups_old_backup",
+          "api.jhzy_activity_signups_bak_20260309",
+          "api.participants",
+          "signup_db.participants"
+        ],
+        "rowsRemoved": 2,
+        "rowsRemovedByTable": {
+          "activity_signups": 2
+        },
+        "idmapsRemoved": 2,
+        "archiveRemoved": 0,
+        "checkpointHandling": {
+          "removed": 7,
+          "error": null
+        },
+        "issuesRetained": 3,
+        "issue": {
+          "batch": "B6",
+          "source_object": "batch:B6",
+          "source_id": null,
+          "issue_type": "rollback",
+          "severity": "info",
+          "reason": "CLASS_1_BATCH rollback：回滚批次 B6（7 个源对象）",
+          "resolution_status": "rolled_back",
+          "evidence": "{\"rowsRemoved\":2,\"rowsRemovedByTable\":{\"activity_signups\":2},\"idmapsRemoved\":2,\"archiveRemoved\":0,\"checkpointHandling\":{\"removed\":7,\"error\":null}}"
+        }
+      },
+      "recoveryVerification": {
+        "status": "PASS",
+        "errors": 0,
+        "warnings": 0,
+        "checks": {
+          "batch_target_rows_removed": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "note": "批次 B6 的目标行按 rowsRemovedByTable 精确删除",
+              "rowsRemovedByTable": {
+                "activity_signups": 2
+              },
+              "tablesVerified": 1
+            }
+          },
+          "legacy_id_maps_handled": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "batchRemoved": "all",
+              "otherBatchesRetained": 30,
+              "expectedOthers": 30
+            }
+          },
+          "migration_issues_retained": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "before": 2,
+              "after": 3,
+              "rollbackRecords": 1
+            }
+          },
+          "checkpoint_rolled_back": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "doneTables": 123,
+              "batchSrcKeys": 7,
+              "leaked": 0
+            }
+          },
+          "source_untouched": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "compared": 27
+            }
+          },
+          "user_favorites_excluded": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "favMaps": 0,
+              "favExcluded": 1,
+              "bcrPending": true
+            }
+          },
+          "batch_archive_cleared": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "leftover": 0
+            }
+          }
+        }
+      },
+      "rerunBatch": {
+        "inserted": 2,
+        "tablesProcessed": 7
+      },
+      "reconcileAfterRerun": "PASS",
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "BATCH_ROLLBACK:B6",
+        "result": "PASS",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    },
+    "fullRollback": {
+      "status": "PASS",
+      "reconcileBefore": "PASS",
+      "rollbackResult": {
+        "class": "CLASS_2_FULL_TEST",
+        "rowsCleared": 35,
+        "idmapsCleared": 32,
+        "archiveCleared": 1,
+        "checkpointReset": {
+          "reset": true,
+          "error": null,
+          "skipped": false
+        },
+        "issuesRetained": 3,
+        "after": {
+          "tables": {
+            "roles": 0,
+            "permissions": 0,
+            "role_permissions": 0,
+            "users": 0,
+            "volunteer_profiles": 0,
+            "teams": 0,
+            "user_roles": 0,
+            "activities": 0,
+            "activity_signups": 0,
+            "attendance_sessions": 0,
+            "attendance_events": 0,
+            "service_records": 0,
+            "points_ledger": 0,
+            "badges": 0,
+            "courses": 0,
+            "course_enrollments": 0,
+            "learning_records": 0,
+            "exam_sessions": 0,
+            "certificates": 0,
+            "mall_products": 0,
+            "notifications": 0,
+            "files": 0,
+            "operation_logs": 0
+          },
+          "idmaps": 0,
+          "issues": 3,
+          "archive": 0
+        }
+      },
+      "recoveryVerification": {
+        "status": "PASS",
+        "errors": 0,
+        "warnings": 0,
+        "checks": {
+          "target_state_restored": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "nonEmptyTables": [],
+              "note": "全部业务表行为 0"
+            }
+          },
+          "source_untouched": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "compared": 27
+            }
+          },
+          "no_orphan_migration_rows": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "legacy_id_maps": 0,
+              "migration_archive": 0
+            }
+          },
+          "no_stale_checkpoints": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "doneTables": 0
+            }
+          },
+          "no_invalid_legacy_id_maps": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "total": 0,
+              "invalid": 0
+            }
+          },
+          "no_unintended_user_favorites_migration": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "favMaps": 0,
+              "favMigratedIssue": 0,
+              "favExcluded": 1,
+              "bcrPending": true
+            }
+          },
+          "reconciliation_state_valid": {
+            "status": "PASS",
+            "errors": 0,
+            "warnings": 0,
+            "detail": {
+              "reconcileStatus": "FAIL",
+              "migrated": 0,
+              "archived": 0,
+              "note": "回滚态下 reconcile 报告 migrated=0，状态自洽"
+            }
+          }
+        }
+      },
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "FULL_ROLLBACK",
+        "result": "PASS",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    },
+    "secondCleanRun": {
+      "status": "PASS",
+      "method": "全新隔离目标 targetE + 新 checkpoint（targetD 已由 SECTION 7 的 verifyRecovery 证明回到迁移前基线）；同 ledger 二次迁移路径因 DEFECT-WP6-01 暂不可用，已登记待授权。",
+      "stats": {
+        "inserted": 35,
+        "archived": 1,
+        "dropped": 1,
+        "skippedIdempotent": 0,
+        "errors": 0,
+        "issues": 2,
+        "tablesProcessed": 130
+      },
+      "summary": {
+        "totalSourceRowsIncludingExcluded": 35,
+        "totalSourceRowsSubjectToMigration": 34,
+        "perSourceKindRowCounts": {
+          "EXCLUDED": 1,
+          "MIGRATE": 25,
+          "MERGE": 7,
+          "DROP": 1,
+          "ARCHIVE": 1
+        },
+        "migrated": 32,
+        "transformed": 0,
+        "merged": 7,
+        "migratedDirect": 25,
+        "archived": 1,
+        "dropped": 1,
+        "excluded": 1,
+        "failed": 0,
+        "skippedIdempotent": 0,
+        "targetRowsInserted": 35,
+        "legacyIdMapsCount": 32,
+        "migrationIssuesCount": 2,
+        "migrationIssuesByType": {
+          "excluded": 1,
+          "dropped": 1
+        },
+        "checkpointState": {
+          "doneTables": 130,
+          "lastBatch": "B18"
+        }
+      },
+      "comparedToFirstRun": {
+        "migrated": {
+          "first": 32,
+          "second": 32
+        },
+        "archived": {
+          "first": 1,
+          "second": 1
+        },
+        "dropped": {
+          "first": 1,
+          "second": 1
+        },
+        "identical": true
+      },
+      "reconciliation": {
+        "status": "PASS",
+        "errors": 0,
+        "warnings": 0
+      },
+      "stopDecision": {
+        "status": "PROCEED",
+        "nextBatchAllowed": true
+      },
+      "finalCheckpointState": {
+        "doneTables": [
+          "api.roles",
+          "api.permissions",
+          "api.role_permissions",
+          "api.users",
+          "api.user_stats",
+          "api.user_subscribe_settings",
+          "api.users_old_20260214",
+          "api.jhzy_users_old_20260214",
+          "signup_db.users",
+          "api.admins",
+          "api.admins_old_20260214",
+          "api.jhzy_admins_old_20260214",
+          "api.volunteers",
+          "api.volunteers_old_20260214",
+          "api.jhzy_volunteers_old_20260214",
+          "api.user_tokens",
+          "api.admin_tokens",
+          "api.teams",
+          "api.volunteer_groups",
+          "api.volunteer_group_members",
+          "api.user_teams",
+          "api.volunteers_temp",
+          "api.user_roles",
+          "api.activities",
+          "api.activity_categories",
+          "api.jhzy_activities",
+          "api.jhzy_activities_backup_prelaunch",
+          "api.jhzy_activities_temp",
+          "api.jhzy_new_activities_deleted",
+          "api.activity_records",
+          "api.jhzy_activity_recurrence",
+          "api.jhzy_activity_positions",
+          "api.jhzy_activity_locations",
+          "api.events",
+          "signup_db.events",
+          "api.service_areas",
+          "api.jhzy_service_areas",
+          "api.address_coordinates",
+          "api.geocode_logs",
+          "api.jhzy_activity_time_slots",
+          "api.volunteer_activities",
+          "api.jhzy_activity_signups",
+          "api.jhzy_activity_signups_old_backup",
+          "api.jhzy_activity_signups_bak_20260309",
+          "api.participants",
+          "signup_db.participants",
+          "api.activity_signins",
+          "api.jhzy_activity_signin",
+          "api.jhzy_activity_checkins",
+          "api.jhzy_activity_checkins_enhanced",
+          "api.jhzy_checkins_v2",
+          "api.jhzy_attendance_records",
+          "api.jhzy_attendance_records_backup_20260514",
+          "api.jhzy_checkin_codes",
+          "api.jhzy_checkin_history",
+          "api.jhzy_geo_monitor_logs",
+          "api.jhzy_geofence_logs",
+          "api.jhzy_device_logs",
+          "api.jhzy_casual_daily_limit",
+          "api.jhzy_casual_records",
+          "api.jhzy_quick_service_records_deprecated",
+          "api.jhzy_serving_progress",
+          "api.jhzy_activity_stats_cache",
+          "api.quick_actions",
+          "api.jhzy_quick_actions",
+          "api.points_transactions",
+          "api.points_exchange_records",
+          "api.jhzy_level_records",
+          "api.jhzy_reward_penalty_records",
+          "api.jhzy_role_coefficients",
+          "api.jhzy_condition_coefficients",
+          "api.achievements",
+          "api.training_courses",
+          "api.training_chapters",
+          "api.training_user_course_status",
+          "api.training_user_progress",
+          "api.training_signatures",
+          "api.training_whitelist",
+          "api.user_trainings",
+          "api.exam_questions",
+          "api.exam_questions_backup_20260604",
+          "api.exam_records",
+          "api.exam_sessions",
+          "api.exam_config",
+          "api.question_bank",
+          "api.activity_service_certificates",
+          "api.certificates",
+          "api.certificate_templates",
+          "api.certificate_types",
+          "api.certificate_master",
+          "api.unified_certificates",
+          "api.exam_certificates",
+          "api.exam_certificates_new",
+          "api.user_certificates",
+          "api.certificate_applications",
+          "api.certificate_applications_backup_20260207",
+          "api.certificates_preview",
+          "api.certificate_id_usage_log",
+          "api.id_pool",
+          "api.id_pool_old_20260214",
+          "api.id_assignments_old_20260214",
+          "api.jhzy_welfare_options",
+          "api.welfare_options",
+          "api.points_mall",
+          "api.mall_products",
+          "api.exchange_products",
+          "api.exchange_orders",
+          "api.exchange_records",
+          "api.exchange_verifications",
+          "api.notifications",
+          "api.jhzy_notifications",
+          "api.notification_master",
+          "api.notification_details",
+          "api.carousel_images",
+          "api.jhzy_feedback",
+          "api.user_avatars",
+          "api.jhzy_activity_images",
+          "api.file_uploads",
+          "api.qr_codes",
+          "api.qr_types",
+          "api.qr_usage_logs",
+          "api.jhzy_deleted_users",
+          "api.password_change_logs",
+          "api.jhzy_activity_cancel_logs",
+          "api.system_config",
+          "api.jhzy_abnormal_logs",
+          "api.jhzy_location_monitor",
+          "api.jhzy_integration_rules",
+          "api.volunteer_approvals",
+          "api.volunteer_deleted_logs"
+        ],
+        "lastBatch": "B18"
+      },
+      "evidence": {
+        "schema": "p8-3-operator-evidence/v1",
+        "operator": "p8-3-rehearsal-harness",
+        "timestamp": "2026-09-18T16:15:33.730Z",
+        "batchId": "WP6-1789748133731",
+        "phase": "SECOND_CLEAN_RUN",
+        "result": "PASS",
+        "topology": [
+          "中国大陆用户 / 微信小程序 / 管理端",
+          "→ 国内备案域名",
+          "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+          "→ Cloudflare Worker",
+          "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+          "→ R2 / KV 等 Cloudflare 服务"
+        ],
+        "productionBoundary": {
+          "productionDataTouched": false,
+          "productionCutoverExecuted": false,
+          "outOfScope": [
+            "生产正式迁移",
+            "生产部署",
+            "正式切换（域名/小程序）",
+            "灰度放量"
+          ]
+        },
+        "userFavorites": {
+          "excluded": true,
+          "bcrPending": true,
+          "migrated": false
+        },
+        "extras": {}
+      }
+    }
+  },
+  "sourceHash": "53bc525607ffc8d196ac84885f71039e6213b72d3572096d9f4c446b54a9a956",
+  "sourceSnapshot": {
+    "hash": "53bc525607ffc8d196ac84885f71039e6213b72d3572096d9f4c446b54a9a956",
+    "algorithm": "sha256",
+    "tableCount": 27
+  },
+  "baselineSourceCounts": {
+    "api.user_favorites": 1,
+    "api.users": 3,
+    "signup_db.users": 1,
+    "api.teams": 2,
+    "api.volunteers": 3,
+    "api.activities": 2,
+    "api.jhzy_activity_signups": 2,
+    "api.jhzy_activity_checkins": 2,
+    "api.jhzy_casual_records": 1,
+    "api.welfare_options": 1,
+    "api.achievements": 1,
+    "api.training_courses": 1,
+    "api.training_user_course_status": 1,
+    "api.training_user_progress": 1,
+    "api.exam_sessions": 1,
+    "api.certificates": 1,
+    "api.points_transactions": 1,
+    "api.mall_products": 1,
+    "api.notifications": 1,
+    "api.file_uploads": 1,
+    "api.qr_codes": 1,
+    "api.roles": 1,
+    "api.permissions": 1,
+    "api.role_permissions": 1,
+    "api.user_roles": 1,
+    "api.quick_actions": 1,
+    "api.volunteer_approvals": 1
+  },
+  "defects": [
+    {
+      "id": "DEFECT-WP6-01",
+      "severity": "HIGH",
+      "title": "migration_issues 缺少 run 维度隔离，同一目标 ledger 二次迁移导致对账守恒失衡",
+      "detail": "WP5 冻结规则要求 migration_issues 永不删除（审计证据）。完整回滚后在同一 target 上重新迁移时，runner 会再次写入 per-row dropped 与 per-run excluded issue，reconcile 以全量 issues 计数，于是 dropped 翻倍（1→2）、excluded 翻倍，row_conservation 的守恒公式被打破（29 ≠ 27+1+2）。",
+      "impact": "rollbackFull → 同目标二次迁移这条路径当前不可用；需 run/批次维度隔离后才能在同一 ledger 上重跑。",
+      "proposedFix": "PROPOSED（未实施）：为 migration_issues 增加 run_id（或 migration_run uid），reconcile 按当前 run 过滤计数；issues 仍全量保留作为审计证据。",
+      "status": "REPORTED_NOT_FIXED",
+      "awaitingAuthorization": true
+    },
+    {
+      "id": "DEFECT-WP6-02",
+      "severity": "HIGH",
+      "title": "STOP 条件未覆盖「未决迁移错误 / 不完整批次」，批处理失败后仍可能继续下一批",
+      "detail": "FI-1 注入批次中途失败：runner 正确记下 conflict(severity=error, resolution_status=open) issue，且 row_conservation 因含 failed 项而保持「记账平衡」（这是正确的记账，不是漏检）。但 WP5 冻结的 SC-01…SC-14 没有任何一条检查 runner errors 或 open error issue，evaluateStopConditions 返回 PROCEED / nextBatchAllowed=true —— 运行可带着半成品批次继续。",
+      "impact": "真正的切换场景下，一次批处理失败不会自动 STOP，违反 WP5 §D「任何 Critical：立即 STOP，不得继续下一 Batch」。",
+      "workaround": "WP6 演练层以 runLevelStop（stats.errors>0 或存在 open error issue）补充判定，未修改 runbook.js。",
+      "proposedFix": "PROPOSED（未实施）：在 runbook.js 增列 SC-15「unresolved migration error / incomplete batch」（CRITICAL），detect 依据 runner stats.errors 与 migration_issues severity=error && resolution_status=open。",
+      "status": "REPORTED_NOT_FIXED",
+      "awaitingAuthorization": true
+    }
+  ],
+  "finalGate": {
+    "rehearsalEnvironmentIsolated": "YES",
+    "productionCredentialsAbsent": "YES",
+    "fullB0B20MigrationCompleted": "YES",
+    "cleanReconciliation": "PASS",
+    "resumePersistence": "PASS",
+    "idempotency": "PASS",
+    "failureInjection": "PASS",
+    "stopConditionsTriggeredCorrectly": "YES",
+    "batchRollback": "PASS",
+    "batchRecoveryVerification": "PASS",
+    "fullRollback": "PASS",
+    "fullRecoveryVerification": "PASS",
+    "secondCleanMigration": "PASS",
+    "userFavoritesExclusionPreserved": "YES",
+    "evidencePackageComplete": "YES",
+    "freezeConflictCount": 0,
+    "productionDataTouched": "NO",
+    "productionDeploymentPerformed": "NO",
+    "wp6Gate": "PASS",
+    "readyForCloseout": "YES"
+  },
+  "status": "PASS",
+  "note": "即使 WP6 PASS，也不得自行进入生产迁移 / 部署 / 灰度 / 正式切换。P8-3 完成后只允许进入 P8-3 Closeout；任何未来生产切换阶段必须重新经过独立 Definition Gate 和用户显式授权。"
+}

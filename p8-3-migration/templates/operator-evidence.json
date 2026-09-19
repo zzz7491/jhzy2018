@@ -1,0 +1,64 @@
+{
+  "schema": "p8-3-operator-evidence/v1",
+  "operator": "<操作者姓名或工号>",
+  "timestamp": "<ISO8601 或 epoch ms>",
+  "batchId": "<B0..B20 或 ALL>",
+  "phase": "<PRE-FLIGHT|MIGRATE|RECONCILE|DECISION|ROLLBACK/CONTINUE|EVIDENCE|CLOSEOUT>",
+  "result": "<PASS|FAIL|STOP|PROCEED|ROLLED_BACK>",
+  "environment": "test",
+  "versions": {
+    "migration": "<pinned migration scripts version>",
+    "reconciliation": "<pinned reconciliation version>"
+  },
+  "preflight": {
+    "status": "<PASS|FAIL>",
+    "decision": "<PROCEED|STOP>"
+  },
+  "reconcile": {
+    "status": "<PASS|FAIL>",
+    "errors": 0,
+    "warnings": 0
+  },
+  "stopConditions": {
+    "status": "<PROCEED|STOP>",
+    "criticals": [],
+    "warnings": []
+  },
+  "rollback": {
+    "class": "<CLASS_1_BATCH|CLASS_2_FULL_TEST|CLASS_3_FUTURE_PRODUCTION|NONE>",
+    "executed": false,
+    "batch": null,
+    "rowsRemoved": 0,
+    "idmapsRemoved": 0,
+    "archiveRemoved": 0,
+    "issuesRetained": 0
+  },
+  "recovery": {
+    "status": "<PASS|FAIL|SKIPPED>",
+    "checks": {}
+  },
+  "topology": [
+    "中国大陆用户 / 微信小程序 / 管理端",
+    "→ 国内备案域名",
+    "→ 腾讯云国内服务器（国内接入 / 网关 / 反向代理）",
+    "→ Cloudflare Worker",
+    "→ Cloudflare D1（2.0 唯一权威业务数据库）",
+    "→ R2 / KV 等 Cloudflare 服务"
+  ],
+  "productionBoundary": {
+    "productionDataTouched": false,
+    "productionCutoverExecuted": false,
+    "outOfScope": [
+      "生产正式迁移",
+      "生产部署",
+      "正式切换（域名/小程序）",
+      "灰度放量"
+    ]
+  },
+  "userFavorites": {
+    "excluded": true,
+    "bcrPending": true,
+    "migrated": false
+  },
+  "extras": {}
+}
