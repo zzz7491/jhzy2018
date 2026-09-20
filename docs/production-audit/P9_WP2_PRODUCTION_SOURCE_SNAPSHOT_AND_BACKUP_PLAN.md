@@ -53,7 +53,7 @@
 | binary / media | `uploads` / `avatars` / `certificates` 为文件目录，DB 仅存路径引用 | WP1 §2.3 |
 | backup 机制 | `mysqldump 5.7.44`；aaPanel `/www/backup/database` + 每日 NAS cron（`backup_to_nas.sh` / `backup_db_to_nas.sh` / `daily_backup.sh` 02:00） | WP1 §2.3 / §4.1 |
 | **binlog** | **`log_bin = OFF`** → 无法 binlog 增量捕获 | WP1 §2.3 / §6 |
-| D1 目标 | `jhzy-v2-db`（uuid `ea603f43-d076-4df5-b118-3d8a0c245439`），**num_tables = 0**（空库） | WP1 §2.2 |
+| D1 目标 | `jhzy-v2-db`（uuid `ea603f43-d076-4df5-b118-3d8a0c245439`）。⚠️ **G-08 修正（2026-09-20 实测）**：`wrangler d1 list` 曾显示 `num_tables=0`，但引擎实际 **86 表 frozen V2 schema + RBAC seed**（permissions=104 / roles=6 / role_permissions=295），业务表为空 = clean target（**非 schema 空库**）；`num_tables=0` 为滞后元数据，不作 D1 状态证据（详见 §4.2） | WP1 §2.2（修正见 G-08） |
 | Worker | `jhzy-v2-api`，Version `b10791f8-b8ad-4a6e-963b-c40194af9a12`，binding `DB`→`jhzy-v2-db`，仅 `workers.dev` 可达，无生产 route | WP1A §8 |
 
 ---
@@ -155,12 +155,18 @@ p9-wp2-snapshot-<run_id>-*.sha256                       # 各文件哈希清单
 
 ### 4.2 D1 Pre-Migration Backup（D1 迁移前备份）
 
+> ⚠️ **G-08 修正（2026-09-20 实测）**：原「D1 `num_tables=0` 空库」假设**已过时**。`wrangler d1 list` 显示的 `num_tables=0` 为**滞后元数据字段**，引擎实际状态为 **86 表 frozen V2 design schema + RBAC seed**（实测 2026-09-20）。以下方案据此修正。
+
 | 项 | 方案 |
 |---|---|
-| 当前 D1 `jhzy-v2-db` 状态 | **num_tables = 0（空库）**；迁移前「备份」= 记录空态证据 |
-| D1 schema/data export plan | 官方 `wrangler d1 export`（`.dump` / `.sql`）导出当前状态；空库导出即最小产物，验证导出路径可用（G-04 / U-11） |
-| D1 restore / rebuild plan | `wrangler d1 execute --remote <export.sql>` 重建；或经 `wrangler d1 migrations` 重建（schema 已冻结于 `D1-*`） |
-| 空库状态如何记录 | evidence 记录 `num_tables=0`、表清单空、`export.sql` 哈希、D1 uuid |
+| 当前 D1 `jhzy-v2-db` 状态 | **86 表 frozen V2 schema + RBAC seed**；业务表为空（clean target，但**非 schema 空库**）。迁移前「备份」= 导出该 schema+seed 状态，而非记录空态 |
+| `d1_migrations` 状态 | `d1_migrations` 表存在；`0001_initial_schema.sql`…`0005_attendance_time_policy.sql` 等已 applied（applied_at `2026-09-18`）→ schema 已冻结 |
+| RBAC seed（已载入） | `permissions`=104 / `roles`=6 / `role_permissions`=295（来自 `0003_seed_permissions.sql`） |
+| D1 schema/data export plan | 官方 `wrangler d1 export`（`.dump` / `.sql`）导出当前 **86 表 schema+seed** 状态；验证导出路径可用（G-04 / U-11） |
+| D1 restore / rebuild plan | **WP4 不得重建 schema、不得覆盖 seed**：恢复/重建须基于已导出的 schema+seed 状态 `wrangler d1 execute --remote <export.sql>`，或经 `wrangler d1 migrations` 对齐（schema 已冻结于 `D1-*`）；业务数据另由 WP4 迁移填充 |
+| 状态如何记录 | evidence 记录 `sqlite_master` `count(*)`=86、表清单、`d1_migrations` 版本、`permissions`/`roles`/`role_permissions` seed 行数、`export.sql` 哈希、D1 uuid；**不以 `wrangler d1 list` `num_tables` 为准** |
+| 后续 D1 状态核查 | 一律以 `sqlite_master` `count(*)` 与关键表（如 `permissions`/`roles`/`role_permissions`/`activities`）row count 为准，不采信 `wrangler d1 list` `num_tables`（滞后，G-09） |
+| WP4 迁移约束 | **preserve schema + seed，仅迁移业务数据**；不得 `DROP`/`CREATE` 表、不得重跑 `0003_seed_permissions.sql`、不得清空 seed |
 | Worker / D1 binding 状态 | 记录 binding `DB`→`jhzy-v2-db`（uuid `ea603f43-…`）、Worker version `b10791f8…` |
 
 ### 4.3 Worker Config Backup（Worker 配置备份）
@@ -237,7 +243,7 @@ p9-wp2-snapshot-<run_id>-*.sha256                       # 各文件哈希清单
 | 16 | `backup_file_hashes` | 各备份文件 sha256 |
 | 17 | `offhost_copy_status` | NAS / 异地副本状态（OK / PENDING / FAIL） |
 | 18 | `D1_database_id` | `ea603f43-d076-4df5-b118-3d8a0c245439` |
-| 19 | `D1_pre_state_hash` | 迁移前 D1 导出哈希（空库态） |
+| 19 | `D1_pre_state_hash` | 迁移前 D1 导出哈希（**86 表 schema+seed 状态**，非空库；以 `sqlite_master` count 为准） |
 | 20 | `Worker_version` | `b10791f8-b8ad-4a6e-963b-c40194af9a12` |
 | 21 | `maintenance_window_id` | 维护窗标识 |
 | 22 | `write_freeze_status` | FROZEN / VERIFIED / ABORTED |
@@ -271,6 +277,7 @@ p9-wp2-snapshot-<run_id>-*.sha256                       # 各文件哈希清单
 | U-07 | 具名操作人 | 6 角色仅 ROLE 占位 | WP1 §8 | UNKNOWN | WP2+ | 指派具名人员 | Cutover Approver |
 | W2-01 | 媒体依赖捕获 | 文件目录 tar+hash 方案已定义，未实测打包 | 本计划 §3.12 | UNKNOWN | WP2 执行 | WP2 执行轮打包 media 并校验 | Migration Operator |
 | W2-02 | 冻结写入验证 | 比对 UPDATE_TIME/行数方法已定义，未实测 | 本计划 §6 | UNKNOWN | WP2 执行 | WP2 执行轮实测冻结校验 | Migration Operator |
+| **G-08** | **D1 空库假设过时** | **WP2 §4.2 原「D1 num_tables=0 空库」与实测 86 表 frozen schema+seed 不符**（`wrangler d1 list` num_tables 滞后）；D1 业务表为空=clean target | WP3 §5 / `d1_migrations` | **MEDIUM** | WP4 执行 | 修正 WP2 §4.2：D1 迁移前备份改导 86 表 schema+seed；WP4 须 preserve schema+seed，仅迁业务数据 | Migration Operator |
 
 > 注：B-01 已 CLOSED（P9 WP1A），本计划阶段**无 BLOCKER**。上述缺口均为 PARTIAL / UNKNOWN（执行轮收口，不阻断本计划定义完成）。user_favorites 维持 EXCLUDED / BCR pending（P8-3 §7 / P9 Definition §5）。
 
@@ -287,7 +294,7 @@ p9-wp2-snapshot-<run_id>-*.sha256                       # 各文件哈希清单
 | Restore plan defined | **YES**（§5：源 MySQL / D1 / Worker 回滚 / 验证 / 授权 / 测试环境 dry-run） |
 | Drift control plan defined | **YES**（§6：活跃域 / 冻结 / 无新写校验 / 中止 / 双写禁止） |
 | Evidence schema defined | **YES**（§7：31 字段） |
-| Gap Register complete | **YES**（12 项：0 BLOCKER + 5 PARTIAL + 6 UNKNOWN + 1 LOW 等） |
+| Gap Register complete | **YES**（13 项：0 BLOCKER + 5 PARTIAL + 1 MEDIUM(G-08) + 6 UNKNOWN + 1 LOW 等） |
 | Maintenance window required | **YES**（MG-12 / P9 Definition §7.3） |
 | Dual-write prohibited | **YES**（P9 Definition §7.7；默认禁止，dual-write=Architecture Change） |
 | BLOCKER count | **0** |
