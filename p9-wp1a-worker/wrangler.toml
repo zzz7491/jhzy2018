@@ -1,0 +1,14 @@
+name = "jhzy-v2-api"
+main = "src/index.js"
+compatibility_date = "2025-09-19"
+account_id = "8770e4917f904aed5df91c883cf058af"
+workers_dev = true
+
+# P9 WP1A — Minimal Worker for B-01 closure only.
+# Scope: health / version / D1 smoke check. NO business API, NO migration, NO production write.
+# No `route`/`routes` block => no production custom-domain binding (workers.dev only).
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jhzy-v2-db"
+database_id = "ea603f43-d076-4df5-b118-3d8a0c245439"
