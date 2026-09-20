@@ -16,7 +16,7 @@
 | 最新远端 commit | `12c89b4`（HEAD == origin/master） |
 | B-01 | CLOSED |
 | G-08 | CLOSED（WP3+G08 已修正 WP2 §4.2 D1 假设） |
-| G-10 | **OPEN**（本轮定义关闭方案；实际 GRANT/CREATE USER 留 WP4-A 执行） |
+| G-10 | **CLOSED**（WP4-A 已执行：账号 `jhzy_mig_ro@127.0.0.1` 仅 `SELECT` 两源库；证据见 `P9_WP4A_G10_READONLY_ACCOUNT_CLOSURE.md`） |
 | Ready for P9 WP4 | CONDITIONAL YES（WP3 前置：① G-08 已提交 ✅ ② G-10 关闭方案已定义、作为 WP4-A 首个执行项 ③ 无独立授权不启动生产迁移） |
 
 **结论**：P9 前置链完整，进入 WP4 执行定义阶段；本门仅定义，不执行。
@@ -139,7 +139,7 @@ DROP USER 'jhzy_mig_ro'@'127.0.0.1';
 - 账号创建时间 + 操作人 + run_id；
 - 密码未落盘证明（secret store 引用，无明文）。
 
-> **本轮不执行 GRANT / CREATE USER**。G-10 关闭方案已定义，实际账号创建属 WP4-A 首个执行项，执行后即标记 G-10 = CLOSED。
+> **G-10 已由 WP4-A 执行关闭**：账号 `jhzy_mig_ro@127.0.0.1` 已创建，仅 `SELECT` 于 `api_jhzyfw_com` + `signup_db`（无 `*.*` / 写 / GRANT OPTION）；正向 SELECT PASS、负向写操作全拒（1142/1045）。证据见 `P9_WP4A_G10_READONLY_ACCOUNT_CLOSURE.md`。
 
 ---
 
@@ -411,7 +411,7 @@ SC-01 row conservation FAIL / SC-02 identity duplicate / SC-03 orphan relation /
 | G-06 | 混合 collation | 源 `system_config`=`utf8_general_ci` + 15 表 `utf8mb4_unicode_ci` | WP3 §2 | LOW | WP4-E | 源侧不强制改；目标按 D1 设计收敛 | Migration Operator |
 | G-07 | 备份表冗余 | `*_old_*`/`*_backup_*` 历史表（含 `id_pool_old_20260214` 155,461 行） | WP3 §2 | LOW | WP4-E | 按 P8-3 WP2 裁定 DROP/ARCHIVE（快照保留，不丢） | Migration Operator |
 | G-09 | D1 num_tables 元数据滞后 | `wrangler d1 list` num_tables=0 但引擎 86 表（监控陷阱） | WP3 §5 | LOW | WP4+ | 后续 D1 状态核查以 `sqlite_master` count(*) 为准 | Migration Operator |
-| **G-10** | 只读账号权限缺口 | `jhzy20_readonly` 不含权威源库；关闭方案已定义（§4），执行留 WP4-A | WP3 §2 / 本门 §4 | MEDIUM | **WP4-A** | WP4-A 执行 CREATE USER + GRANT SELECT（两源库），验证后标记 CLOSED | Infra Operator / Migration Operator |
+| **G-10** | 只读账号权限缺口 | `jhzy20_readonly` 不含权威源库；**WP4-A 已执行关闭**：`jhzy_mig_ro@127.0.0.1` 仅 `SELECT` 两源库，验证 PASS | WP3 §2 / 本门 §4 / `P9_WP4A_G10_READONLY_ACCOUNT_CLOSURE.md` | **CLOSED** | — | 已关闭（证据见 WP4-A 文档） | Infra Operator / Migration Operator |
 | W4-01 | D1Target 生产写适配器 | P8-3 演练用 MemoryTarget；生产 D1 写路径（Cloudflare 生产 token）未验证 | P8-3 WP6 §1 / 本门 §8.1 | UNKNOWN | WP4-B/E | WP4 执行轮以最小写验证 D1 写入（如先写 1 行测试表后 rollback） | Migration Operator |
 | W4-02 | B0 seed skip 模式 | 生产 D1 已 seed，WP4 须 SKIP B0 避免重复插入 | 本门 §8.1/§8.2 | PARTIAL | WP4-E | 工具链确认 B0 在 production-mode 跳过 seed 插入，仅留 user_favorites EXCLUDED | Migration Operator |
 | W4-03 | 生产 D1 新 checkpoint | 生产 D1 为新目标，checkpoint `doneTables` 须起始空 | 本门 §8.1 | PARTIAL | WP4-E | 执行轮确认 checkpoint 重置/隔离，不跳过批次 | Migration Operator |
@@ -449,7 +449,7 @@ SC-01 row conservation FAIL / SC-02 identity duplicate / SC-03 orphan relation /
 | Rollback/abort procedure defined | **YES**（§10：RB-1…9 / CLASS_1-3 / 源保持权威 / D1 不触碰源 / 留证据 / Cutover 不在 WP4） |
 | Evidence package defined | **YES**（§11：10 类证据 / operator-evidence/v1 扩展 / 禁只靠聊天） |
 | Gap Register complete | **YES**（§12：0 BLOCKER + G-10 OPEN(plan) + 多 PARTIAL/UNKNOWN） |
-| G-10 still open | **YES**（方案已定义；实际 GRANT/CREATE USER 留 WP4-A 执行，执行后标记 CLOSED） |
+| G-10 still open | **NO**（WP4-A 已执行关闭：账号 `jhzy_mig_ro@127.0.0.1` 仅 `SELECT` 两源库，验证 PASS；证据见 `P9_WP4A_G10_READONLY_ACCOUNT_CLOSURE.md`） |
 | BLOCKER count | **0** |
 | UNKNOWN count | **14**（W4-01 / W4-04 / U-02 / U-04 / U-05 / U-06 / U-07 / U-08 / U-09 / U-10 / U-11 / U-12 / W2-01 / W2-02） |
 | Freeze Conflict Count | **0**（与 Constitution / Architecture Freeze / Data Governance Freeze 无冲突） |
@@ -466,7 +466,7 @@ SC-01 row conservation FAIL / SC-02 identity duplicate / SC-03 orphan relation /
 
 ### **P9 WP4 Definition Gate = PASS**
 
-### **Ready for P9 WP4-A = YES**（进入 WP4-A 仍须用户显式授权；WP4-A 首个动作 = G-10 只读账号关闭执行，执行后 G-10 = CLOSED）
+### **P9 WP4-A = EXECUTED（G-10 CLOSED）**（账号 `jhzy_mig_ro@127.0.0.1` 已创建并验证；证据见 `P9_WP4A_G10_READONLY_ACCOUNT_CLOSURE.md`；WP4-A 文档待授权后 Git Closeout）
 
 ---
 
